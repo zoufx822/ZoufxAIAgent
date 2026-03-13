@@ -32,7 +32,10 @@ export const ChatWindow = {
     name: 'ChatWindow',
     template: `
     <div class="container">
-        <div class="header"><h1>AI 对话</h1></div>
+        <div class="header">
+            <h1>AI 对话</h1>
+            <span style="display: none">.</span>
+        </div>
         <div class="chat-container" ref="chatEl" role="log" aria-label="聊天消息">
             <div v-for="(msg, i) in messages" :key="i" class="message" :class="msg.role">
 
