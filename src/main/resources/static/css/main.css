@@ -1,37 +1,37 @@
-/* 明亮现代简约主题 */
+/* 极简主义 - 黑白灰 + 紫罗兰点缀 */
 :root {
-    /* 背景层次 - 明亮色调 */
+    /* 背景层次 - 极简灰白 */
     --bg-primary: #ffffff;      /* 主背景 - 纯白 */
     --bg-secondary: #f8f9fa;    /* 侧边栏 - 浅灰 */
-    --bg-tertiary: #fafafa;     /* 聊天区域 - 极浅灰 */
-    --bg-surface: #ffffff;      /* 表面元素 - 白色 */
+    --bg-tertiary: #ffffff;     /* 聊天区域 - 纯白 */
+    --bg-surface: #ffffff;      /* 卡片/输入框 - 纯白 */
 
-    /* 文本颜色 - 深灰色系 */
-    --text-primary: #212529;    /* 主文本 - 深灰 */
-    --text-secondary: #6c757d;  /* 次要文本 - 中灰 */
-    --text-muted: #adb5bd;      /* 弱化文本 - 浅灰 */
+    /* 文本颜色 - 极简深灰 */
+    --text-primary: #1a1a1a;    /* 主文本 - 近黑 */
+    --text-secondary: #6b7280;  /* 次要文本 - 灰 */
+    --text-muted: #9ca3af;      /* 弱化文本 - 浅灰 */
 
-    /* 边框和分割线 - 柔和色调 */
-    --border-color: #e9ecef;    /* 主边框 - 浅灰 */
-    --border-light: #f1f3f5;    /* 浅边框 - 极浅灰 */
-    --border-accent: #dee2e6;   /* 强调边框 - 中浅灰 */
+    /* 边框 - 极简线条 */
+    --border-color: #e5e7eb;    /* 主边框 - 浅灰 */
+    --border-light: #f3f4f6;    /* 浅边框 - 极浅灰 */
+    --border-accent: #dddde2;    /* 强调边框 */
 
-    /* 主色调（优化现有紫色） */
-    --primary-color: #667eea;   /* 主色调 - 紫色 */
-    --primary-hover: #5a6fd8;   /* 悬停状态 - 稍深紫 */
-    --primary-active: #4f62c4;  /* 激活状态 - 更深紫 */
+    /* 主色调 - 蓝色 */
+    --primary-color: #3b82f6;   /* 主色调 - 蓝色 */
+    --primary-hover: #2563eb;   /* 悬停 - 深蓝 */
+    --primary-active: #1d4ed8;  /* 激活 - 更深 */
 
     /* 功能色调 */
-    --functional-blue: #4a90e2; /* 功能蓝 - 状态指示 */
-    --functional-gray: #868e96; /* 功能灰 - 中性元素 */
-    --warning-red: #e74c3c;     /* 警告红 - 停止按钮 */
-    --success-green: #28a745;   /* 成功绿 - 状态指示 */
+    --functional-blue: #60a5fa; /* 蓝色 - 状态指示 */
+    --functional-gray: #9ca3af; /* 功能灰 */
+    --warning-red: #ef4444;     /* 红色 - 停止按钮 */
+    --success-green: #22c55e;   /* 绿色 - 成功 */
 
-    /* 代码块变量（适应明亮主题） */
-    --code-bg: #f8f9fa;         /* 代码块背景 - 浅灰 */
-    --code-text: #212529;       /* 代码文本 - 深灰 */
-    --code-border: #dee2e6;     /* 代码边框 - 中浅灰 */
-    --code-accent: #667eea;     /* 代码强调色 - 紫色 */
+    /* 代码块 - 深色主题 */
+    --code-bg: #1e1e1e;         /* 代码块背景 - 深灰 */
+    --code-text: #d4d4d4;       /* 代码文本 - 浅灰 */
+    --code-border: #3c3c3c;     /* 代码边框 */
+    --code-accent: #9cdcfe;     /* 代码强调色 - 浅蓝 */
 }
 * {
     box-sizing: border-box;
@@ -246,7 +246,7 @@ body {
 
 /* AI 气泡（默认：渲染后的 HTML，不需要 pre-wrap） */
 .message-text {
-    background: var(--bg-surface);
+    background: #fafafa;
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     border-bottom-left-radius: 4px;
@@ -268,15 +268,21 @@ body {
 /* 确保Prism.js代码块不受.contains-code类影响 */
 .message-text.contains-code pre[class*="language-"],
 .message-text.contains-code code[class*="language-"] {
-    font-size: inherit; /* 继承Prism.js的字体大小设置 */
-    line-height: inherit; /* 继承Prism.js的行高设置 */
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
 }
 
-/* 流式光标 */
-.message-text.streaming::after {
+/* 流式光标（保留向后兼容，如果打字机没有启用） */
+.message-text.streaming:not(.has-typewriter-cursor)::after {
     content: '▌';
-    color: #667eea;
+    color: var(--primary-color);
     animation: blink 1s step-end infinite;
+    margin-left: 2px;
+    font-weight: bold;
+}
+
+/* 打字机激活时，隐藏原来的流式光标 */
+.message-text.streaming.has-typewriter-cursor::after {
+    display: none;
 }
 
 @keyframes blink {
@@ -304,6 +310,52 @@ body {
     transition: opacity 0.3s ease;
 }
 
+/* 打字机效果容器 */
+.typewriter-container {
+    /* 容器样式，确保正常显示 */
+    display: block;
+    width: 100%;
+    min-height: 1em; /* 保证有最小高度 */
+}
+
+/* 打字机光标闪烁优化 */
+@keyframes typewriter-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.typewriter-cursor {
+    display: inline-block;
+    animation: typewriter-blink 0.8s step-end infinite;
+    color: var(--primary-color);
+    font-weight: bold;
+    vertical-align: baseline;
+    line-height: inherit;
+}
+
+/* 打字机效果优化 */
+.message-text.has-typewriter-cursor {
+    /* 有光标时的特殊样式 */
+}
+
+/* 打字机文字逐字显示效果 */
+.typewriter-text-reveal {
+    display: inline-block;
+    overflow: hidden;
+    animation: typewriter-reveal 0.5s ease-out;
+}
+
+@keyframes typewriter-reveal {
+    from {
+        opacity: 0;
+        transform: translateY(2px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* ── 思考过程 ─────────────────────────────── */
 .message-thinking {
     background: var(--bg-secondary);
@@ -322,7 +374,7 @@ body {
 .thinking-label {
     font-weight: 600;
     font-style: normal;
-    color: var(--functional-blue);
+    color: var(--primary-color);
     margin-right: 8px;
 }
 
@@ -355,52 +407,63 @@ body {
 
 /* ── 输入区域 ─────────────────────────────── */
 .input-container {
-    padding: 16px;
-    background: var(--bg-surface);
+    padding: 16px 20px;
+    background: #ffffff;
     border-top: 1px solid var(--border-light);
     display: flex;
-    gap: 12px;
+    justify-content: center;
     flex-shrink: 0;
+}
+
+.input-container .input-wrapper {
+    width: 100%;
+    max-width: 800px;
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
 }
 
 .input-container input {
     flex: 1;
-    padding: 10px 14px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    font-size: 14px;
+    padding: 12px 16px;
+    border: 1px solid var(--border-light);
+    border-radius: 24px;
+    font-size: 15px;
     outline: none;
-    transition: border-color 0.3s;
+    transition: all 0.2s ease;
     background: var(--bg-surface);
     color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .input-container input:focus {
     border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
 }
 
 .input-container button {
-    padding: 10px 20px;
+    padding: 12px 24px;
     background: var(--primary-color);
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 24px;
     font-size: 14px;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s ease;
     font-weight: 500;
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.2);
 }
 
-.input-container button:hover  { background: var(--primary-hover); }
-.input-container button:disabled { background: var(--text-muted); cursor: not-allowed; }
+.input-container button:hover  { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 4px 10px rgba(59, 130, 246, 0.25); }
+.input-container button:disabled { background: var(--text-muted); cursor: not-allowed; transform: none; box-shadow: none; }
 
-.stop-btn       { background: var(--warning-red) !important; }
-.stop-btn:hover { background: #c0392b !important; }
+.stop-btn       { background: var(--warning-red) !important; box-shadow: 0 2px 6px rgba(239, 68, 68, 0.25) !important; }
+.stop-btn:hover { background: #dc2626 !important; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3) !important; }
 
 /* ── 代码块 ───────────────────────────────── */
 .message-text pre,
 .message-content pre {
-    background: var(--code-bg);
+    background: var(--code-bg) !important;
     border-radius: 8px;
     padding: 14px;
     margin: 12px 0;
@@ -409,12 +472,13 @@ body {
     line-height: 1.5;
     border: 1px solid var(--code-border);
     white-space: pre;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
 }
 
 /* 通用代码样式 */
 .message-text code:not([class*="language-"]),
 .message-content code:not([class*="language-"]) {
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
     background: var(--code-bg);
     color: var(--code-text);
     padding: 2px 6px;
@@ -443,13 +507,32 @@ body {
     color: inherit;
 }
 
-/* ── Prism.js 代码高亮（prism-tomorrow 主题） ── */
-/* 主题已通过 CDN 加载，此处仅提供备用样式 */
+/* ── 代码块字体修复 ── */
+/* 所有代码块使用等宽字体 */
+.message-text pre,
+.message-text code,
+.message-content pre,
+.message-content code {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+}
 
-/* 确保Prism.js样式优先级高于.contains-code类 */
-.message-text.contains-code pre[class*="language-"],
-.message-text.contains-code code[class*="language-"] {
-    font-family: inherit; /* 继承Prism.js的字体设置 */
+/* 覆盖 Prism.js token 字体并移除文字效果 */
+.message-text .token,
+.message-content .token {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    text-shadow: none !important;
+    color: inherit !important;
+    font-weight: normal !important;
+    filter: none !important;
+}
+
+/* 确保代码块内无发光效果 */
+.message-text pre[class*="language-"] .token,
+.message-content pre[class*="language-"] .token {
+    text-shadow: none !important;
+    filter: none !important;
 }
 
 /* ── Markdown 元素 ────────────────────────── */
@@ -535,6 +618,10 @@ body {
         max-width: 700px;
         padding: 18px;
     }
+
+    .input-container .input-wrapper {
+        max-width: 700px;
+    }
 }
 
 @media (max-width: 767px) {
@@ -579,17 +666,22 @@ body {
 
     .input-container {
         padding: 12px;
+    }
+
+    .input-container .input-wrapper {
         gap: 8px;
     }
 
     .input-container input {
-        padding: 8px 12px;
-        font-size: 13px;
+        padding: 10px 14px;
+        font-size: 14px;
+        border-radius: 20px;
     }
 
     .input-container button {
-        padding: 8px 16px;
+        padding: 10px 18px;
         font-size: 13px;
+        border-radius: 20px;
     }
 }
 

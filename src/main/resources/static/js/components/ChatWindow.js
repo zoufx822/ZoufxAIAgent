@@ -4,7 +4,6 @@
 import { sendMessageAPI } from '../api.js';
 import MarkdownRenderer from '../utils/MarkdownRenderer.js';
 import SmartScroll from '../utils/SmartScroll.js';
-import TypewriterEffect from '../utils/TypewriterEffect.js';
 
 // ── Session ID ──────────────────────────────────────────────────────────────
 // 每个浏览器会话生成一次，持久化到 sessionStorage，用于后端会话记忆
@@ -50,7 +49,7 @@ export const ChatWindow = {
                         <div v-if="msg.thinking" class="message-thinking" aria-live="polite" aria-atomic="false">
                             <span class="thinking-label">思考中...</span>{{ msg.thinking }}
                         </div>
-                        <div v-if="msg.streaming && !msg.html" class="loading-indicator" aria-live="polite">
+                        <div v-if="msg.streaming && !msg.content" class="loading-indicator" aria-live="polite">
                             <span class="loading-dot"></span>
                             <span class="loading-dot"></span>
                             <span class="loading-dot"></span>
@@ -58,8 +57,9 @@ export const ChatWindow = {
                         <div v-if="msg.html" class="message-text"
                              :class="{ streaming: msg.streaming, 'contains-code': msg.containsCode }"
                              :aria-live="msg.streaming ? 'polite' : 'off'"
-                             :aria-busy="msg.streaming"
-                             v-html="msg.html">
+                             :aria-busy="msg.streaming">
+                             <!-- 打字机容器 -->
+                             <div class="typewriter-container" :data-msg-index="i" v-html="msg.html"></div>
                         </div>
                     </template>
 
@@ -67,17 +67,19 @@ export const ChatWindow = {
             </div>
         </div>
         <div class="input-container">
-            <input v-model="inputText"
-                   @keydown="handleInputKeydown"
-                   placeholder="输入你的问题..."
-                   :disabled="isLoading"
-                   type="text"
-                   aria-label="消息输入框">
-            <button @click="isLoading ? stop() : sendMessage()"
-                    :class="{ 'stop-btn': isLoading }"
-                    :aria-label="isLoading ? '停止生成' : '发送消息'">
-                {{ isLoading ? '停止' : '发送' }}
-            </button>
+            <div class="input-wrapper">
+                <input v-model="inputText"
+                       @keydown="handleInputKeydown"
+                       placeholder="输入你的问题..."
+                       :disabled="isLoading"
+                       type="text"
+                       aria-label="消息输入框">
+                <button @click="isLoading ? stop() : sendMessage()"
+                        :class="{ 'stop-btn': isLoading }"
+                        :aria-label="isLoading ? '停止生成' : '发送消息'">
+                    {{ isLoading ? '停止' : '发送' }}
+                </button>
+            </div>
         </div>
     </div>
     `,
@@ -100,6 +102,13 @@ export const ChatWindow = {
                     smoothScroll: true // 使用平滑滚动
                 });
             }
+            // 页面加载时聚焦输入框
+            Vue.nextTick(() => {
+                const inputEl = document.querySelector('.input-wrapper input');
+                if (inputEl) {
+                    inputEl.focus();
+                }
+            });
         });
 
         // 组件销毁时清理智能滚动实例
@@ -138,47 +147,62 @@ export const ChatWindow = {
                 onContent: (chunk) => {
                     const msg = messages.value[idx];
                     if (!msg.streaming) return; // 已 stop，忽略残余数据
-                    console.log(`[Chat] onContent chunk: ${chunk.length} 字符, 内容: ${chunk.slice(0, 80).replace(/\n/g, '\\n')}`);
-                    // 累积内容（注意：chunk 可能已包含后端添加的换行符）
+
+                    // 累积内容
                     msg.content += chunk;
+
                     // 检测是否包含代码块
                     msg.containsCode = containsCodeBlock(msg.content);
 
-                    // 节流渲染：避免每次chunk都重新渲染
-                    if (!msg._renderScheduled) {
-                        msg._renderScheduled = true;
-                        Vue.nextTick(() => {
-                            if (msg.streaming) {
-                                // 流式阶段：使用增量渲染 Markdown，避免闪烁
-                                msg.html = markdownRenderer.renderIncremental(msg.content);
-                                msg._renderScheduled = false;
-                                console.log(`[Chat] 渲染更新，累积长度: ${msg.content.length}`);
-                            }
-                        });
-                    }
+                    // 使用增量渲染（SSE 流式本身就是打字机效果）
+                    const renderedHtml = markdownRenderer.renderIncremental(msg.content);
+                    Vue.nextTick(() => {
+                        const containerRef = chatEl.value?.querySelector(`[data-msg-index="${idx}"]`);
+                        if (containerRef) {
+                            containerRef.innerHTML = renderedHtml;
+                        }
+                    });
+                    // 同时更新 msg.html，确保 v-if 显示容器
+                    msg.html = renderedHtml;
 
                     scrollBottom();
                 },
                 onComplete: () => {
                     const msg = messages.value[idx];
-                    // 完成后渲染完整 Markdown（确保一致性）
-                    msg.html = renderMd(msg.content) || msg.html;
+                    const finalHtml = renderMd(msg.content);
+                    msg.html = finalHtml;
                     msg.streaming = false;
-                    // 清理渲染节流标志
-                    delete msg._renderScheduled;
-                    // 代码块已渲染，移除 containsCode 标志（CSS 类不再需要）
                     msg.containsCode = false;
                     isLoading.value = false;
                     ctrl = null;
-                    scrollBottom();
+                    // 完成时确保显示完整内容并聚焦输入框
+                    const inputEl = document.querySelector('.input-wrapper input');
+                    Vue.nextTick(() => {
+                        const containerRef = chatEl.value?.querySelector(`[data-msg-index="${idx}"]`);
+                        if (containerRef) {
+                            containerRef.innerHTML = finalHtml;
+                        }
+                        scrollBottom();
+                    });
+                    // 单独延迟聚焦，不与其他 DOM 操作混在一起
+                    setTimeout(() => {
+                        if (inputEl) {
+                            inputEl.focus();
+                        }
+                    }, 200);
                 },
                 onError: (err) => {
                     const msg = messages.value[idx];
                     msg.content = `请求出错: ${err.message}`;
-                    msg.html = escapeHtml(msg.content);
+                    const errorHtml = escapeHtml(msg.content);
+                    Vue.nextTick(() => {
+                        const containerRef = chatEl.value?.querySelector(`[data-msg-index="${idx}"]`);
+                        if (containerRef) {
+                            containerRef.innerHTML = errorHtml;
+                        }
+                    });
+                    msg.html = errorHtml;
                     msg.streaming = false;
-                    // 清理渲染节流标志
-                    delete msg._renderScheduled;
                     msg.containsCode = false;
                     isLoading.value = false;
                     ctrl = null;
@@ -216,13 +240,18 @@ export const ChatWindow = {
         };
 
         const stop = () => {
-            // 先更新 UI（streaming=false），再 abort，防止 onContent 残余写入
+            // 更新 UI（streaming=false），再 abort，防止残余数据写入
             const msg = messages.value[messages.value.length - 1];
             if (msg?.streaming) {
-                msg.html = renderMd(msg.content) || msg.html;
+                const stoppedHtml = renderMd(msg.content);
+                Vue.nextTick(() => {
+                    const containerRef = chatEl.value?.querySelector(`[data-msg-index="${messages.value.length - 1}"]`);
+                    if (containerRef) {
+                        containerRef.innerHTML = stoppedHtml;
+                    }
+                });
+                msg.html = stoppedHtml;
                 msg.streaming = false;
-                // 清理渲染节流标志
-                delete msg._renderScheduled;
                 msg.containsCode = false;
             }
             isLoading.value = false;
