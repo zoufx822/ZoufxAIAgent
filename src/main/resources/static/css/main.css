@@ -270,6 +270,7 @@ body {
 .chat-container {
     flex: 1;
     overflow-y: auto;
+    overflow-anchor: none;
     background: var(--bg-tertiary);
 }
 
