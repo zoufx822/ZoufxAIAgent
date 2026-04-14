@@ -93,7 +93,11 @@ export async function sendMessageAPI(message, sessionId, callbacks, thinking = t
             const { items, remaining } = parseSSE(buffer);
             buffer = remaining;
             for (const { event, data } of items) {
-                event === 'thinking' ? onThinking?.(data) : onContent?.(data);
+                if (event === 'thinking') onThinking?.(data);
+                else if (event === 'error') {
+                    onError?.(new Error(data));
+                    return;
+                } else onContent?.(data);
             }
         }
 
@@ -106,7 +110,11 @@ export async function sendMessageAPI(message, sessionId, callbacks, thinking = t
                 // 尝试最后一次解析
                 const { items } = parseSSE(buffer + '\n\n'); // 添加结束分隔符
                 for (const { event, data } of items) {
-                    event === 'thinking' ? onThinking?.(data) : onContent?.(data);
+                    if (event === 'thinking') onThinking?.(data);
+                    else if (event === 'error') {
+                        onError?.(new Error(data));
+                        return;
+                    } else onContent?.(data);
                 }
             } else {
                 // 如果不是SSE格式，可能是纯文本内容
@@ -145,7 +153,7 @@ export async function sendMessageAPI(message, sessionId, callbacks, thinking = t
                 userMessage = '请求的资源不存在';
             } else if (status === '429') {
                 userMessage = '请求过于频繁，请稍后重试';
-            } else if (status >= '500') {
+            } else if (parseInt(status, 10) >= 500) {
                 userMessage = `服务器内部错误 (${status})`;
             } else {
                 userMessage = `请求失败 (${status})`;

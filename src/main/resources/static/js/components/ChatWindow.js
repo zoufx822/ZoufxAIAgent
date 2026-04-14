@@ -1,32 +1,23 @@
 /**
  * ChatWindow 组件
- * - 纯 Vue 响应式，无直接 DOM 操作
+ * - 消息列表和 sessionId 来自共享 store，支持多会话
  * - 打字机效果：流式期间逐字显示纯文本，完成后渲染完整 Markdown
  * - 思考过程默认折叠，可点击展开
- * - 支持思考模式开关
+ * - textarea 输入框：Enter 发送，Shift+Enter 换行
  */
 import {sendMessageAPI} from '../api.js';
 import MarkdownRenderer from '../utils/MarkdownRenderer.js';
 import SmartScroll from '../utils/SmartScroll.js';
-
-// ── Session ID ────────────────────────────────────────────────────────────────
-const SESSION_KEY = 'aiChatSessionId';
-const sessionId = sessionStorage.getItem(SESSION_KEY) ?? (() => {
-    const id = crypto.randomUUID();
-    sessionStorage.setItem(SESSION_KEY, id);
-    return id;
-})();
+import {currentSession, currentSessionId, isLoading as storeLoading, updateSessionTitle,} from '../store.js';
 
 // ── 工具 ──────────────────────────────────────────────────────────────────────
 const md = MarkdownRenderer.getInstance();
 const renderMd = (text) => md.render(text);
 const escapeHtml = MarkdownRenderer.escapeHtml;
 
-const WELCOME = '你好！我是 AI 助手，有什么可以帮助你的吗？';
-
-// 打字机速度：约 40 字符/秒（参考 Claude/GPT/Gemini 体感）
+// 打字机速度：约 40 字符/秒
 const TW_INTERVAL = 25;  // ms
-const TW_CHARS = 1;   // 每帧字符数
+const TW_CHARS = 1;
 
 // ── 组件 ──────────────────────────────────────────────────────────────────────
 export const ChatWindow = {
@@ -49,13 +40,14 @@ export const ChatWindow = {
                     <!-- AI 消息 -->
                     <template v-else>
                         <!-- 思考过程（可折叠） -->
-                        <div v-if="msg.thinking" class="message-thinking" :class="{ collapsed: !msg.thinkingExpanded }">
+                        <div v-if="msg.thinking" class="message-thinking">
                             <div class="thinking-header" @click="msg.thinkingExpanded = !msg.thinkingExpanded">
                                 <span class="thinking-toggle">{{ msg.thinkingExpanded ? '▾' : '▸' }}</span>
                                 <span class="thinking-label">思考过程</span>
                                 <span class="thinking-chars">{{ msg.thinking.length }} 字</span>
                             </div>
-                            <div v-show="msg.thinkingExpanded" class="thinking-body">{{ msg.thinking }}</div>
+                            <div v-show="msg.thinkingExpanded" class="thinking-body"
+                                 aria-live="polite" aria-atomic="false">{{ msg.thinking }}</div>
                         </div>
 
                         <!-- 加载点（等待首字节） -->
@@ -86,20 +78,21 @@ export const ChatWindow = {
                         @click="thinkingEnabled = !thinkingEnabled"
                         :class="{ active: thinkingEnabled }"
                         :title="thinkingEnabled ? '点击关闭思考模式' : '点击开启思考模式'"
-                        :disabled="isLoading">
+                        :disabled="loading">
                     💭
                 </button>
 
-                <input v-model="inputText"
-                       @keydown="handleKeydown"
-                       placeholder="输入你的问题..."
-                       :disabled="isLoading"
-                       type="text"
-                       aria-label="消息输入框">
-                <button @click="isLoading ? stop() : send()"
-                        :class="{ 'stop-btn': isLoading }"
-                        :aria-label="isLoading ? '停止生成' : '发送消息'">
-                    {{ isLoading ? '停止' : '发送' }}
+                <textarea v-model="inputText"
+                          @keydown="handleKeydown"
+                          placeholder="输入你的问题…"
+                          :disabled="loading"
+                          rows="1"
+                          ref="inputEl"
+                          aria-label="消息输入框"></textarea>
+                <button @click="loading ? stop() : send()"
+                        :class="{ 'stop-btn': loading }"
+                        :aria-label="loading ? '停止生成' : '发送消息'">
+                    {{ loading ? '停止' : '发送' }}
                 </button>
             </div>
         </div>
@@ -107,20 +100,20 @@ export const ChatWindow = {
     `,
 
     setup() {
-        const messages = Vue.ref([
-            {
-                role: 'ai',
-                content: WELCOME,
-                thinking: '',
-                thinkingExpanded: false,
-                html: renderMd(WELCOME),
-                streaming: false
-            },
-        ]);
         const inputText = Vue.ref('');
-        const isLoading = Vue.ref(false);
         const thinkingEnabled = Vue.ref(false);
         const chatEl = Vue.ref(null);
+        const inputEl = Vue.ref(null);
+
+        // 从 store 读取当前会话消息（响应式）
+        const messages = Vue.computed(() => currentSession.value?.messages ?? []);
+        // 本地 loading ref 同步写入 store
+        const loading = Vue.computed({
+            get: () => storeLoading.value,
+            set: (v) => {
+                storeLoading.value = v;
+            },
+        });
 
         let ctrl = null;
         let smartScroll = null;
@@ -135,7 +128,7 @@ export const ChatWindow = {
         // ── 生命周期 ────────────────────────────────────────────────────────
         Vue.onMounted(() => {
             smartScroll = new SmartScroll(chatEl.value);
-            Vue.nextTick(() => focusInput());
+            Vue.nextTick(() => inputEl.value?.focus());
         });
 
         Vue.onUnmounted(() => {
@@ -143,8 +136,26 @@ export const ChatWindow = {
             clearInterval(twTimerId);
         });
 
+        // ── 切换会话时重置打字机状态 ──────────────────────────────────────────
+        Vue.watch(currentSessionId, () => {
+            if (loading.value) {
+                ctrl?.abort();
+                ctrl = null;
+            }
+            clearInterval(twTimerId);
+            twTimerId = null;
+            twFullText = '';
+            twPos = 0;
+            twDone = false;
+            twAiMsg = null;
+            loading.value = false;
+            Vue.nextTick(() => {
+                smartScroll?.forceScrollToBottom();
+                inputEl.value?.focus();
+            });
+        });
+
         // ── 工具函数 ────────────────────────────────────────────────────────
-        const focusInput = () => document.querySelector('.input-wrapper input')?.focus();
         const scrollBottom = () => Vue.nextTick(() => smartScroll?.scrollToBottom());
 
         // ── 打字机：启动 ────────────────────────────────────────────────────
@@ -158,11 +169,11 @@ export const ChatWindow = {
                         twTimerId = null;
                         twAiMsg.html = renderMd(twFullText);
                         twAiMsg.streaming = false;
-                        isLoading.value = false;
+                        loading.value = false;
                         ctrl = null;
                         Vue.nextTick(() => {
                             smartScroll?.scrollToBottom();
-                            focusInput();
+                            inputEl.value?.focus();
                         });
                     }
                     return;
@@ -189,11 +200,14 @@ export const ChatWindow = {
         // ── 发送消息 ────────────────────────────────────────────────────────
         const send = async () => {
             const text = inputText.value.trim();
-            if (!text || isLoading.value) return;
+            if (!text || loading.value) return;
+
+            const sessionId = currentSessionId.value;
+            const msgs = currentSession.value.messages;
 
             ctrl = new AbortController();
             inputText.value = '';
-            isLoading.value = true;
+            loading.value = true;
 
             twFullText = '';
             twPos = 0;
@@ -204,14 +218,17 @@ export const ChatWindow = {
                 twTimerId = null;
             }
 
-            messages.value.push({
+            msgs.push({
                 role: 'user',
                 content: text,
                 thinking: '',
                 thinkingExpanded: false,
                 html: escapeHtml(text),
-                streaming: false
+                streaming: false,
             });
+
+            // 用首条用户消息更新会话标题
+            updateSessionTitle(sessionId, text);
 
             const aiMsg = Vue.reactive({
                 role: 'ai',
@@ -219,9 +236,9 @@ export const ChatWindow = {
                 thinking: '',
                 thinkingExpanded: false,
                 html: '',
-                streaming: true
+                streaming: true,
             });
-            messages.value.push(aiMsg);
+            msgs.push(aiMsg);
 
             Vue.nextTick(() => smartScroll?.forceScrollToBottom());
 
@@ -229,6 +246,7 @@ export const ChatWindow = {
                 signal: ctrl.signal,
 
                 onThinking: (chunk) => {
+                    if (!aiMsg.thinking) aiMsg.thinkingExpanded = true;
                     aiMsg.thinking += chunk;
                     scrollBottom();
                 },
@@ -245,11 +263,11 @@ export const ChatWindow = {
                     if (!twTimerId && twPos >= twFullText.length) {
                         if (twFullText) aiMsg.html = renderMd(twFullText);
                         aiMsg.streaming = false;
-                        isLoading.value = false;
+                        loading.value = false;
                         ctrl = null;
                         Vue.nextTick(() => {
                             smartScroll?.scrollToBottom();
-                            focusInput();
+                            inputEl.value?.focus();
                         });
                     }
                 },
@@ -260,7 +278,7 @@ export const ChatWindow = {
                     const displayed = twFullText.slice(0, twPos);
                     aiMsg.html = displayed ? renderMd(displayed) : escapeHtml(`请求出错: ${err.message}`);
                     aiMsg.streaming = false;
-                    isLoading.value = false;
+                    loading.value = false;
                     ctrl = null;
                 },
             }, thinkingEnabled.value);
@@ -269,7 +287,7 @@ export const ChatWindow = {
         // ── 停止生成 ────────────────────────────────────────────────────────
         const stop = () => {
             stopTypewriter();
-            isLoading.value = false;
+            loading.value = false;
             ctrl?.abort();
             ctrl = null;
         };
@@ -280,17 +298,19 @@ export const ChatWindow = {
                 e.preventDefault();
                 send();
             } else if (e.key === 'Enter' && (e.shiftKey || e.ctrlKey)) {
+                // 在 textarea 中插入换行，通过 Vue ref 保持响应式同步
                 e.preventDefault();
-                const el = e.target;
-                const pos = el.selectionStart;
-                el.value = el.value.slice(0, pos) + '\n' + el.value.slice(pos);
-                el.selectionStart = el.selectionEnd = pos + 1;
-            } else if (e.key === 'Escape' && isLoading.value) {
+                const pos = e.target.selectionStart;
+                inputText.value = inputText.value.slice(0, pos) + '\n' + inputText.value.slice(pos);
+                Vue.nextTick(() => {
+                    e.target.selectionStart = e.target.selectionEnd = pos + 1;
+                });
+            } else if (e.key === 'Escape' && loading.value) {
                 e.preventDefault();
                 stop();
             }
         };
 
-        return {messages, inputText, isLoading, thinkingEnabled, chatEl, send, stop, handleKeydown};
+        return {messages, inputText, loading, thinkingEnabled, chatEl, inputEl, send, stop, handleKeydown};
     },
 };

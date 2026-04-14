@@ -4,9 +4,9 @@ import com.zoufxdemo.zoufxlangchain4j.service.ChatMemoryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 内存版本的聊天记忆服务实现
@@ -17,10 +17,12 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class ChatMemoryServiceImpl implements ChatMemoryService {
 
+    private static final int MAX_MESSAGES = 40;
+
     /**
      * 使用 ConcurrentHashMap 存储会话消息
      * Key: sessionId
-     * Value: 消息列表
+     * Value: CopyOnWriteArrayList，保证并发写入安全
      */
     private final ConcurrentHashMap<String, List<String>> sessionMessages = new ConcurrentHashMap<>();
 
@@ -38,9 +40,9 @@ public class ChatMemoryServiceImpl implements ChatMemoryService {
 
     @Override
     public List<String> getHistory(String sessionId) {
-        List<String> messages = sessionMessages.getOrDefault(sessionId, new ArrayList<>());
+        List<String> messages = sessionMessages.getOrDefault(sessionId, new CopyOnWriteArrayList<>());
         log.debug("Retrieved {} messages from session {}", messages.size(), sessionId);
-        return new ArrayList<>(messages);
+        return new CopyOnWriteArrayList<>(messages);
     }
 
     @Override
@@ -50,9 +52,13 @@ public class ChatMemoryServiceImpl implements ChatMemoryService {
     }
 
     /**
-     * 内部方法：添加消息到指定会话
+     * 内部方法：添加消息到指定会话，超出上限时从头部裁剪
      */
     private void addMessage(String sessionId, String message) {
-        sessionMessages.computeIfAbsent(sessionId, k -> new ArrayList<>()).add(message);
+        List<String> list = sessionMessages.computeIfAbsent(sessionId, k -> new CopyOnWriteArrayList<>());
+        list.add(message);
+        if (list.size() > MAX_MESSAGES) {
+            list.subList(0, list.size() - MAX_MESSAGES).clear();
+        }
     }
 }

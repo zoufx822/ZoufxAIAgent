@@ -10,7 +10,7 @@ public class ChatRequest {
     private String prompt;
     private String sessionId;
     /**
-     * 是否启用思考模式，默认 true
+     * 是否启用思考模式，默认 false
      */
-    private boolean thinking = true;
+    private boolean thinking = false;
 }

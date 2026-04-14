@@ -49,8 +49,15 @@ public class AIChatController {
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> chat(@RequestBody ChatRequest request) {
         String sessionId = StringUtils.hasText(request.getSessionId()) ? request.getSessionId() : "default";
-        String prompt = StringUtils.hasText(request.getPrompt()) ? request.getPrompt() : "";
+        String prompt = StringUtils.hasText(request.getPrompt()) ? request.getPrompt().trim() : "";
         log.info("Received prompt [sessionId={}]: {}", sessionId, prompt);
+
+        if (prompt.isEmpty()) {
+            return Flux.just(ServerSentEvent.<String>builder()
+                    .event("error")
+                    .data("prompt 不能为空")
+                    .build());
+        }
 
         // 获取历史消息
         List<String> history = chatMemoryService.getHistory(sessionId);
@@ -70,13 +77,24 @@ public class AIChatController {
     }
 
     /**
-     * 构建完整的提示词（包含历史对话）
+     * 构建完整的提示词（包含历史对话），统一使用 User:/Assistant: 角色标签
      */
+    private static final int MAX_HISTORY_CHARS = 40000;
+
     private String buildPrompt(List<String> history, String prompt) {
         if (history.isEmpty()) {
-            return prompt;
+            return "User: " + prompt;
         }
-        return String.join("\n", history) + "\n\nUser: " + prompt;
+        // 从最新消息往前取，超过字符限制时截断，避免 prompt 过长导致 API 报错
+        int totalChars = 0;
+        int startIdx = history.size();
+        for (int i = history.size() - 1; i >= 0; i--) {
+            totalChars += history.get(i).length() + 1;
+            if (totalChars > MAX_HISTORY_CHARS) break;
+            startIdx = i;
+        }
+        List<String> trimmed = history.subList(startIdx, history.size());
+        return String.join("\n", trimmed) + "\n\nUser: " + prompt;
     }
 
     /**
@@ -91,7 +109,7 @@ public class AIChatController {
             String responseText = fullContent.get();
             if (StringUtils.hasText(responseText)) {
                 chatMemoryService.addAssistantMessage(sessionId, responseText);
-                log.info("Saved assistant message to session {}: {}", sessionId, responseText);
+                log.debug("Saved assistant message to session {}: {}", sessionId, responseText);
             }
             log.info("Stream completed [sessionId={}]", sessionId);
         };
