@@ -4,13 +4,6 @@
 
 Spring Boot 4.0.3 + LangChain4J 1.11.0，通过 Anthropic 兼容接口连接 MiniMax AI（`MiniMax-M2.5`），支持带会话记忆的流式聊天和思考模式。
 
-## 命令
-
-```bash
-mvn spring-boot:run        # 启动（JDK 21，访问 localhost:8080）
-mvn clean package          # 打包
-```
-
 ## 架构
 
 ### 后端
@@ -39,7 +32,6 @@ mvn clean package          # 打包
 
 - 目标不清晰时停下来讨论，不做假设
 - 临时文件（脚本、截图等）按需清理，用户主动要求时执行
-- 新功能开发完成后执行 `/test` 进行自测
 
 **多 Agent**（同时满足：涉及多个独立模块 + 任务量大）
 
