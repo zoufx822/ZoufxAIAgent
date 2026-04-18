@@ -29,5 +29,8 @@ node_modules/
 # IDEA
 .idea/
 
+# Maven build output
+target/
+
 # Worktrees
 .worktrees/
