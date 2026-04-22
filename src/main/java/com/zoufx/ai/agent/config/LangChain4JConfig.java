@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Duration;
+
 /**
  * LangChain4J 配置类 - 使用 Anthropic 模块连接 MiniMax API
  * 注意：MiniMax 的 Anthropic 兼容 API 路径需要 /v1，但 LangChain4J 默认不加
@@ -34,6 +36,9 @@ public class LangChain4JConfig {
     @Value("${spring.ai.anthropic.chat.options.thinking.budget-tokens:2048}")
     private Integer thinkingBudgetTokens;
 
+    @Value("${spring.ai.anthropic.timeout:60s}")
+    private Duration timeout;
+
     /**
      * 启用思考模式的流式 ChatModel
      */
@@ -49,6 +54,7 @@ public class LangChain4JConfig {
                 .thinkingBudgetTokens(thinkingBudgetTokens)
                 .returnThinking(true)
                 .maxTokens(maxTokens)
+                .timeout(timeout)
                 .build();
     }
 
@@ -64,6 +70,7 @@ public class LangChain4JConfig {
                 .version(version)
                 .modelName(modelName)
                 .maxTokens(maxTokens)
+                .timeout(timeout)
                 .build();
     }
 }

@@ -17,13 +17,14 @@ import org.springframework.util.StringUtils;
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties(WebSearchProperties.class)
+@EnableConfigurationProperties({WebSearchProperties.class, RetryProperties.class})
 @ConditionalOnProperty(prefix = "langchain4j.web-search", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class WebSearchConfig {
 
     @Bean
-    public TavilySearchTool tavilySearchTool(WebSearchProperties props) {
+    public TavilySearchTool tavilySearchTool(WebSearchProperties props, RetryProperties retryProps) {
         WebSearchProperties.Tavily t = props.getTavily();
+        RetryProperties.Tavily r = retryProps.getTavily();
         WebSearchEngine engine = null;
         if (StringUtils.hasText(t.getApiKey())) {
             engine = TavilyWebSearchEngine.builder()
@@ -37,6 +38,6 @@ public class WebSearchConfig {
         } else {
             log.warn("TAVILY_API_KEY 未配置，网络检索功能将降级（工具调用返回提示字符串）");
         }
-        return new TavilySearchTool(engine, t.getMaxResults());
+        return new TavilySearchTool(engine, t.getMaxResults(), r.getMaxAttempts(), r.getBackoff().toMillis());
     }
 }
