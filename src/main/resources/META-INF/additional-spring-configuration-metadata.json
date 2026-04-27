@@ -1,0 +1,12 @@
+{
+  "properties": [
+    { "name": "spring.ai.anthropic.base-url", "type": "java.lang.String" },
+    { "name": "spring.ai.anthropic.api-key", "type": "java.lang.String" },
+    { "name": "spring.ai.anthropic.version", "type": "java.lang.String" },
+    { "name": "spring.ai.anthropic.timeout", "type": "java.time.Duration" },
+    { "name": "spring.ai.anthropic.chat.options.model", "type": "java.lang.String" },
+    { "name": "spring.ai.anthropic.chat.options.max-tokens", "type": "java.lang.Integer" },
+    { "name": "spring.ai.anthropic.chat.options.thinking.type", "type": "java.lang.String" },
+    { "name": "spring.ai.anthropic.chat.options.thinking.budget-tokens", "type": "java.lang.Integer" }
+  ]
+}

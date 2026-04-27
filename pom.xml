@@ -72,6 +72,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- 生成 @ConfigurationProperties 的 IDE 元数据，消除 YAML 未知属性警告 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
     </dependencies>
 
     <build>
