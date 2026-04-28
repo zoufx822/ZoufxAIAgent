@@ -28,8 +28,8 @@ description: ZoufxAIAgent 项目前后端技术选型备忘。当用户提出任
 
 | 技术 | 说明 |
 |------|------|
-| Spring Boot 4.0.3 | Web 框架，JDK 21 |
-| Spring WebFlux | 返回 `Flux<ServerSentEvent>` 实现 SSE 流式输出 |
+| Spring Boot 4.0.6 | JDK 21 |
+| Spring WebFlux + Reactor Netty | 反应式 Web 栈，承载 SSE 流式聊天；已移除 `spring-boot-starter-web`（对齐 LangChain4J 官方姿势）；CORS 用 `CorsWebFilter`，Controller 注入 `ServerHttpResponse` |
 | LangChain4J 1.11.0 | AiServices 动态代理、ChatMemory、TokenStream |
 | langchain4j-anthropic | 连接 MiniMax Anthropic 兼容接口的 StreamingChatModel |
 | Lombok | 减少样板代码 |

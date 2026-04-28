@@ -53,13 +53,7 @@
             <version>1.11.0-beta19</version>
         </dependency>
 
-        <!-- Spring Boot Web -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
-        <!-- Spring WebFlux (for Reactor Flux) -->
+        <!-- Spring WebFlux：反应式 Web 栈（Reactor Netty + Reactor Core），承载 SSE 流式聊天，对齐 LangChain4J 官方姿势 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>

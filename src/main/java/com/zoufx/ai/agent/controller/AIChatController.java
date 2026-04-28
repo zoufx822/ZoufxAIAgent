@@ -3,11 +3,11 @@ package com.zoufx.ai.agent.controller;
 import com.zoufx.ai.agent.model.ChatRequest;
 import com.zoufx.ai.agent.service.AIChatService;
 import com.zoufx.ai.agent.util.WebSearchEventHelper;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -28,9 +28,9 @@ public class AIChatController {
     private AIChatService chatService;
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> chat(@RequestBody ChatRequest request, HttpServletResponse response) {
-        response.setHeader("X-Accel-Buffering", "no");
-        response.setHeader("Cache-Control", "no-cache");
+    public Flux<ServerSentEvent<String>> chat(@RequestBody ChatRequest request, ServerHttpResponse response) {
+        response.getHeaders().set("X-Accel-Buffering", "no");
+        response.getHeaders().set("Cache-Control", "no-cache");
 
         String sessionId = StringUtils.hasText(request.getSessionId()) ? request.getSessionId() : "default";
         String prompt = StringUtils.hasText(request.getPrompt()) ? request.getPrompt().trim() : "";
