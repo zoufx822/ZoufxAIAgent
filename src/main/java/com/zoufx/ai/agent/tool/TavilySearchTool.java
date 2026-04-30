@@ -16,9 +16,11 @@ import java.util.stream.Collectors;
 /**
  * 自写的网络检索工具——相较官方 WebSearchTool 多了 maxResults 控制和日志钩子。
  * 方法名 search_web（snake_case）与 Anthropic 官方约定一致，提升 MiniMax-M2.5 触发率。
+ *
+ * 实现 ToolPromptContributor：把"何时调用 search_web"的规则从 AssistantConfig 下沉到工具自身。
  */
 @Slf4j
-public class TavilySearchTool {
+public class TavilySearchTool implements ToolPromptContributor {
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("yyyy 年 M 月 d 日", Locale.CHINA);
@@ -33,6 +35,29 @@ public class TavilySearchTool {
         this.maxResults = maxResults;
         this.maxAttempts = maxAttempts;
         this.backoffMs = backoffMs;
+    }
+
+    @Override
+    public String section() {
+        return "search_web（网络检索）";
+    }
+
+    @Override
+    public String promptInstructions() {
+        return """
+                遇到以下情况必须调用 search_web 进行网络检索：
+                - 涉及实时/最新信息（今天、最近、本周、当前年度及以后的事件）
+                - 具体产品、公司、人物的近期动态或版本发布
+                - 用户明确说「搜一下」「查一下」「上网查」等
+
+                时效性查询（天气、新闻、股价、汇率、赛事比分、航班等）必须遵守：
+                1. 搜索关键词必须包含完整日期（例：「沈阳 {today} 天气」），不要只写「今天」
+                2. search_web 返回结果首行会标注「今日日期」，请以该日期为准
+                3. 收到结果后逐条核对其中的日期：若与今日不符，必须明确告知用户「检索到的数据为 X 月 X 日，今日数据暂不可用」，严禁把过期数据当作今日数据汇报
+
+                生成搜索关键词时必须结合当前日期，不要使用过时的年份。
+                搜索完成后综合返回结果用自然语言回答，并在末尾列出参考链接。
+                """;
     }
 
     @Tool("在需要最新/实时信息时调用：新闻、近期事件、股价、产品发布、时效性问答等。返回带标题、URL、摘要的结果列表。")

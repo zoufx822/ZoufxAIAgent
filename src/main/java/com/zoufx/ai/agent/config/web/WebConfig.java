@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.config;
+package com.zoufx.ai.agent.config.web;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,10 +21,8 @@ public class WebConfig {
         config.addAllowedHeader("*");
         config.setAllowCredentials(false);
         config.setMaxAge(3600L);
-
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/ai/**", config);
-
         return new CorsWebFilter(source);
     }
 }

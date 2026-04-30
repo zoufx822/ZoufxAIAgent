@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.service;
 
 import com.zoufx.ai.agent.assistant.ChatAssistant;
-import com.zoufx.ai.agent.config.RetryProperties;
+import com.zoufx.ai.agent.config.properties.RetryProperties;
 import com.zoufx.ai.agent.model.ChatEvent;
 import com.zoufx.ai.agent.util.RetryPolicy;
 import com.zoufx.ai.agent.util.WebSearchEventHelper;

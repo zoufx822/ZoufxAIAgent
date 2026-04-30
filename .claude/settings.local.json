@@ -37,7 +37,9 @@
       "mcp__plugin_playwright_playwright__browser_console_messages",
       "mcp__plugin_playwright_playwright__browser_close",
       "WebSearch",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(mvn -q clean compile)",
+      "Bash(mvn spring-boot:run)"
     ]
   }
 }

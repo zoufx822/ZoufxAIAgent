@@ -24,6 +24,8 @@ spring:
             budget-tokens: 8192
 
 ai:
+  memory:
+    max-messages: 20
   retry:
     llm:
       max-attempts: 2
