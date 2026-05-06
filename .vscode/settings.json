@@ -18,5 +18,6 @@
     "editor.smoothScrolling": true,
     
     // 额外优化：禁用 Chromium 自带的模糊缩放
-    "window.zoomLevel": 0
+    "window.zoomLevel": 0,
+    "java.format.settings.url": ".vscode/java-formatter.xml"
 }
