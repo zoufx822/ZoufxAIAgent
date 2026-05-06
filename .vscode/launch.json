@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-ZoufxAIAgentApplication<ZoufxAIAgent>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.zoufx.ai.agent.ZoufxAIAgentApplication",
+            "projectName": "ZoufxAIAgent",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

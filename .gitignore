@@ -28,7 +28,6 @@ node_modules/
 
 # IDE
 .idea/
-.vscode/
 
 # Maven build output
 target/
