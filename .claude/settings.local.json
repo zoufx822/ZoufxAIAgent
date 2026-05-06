@@ -39,7 +39,9 @@
       "WebSearch",
       "WebFetch(domain:github.com)",
       "Bash(mvn -q clean compile)",
-      "Bash(mvn spring-boot:run)"
+      "Bash(mvn spring-boot:run)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
