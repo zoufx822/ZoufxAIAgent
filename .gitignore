@@ -29,6 +29,9 @@ node_modules/
 # IDE
 .idea/
 
+# Playwright MCP
+.playwright-mcp/
+
 # Maven build output
 target/
 
