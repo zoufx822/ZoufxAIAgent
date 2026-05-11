@@ -30,7 +30,10 @@ public class AnthropicModelConfig {
                 .version(props.getVersion())
                 .modelName(opts.getModel())
                 .maxTokens(opts.getMaxTokens())
-                .timeout(props.getTimeout());
+                .timeout(props.getTimeout())
+                // 测试期开启完整请求/响应日志，便于观察发给 LLM 的真实 JSON
+                .logRequests(true)
+                .logResponses(true);
     }
 
     @Bean("thinkingChatModel")

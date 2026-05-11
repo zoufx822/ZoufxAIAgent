@@ -25,6 +25,9 @@ public class MemoryConfig {
                 .id(memoryId)
                 .maxMessages(props.getMaxMessages())
                 .chatMemoryStore(chatMemoryStore)
+                // 强制 system 消息位于 messages[0]：LC4J 默认 false 会把 system 追加到末尾，
+                // 导致后续轮次 system 卡在历史中间，违反 OpenAI/Anthropic API 期望
+                .alwaysKeepSystemMessageFirst(true)
                 .build();
     }
 }

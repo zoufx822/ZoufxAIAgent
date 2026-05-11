@@ -4,6 +4,8 @@ server:
 logging:
   level:
     root: INFO
+    # 测试期：打开 LC4J 模型层 DEBUG，配合 logRequests/logResponses 看到发给 LLM 的真实 JSON
+    "[dev.langchain4j]": DEBUG
 
 spring:
   profiles:
