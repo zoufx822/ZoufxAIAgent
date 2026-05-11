@@ -2,15 +2,17 @@ package com.zoufx.ai.agent.service;
 
 import com.zoufx.ai.agent.assistant.ChatAssistant;
 import com.zoufx.ai.agent.config.properties.RetryProperties;
+import com.zoufx.ai.agent.memory.MemoryStore;
 import com.zoufx.ai.agent.model.ChatEvent;
 import com.zoufx.ai.agent.util.RetryPolicy;
 import com.zoufx.ai.agent.util.WebSearchEventHelper;
-import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -28,12 +30,12 @@ public class AIChatService {
     private ChatAssistant nonThinkingAssistant;
 
     @Autowired
-    private ChatMemoryStore chatMemoryStore;
+    private MemoryStore memoryStore;
 
     @Autowired
     private RetryProperties retryProperties;
 
-    public Flux<ChatEvent> chat(String sessionId, String prompt, boolean thinking) {
+    public Flux<ChatEvent> chat(String userId, String prompt, boolean thinking) {
         if (prompt.isEmpty()) {
             return Flux.just(new ChatEvent("error", "prompt 不能为空"));
         }
@@ -42,7 +44,7 @@ public class AIChatService {
         AtomicBoolean hasEmitted = new AtomicBoolean(false);
 
         return Flux.<ChatEvent>create(sink ->
-                        assistant.chat(sessionId, prompt)
+                        assistant.chat(userId, prompt)
                                 .onPartialThinking(pt -> {
                                     hasEmitted.set(true);
                                     if (pt != null && pt.text() != null) {
@@ -57,7 +59,7 @@ public class AIChatService {
                                     hasEmitted.set(true);
                                     String name = evt.request().name();
                                     String query = WebSearchEventHelper.extractQuery(evt.request().arguments());
-                                    log.info("Tool call start [sessionId={}] {} query={}", sessionId, name, query);
+                                    log.info("Tool call start [userId={}] {} query={}", userId, name, query);
                                     sink.next(new ChatEvent("tool_call", WebSearchEventHelper.toolCallPayload(name, query)));
                                 })
                                 .onToolExecuted(exec -> {
@@ -65,12 +67,12 @@ public class AIChatService {
                                     String name = exec.request().name();
                                     String result = exec.result();
                                     int count = WebSearchEventHelper.countResults(result);
-                                    log.info("Tool call done [sessionId={}] {} count={}", sessionId, name, count);
+                                    log.info("Tool call done [userId={}] {} count={}", userId, name, count);
                                     sink.next(new ChatEvent("tool_result", WebSearchEventHelper.toolResultPayload(name, count, result)));
                                 })
                                 .onError(sink::error)
                                 .onCompleteResponse(r -> {
-                                    log.info("Stream completed [sessionId={}]", sessionId);
+                                    log.info("Stream completed [userId={}]", userId);
                                     sink.complete();
                                 })
                                 .start()
@@ -78,17 +80,24 @@ public class AIChatService {
                 .retryWhen(Retry.backoff(retryProperties.getLlm().getMaxAttempts(), retryProperties.getLlm().getMinBackoff())
                         .maxBackoff(retryProperties.getLlm().getMaxBackoff())
                         .filter(err -> !hasEmitted.get() && RetryPolicy.isRetryable(err))
-                        .doBeforeRetry(rs -> log.warn("LLM retry #{} [sessionId={}] cause={}",
-                                rs.totalRetries() + 1, sessionId, rs.failure().toString())))
+                        .doBeforeRetry(rs -> log.warn("LLM retry #{} [userId={}] cause={}",
+                                rs.totalRetries() + 1, userId, rs.failure().toString())))
                 .onErrorResume(err -> {
-                    log.error("Stream error [sessionId={}]", sessionId, err);
+                    log.error("Stream error [userId={}]", userId, err);
                     return Flux.just(new ChatEvent("error", err.getMessage() != null ? err.getMessage() : "AI 服务异常，请稍后重试"));
                 })
-                .doOnCancel(() -> log.info("Stream cancelled [sessionId={}]", sessionId));
+                .doOnCancel(() -> log.info("Stream cancelled [userId={}]", userId));
     }
 
-    public void clearSession(String sessionId) {
-        log.info("Clearing session memory: {}", sessionId);
-        chatMemoryStore.deleteMessages(sessionId);
+    /**
+     * 清空指定 userId 的全部记忆。SQLite JDBC 是阻塞调用，包到 boundedElastic 上隔离 event loop。
+     */
+    public Mono<Void> clearUserMemory(String userId) {
+        return Mono.fromRunnable(() -> {
+                    log.info("Clearing user memory: {}", userId);
+                    memoryStore.deleteByUserId(userId);
+                })
+                .subscribeOn(Schedulers.boundedElastic())
+                .then();
     }
 }

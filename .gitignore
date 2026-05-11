@@ -41,3 +41,6 @@ target/
 # Local config（含 API keys）
 application-local.yml
 application-local.properties
+
+# SQLite 持久化数据
+/data/

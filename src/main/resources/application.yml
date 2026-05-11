@@ -26,6 +26,8 @@ spring:
 ai:
   memory:
     max-messages: 20
+    store:
+      db-path: ./data/zoufx-ai.db
   retry:
     llm:
       max-attempts: 2

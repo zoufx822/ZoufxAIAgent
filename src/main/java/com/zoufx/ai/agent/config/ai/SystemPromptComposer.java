@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.config.ai;
 
+import com.zoufx.ai.agent.memory.MemoryStore;
 import com.zoufx.ai.agent.tool.ToolPromptContributor;
 import org.springframework.stereotype.Component;
 
@@ -13,11 +14,12 @@ import java.util.stream.Collectors;
 /**
  * System prompt 的分层组装器。
  *
- * 分四层：
+ * 分五层：
  *   1. 角色（who am I）
  *   2. 全局上下文（当前日期等运行时数据）
- *   3. 工具集（自动从所有 ToolPromptContributor Bean 聚合，{today} 占位符替换）
- *   4. 全局响应规则
+ *   3. 身份识别（v0 起：陌生人时主动问称呼，"无眼"拟人化）
+ *   4. 工具集（自动从所有 ToolPromptContributor Bean 聚合，{today} 占位符替换）
+ *   5. 全局响应规则
  *
  * 每次 chat 调用时由 LangChain4J 触发 compose(memoryId)，注入到 LLM 请求的 system 字段。
  */
@@ -27,16 +29,25 @@ public class SystemPromptComposer {
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("yyyy 年 M 月 d 日", Locale.CHINA);
 
-    private static final String ROLE = "你是中文 AI 助手。";
+    private static final String ROLE = "你是一个和人类一样有智慧和记忆的智能体。";
 
     private static final String GLOBAL_RULES = """
             静态知识问题（语法、概念、历史常识）直接回答，不要滥用工具。
             """;
 
-    private final List<ToolPromptContributor> tools;
+    private static final String STRANGER_GREETING = """
+            你目前不认识对方（没有任何过往对话）。请像一位礼貌的人那样：
+            - 自然地融入"问好 + 询问称呼"，不要打断对方的诉求；
+            - 如果对方直接抛出问题，先简短回答，再以一句话追问"方便先问下怎么称呼您？"；
+            - 不要重复"你好"或机械地反复要名字——一次询问就够。
+            """;
 
-    public SystemPromptComposer(List<ToolPromptContributor> tools) {
+    private final List<ToolPromptContributor> tools;
+    private final MemoryStore memoryStore;
+
+    public SystemPromptComposer(List<ToolPromptContributor> tools, MemoryStore memoryStore) {
         this.tools = tools;
+        this.memoryStore = memoryStore;
     }
 
     public Function<Object, String> asProvider() {
@@ -49,6 +60,13 @@ public class SystemPromptComposer {
         StringBuilder sb = new StringBuilder();
         sb.append(ROLE).append("\n");
         sb.append("当前日期：").append(today).append("\n\n");
+
+        // 身份识别：记忆为空 = 陌生人，注入迎接片段
+        String userId = memoryId == null ? null : memoryId.toString();
+        if (userId != null && memoryStore.isEmpty(userId)) {
+            sb.append("## 身份识别\n\n");
+            sb.append(STRANGER_GREETING).append("\n");
+        }
 
         if (!tools.isEmpty()) {
             sb.append("## 可用工具\n\n");

@@ -11,6 +11,7 @@ import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.Map;
 
@@ -32,17 +33,25 @@ public class AIChatController {
         response.getHeaders().set("X-Accel-Buffering", "no");
         response.getHeaders().set("Cache-Control", "no-cache");
 
-        String sessionId = StringUtils.hasText(request.getSessionId()) ? request.getSessionId() : "default";
-        String prompt = StringUtils.hasText(request.getPrompt()) ? request.getPrompt().trim() : "";
-        log.info("Received prompt [sessionId={}, thinking={}]: {}", sessionId, request.isThinking(), prompt);
+        if (!StringUtils.hasText(request.getUserId())) {
+            log.warn("Rejected request: missing userId");
+            return Flux.just(ServerSentEvent.<String>builder()
+                    .event("error")
+                    .data("userId 不能为空")
+                    .build());
+        }
 
-        return chatService.chat(sessionId, prompt, request.isThinking())
+        String userId = request.getUserId();
+        String prompt = StringUtils.hasText(request.getPrompt()) ? request.getPrompt().trim() : "";
+        log.info("Received prompt [userId={}, thinking={}]: {}", userId, request.isThinking(), prompt);
+
+        return chatService.chat(userId, prompt, request.isThinking())
                 .map(e -> ServerSentEvent.<String>builder().event(e.type()).data(e.data()).build());
     }
 
-    @DeleteMapping("/session/{sessionId}")
-    public Map<String, Object> clearSession(@PathVariable String sessionId) {
-        chatService.clearSession(sessionId);
-        return Map.of("cleared", sessionId);
+    @DeleteMapping("/user/{userId}/memory")
+    public Mono<Map<String, Object>> clearUserMemory(@PathVariable String userId) {
+        return chatService.clearUserMemory(userId)
+                .thenReturn(Map.of("cleared", userId));
     }
 }
