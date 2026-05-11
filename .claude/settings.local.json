@@ -43,7 +43,8 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(mvn --version)",
-      "Bash(java -version)"
+      "Bash(java -version)",
+      "WebFetch(domain:claude.ai)"
     ]
   }
 }
