@@ -30,7 +30,8 @@ spring:
       chat:
         thinking-model: deepseek-reasoner
         non-thinking-model: deepseek-chat
-        max-tokens: 8192
+        # 测试期保守值：单次输出 ~2K token 足够验证 Agent 行为；正式联调 thinking 再上调
+        max-tokens: 2048
 
 ai:
   # 模型提供方切换：anthropic | openai。同时只激活一套 ModelConfig
