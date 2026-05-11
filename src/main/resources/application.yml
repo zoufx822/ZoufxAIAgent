@@ -9,10 +9,10 @@ spring:
   profiles:
     active: local
   ai:
+    # Anthropic 兼容协议上游配置。仅在 ai.provider=anthropic 时被装配类读取
     anthropic:
       base-url: https://api.minimaxi.com/anthropic/v1
-      # API key 在 application-local.yml 中配置（不上传 GitHub）
-      api-key: ${MINIMAX_API_KEY:}
+      api-key: ${ANTHROPIC_API_KEY:}
       version: 2023-06-01
       timeout: 60s
       chat:
@@ -22,8 +22,19 @@ spring:
           thinking:
             type: enabled
             budget-tokens: 8192
+    # OpenAI 兼容协议上游配置。仅在 ai.provider=openai 时被装配类读取
+    openai:
+      base-url: https://api.deepseek.com/v1
+      api-key: ${OPENAI_API_KEY:}
+      timeout: 60s
+      chat:
+        thinking-model: deepseek-reasoner
+        non-thinking-model: deepseek-chat
+        max-tokens: 8192
 
 ai:
+  # 模型提供方切换：anthropic | openai。同时只激活一套 ModelConfig
+  provider: openai
   memory:
     max-messages: 20
     store:

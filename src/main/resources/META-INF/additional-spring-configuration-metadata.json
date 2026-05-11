@@ -1,5 +1,6 @@
 {
   "properties": [
+    { "name": "ai.provider", "type": "java.lang.String", "description": "Active LLM provider: anthropic | openai" },
     { "name": "spring.ai.anthropic.base-url", "type": "java.lang.String" },
     { "name": "spring.ai.anthropic.api-key", "type": "java.lang.String" },
     { "name": "spring.ai.anthropic.version", "type": "java.lang.String" },
@@ -7,6 +8,12 @@
     { "name": "spring.ai.anthropic.chat.options.model", "type": "java.lang.String" },
     { "name": "spring.ai.anthropic.chat.options.max-tokens", "type": "java.lang.Integer" },
     { "name": "spring.ai.anthropic.chat.options.thinking.type", "type": "java.lang.String" },
-    { "name": "spring.ai.anthropic.chat.options.thinking.budget-tokens", "type": "java.lang.Integer" }
+    { "name": "spring.ai.anthropic.chat.options.thinking.budget-tokens", "type": "java.lang.Integer" },
+    { "name": "spring.ai.openai.base-url", "type": "java.lang.String" },
+    { "name": "spring.ai.openai.api-key", "type": "java.lang.String" },
+    { "name": "spring.ai.openai.timeout", "type": "java.time.Duration" },
+    { "name": "spring.ai.openai.chat.thinking-model", "type": "java.lang.String" },
+    { "name": "spring.ai.openai.chat.non-thinking-model", "type": "java.lang.String" },
+    { "name": "spring.ai.openai.chat.max-tokens", "type": "java.lang.Integer" }
   ]
 }

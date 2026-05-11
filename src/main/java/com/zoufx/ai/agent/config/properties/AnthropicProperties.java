@@ -6,8 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 
 /**
- * Anthropic 兼容接口（MiniMax）配置。
- * 收口原 LangChain4JConfig 里 7 处 @Value，类型化嵌套结构。
+ * Anthropic 兼容协议配置。
+ * 仅在 ai.provider=anthropic 时启用，由 AnthropicModelConfig 装配。
  */
 @Data
 @ConfigurationProperties(prefix = "spring.ai.anthropic")

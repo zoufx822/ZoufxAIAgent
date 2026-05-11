@@ -5,18 +5,20 @@ import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 流式 ChatModel 装配。
+ * Anthropic 协议下的 StreamingChatModel 装配。
  *
- * 配置来自 {@link AnthropicProperties}（spring.ai.anthropic.*）。
+ * 仅在 ai.provider=anthropic 时激活。配置来自 {@link AnthropicProperties}。
  */
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-public class ModelConfig {
+@ConditionalOnProperty(name = "ai.provider", havingValue = "anthropic")
+public class AnthropicModelConfig {
 
     private final AnthropicProperties props;
 
@@ -33,7 +35,7 @@ public class ModelConfig {
 
     @Bean("thinkingChatModel")
     public StreamingChatModel thinkingChatModel() {
-        log.info("Creating thinkingChatModel with baseUrl: {}", props.getBaseUrl());
+        log.info("Creating thinkingChatModel [anthropic] baseUrl={}", props.getBaseUrl());
         AnthropicProperties.Thinking thinking = props.getChat().getOptions().getThinking();
         return baseBuilder()
                 .thinkingType(thinking.getType())
@@ -44,7 +46,7 @@ public class ModelConfig {
 
     @Bean("nonThinkingChatModel")
     public StreamingChatModel nonThinkingChatModel() {
-        log.info("Creating nonThinkingChatModel with baseUrl: {}", props.getBaseUrl());
+        log.info("Creating nonThinkingChatModel [anthropic] baseUrl={}", props.getBaseUrl());
         return baseBuilder().build();
     }
 }
