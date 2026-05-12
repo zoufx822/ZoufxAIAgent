@@ -66,6 +66,13 @@
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
 
+        <!-- Spring JDBC：JdbcTemplate / TransactionTemplate + HikariCP 连接池，
+             给记忆持久化层（ChatMemory v0 + v1 即将加的 MemoryStream / HotMemoryStore）共用一套底座 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
