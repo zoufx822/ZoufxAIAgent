@@ -1,14 +1,14 @@
 package com.zoufx.ai.agent.controller;
 
+import com.zoufx.ai.agent.model.ChatEventMapper;
 import com.zoufx.ai.agent.model.ChatRequest;
 import com.zoufx.ai.agent.service.AIChatService;
-import com.zoufx.ai.agent.util.WebSearchEventHelper;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.http.server.reactive.ServerHttpResponse;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -17,36 +17,30 @@ import java.util.Map;
 
 /**
  * AI 控制器 —— HTTP 适配层。
- * 负责：请求解析、响应头设置、ChatEvent → SSE 事件翻译。
- * 业务逻辑见 {@link AIChatService}；网络检索工具方法见 {@link WebSearchEventHelper}。
+ * 职责：HTTP 头设置 + 委托 service + 领域事件到 SSE 协议的翻译。
+ *
+ * 入参校验由 {@link jakarta.validation.Valid @Valid} + {@link com.zoufx.ai.agent.model.ChatRequest} 上的 Bean Validation 注解承担；
+ * 校验失败由 {@link GlobalExceptionHandler} 统一翻译为 HTTP 400，不再走 SSE error 事件分支。
  */
 @Slf4j
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/ai")
 public class AIChatController {
 
-    @Autowired
-    private AIChatService chatService;
+    private final AIChatService chatService;
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> chat(@RequestBody ChatRequest request, ServerHttpResponse response) {
+    public Flux<ServerSentEvent<String>> chat(@Valid @RequestBody ChatRequest request, ServerHttpResponse response) {
         response.getHeaders().set("X-Accel-Buffering", "no");
         response.getHeaders().set("Cache-Control", "no-cache");
 
-        if (!StringUtils.hasText(request.getUserId())) {
-            log.warn("Rejected request: missing userId");
-            return Flux.just(ServerSentEvent.<String>builder()
-                    .event("error")
-                    .data("userId 不能为空")
-                    .build());
-        }
-
         String userId = request.getUserId();
-        String prompt = StringUtils.hasText(request.getPrompt()) ? request.getPrompt().trim() : "";
+        String prompt = request.getPrompt().trim();
         log.info("Received prompt [userId={}, thinking={}]: {}", userId, request.isThinking(), prompt);
 
         return chatService.chat(userId, prompt, request.isThinking())
-                .map(e -> ServerSentEvent.<String>builder().event(e.type()).data(e.data()).build());
+                .map(ChatEventMapper::toSse);
     }
 
     @DeleteMapping("/user/{userId}/memory")

@@ -4,10 +4,10 @@ import com.zoufx.ai.agent.assistant.ChatAssistant;
 import com.zoufx.ai.agent.config.properties.RetryProperties;
 import com.zoufx.ai.agent.memory.MemoryStore;
 import com.zoufx.ai.agent.model.ChatEvent;
+import com.zoufx.ai.agent.service.adapter.TokenStreamToFluxAdapter;
 import com.zoufx.ai.agent.util.RetryPolicy;
-import com.zoufx.ai.agent.util.WebSearchEventHelper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -17,76 +17,53 @@ import reactor.util.retry.Retry;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * 聊天编排服务。
+ *
+ * 职责切分：
+ * - LC4J SDK 桥接 / SSE 事件构造 → {@link TokenStreamToFluxAdapter}
+ * - 重试与错误兜底 → 本类（v1 会进一步抽出 LlmRetrySpec）
+ * - 入参校验 → ChatRequest 上的 Bean Validation（由 GlobalExceptionHandler 兜底）
+ */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class AIChatService {
 
-    @Autowired
     @Qualifier("thinkingAssistant")
-    private ChatAssistant thinkingAssistant;
+    private final ChatAssistant thinkingAssistant;
 
-    @Autowired
     @Qualifier("nonThinkingAssistant")
-    private ChatAssistant nonThinkingAssistant;
+    private final ChatAssistant nonThinkingAssistant;
 
-    @Autowired
-    private MemoryStore memoryStore;
-
-    @Autowired
-    private RetryProperties retryProperties;
+    private final MemoryStore memoryStore;
+    private final RetryProperties retryProperties;
+    private final TokenStreamToFluxAdapter tokenStreamAdapter;
 
     public Flux<ChatEvent> chat(String userId, String prompt, boolean thinking) {
-        if (prompt.isEmpty()) {
-            return Flux.just(new ChatEvent("error", "prompt 不能为空"));
-        }
-
         ChatAssistant assistant = thinking ? thinkingAssistant : nonThinkingAssistant;
         AtomicBoolean hasEmitted = new AtomicBoolean(false);
 
-        return Flux.<ChatEvent>create(sink ->
-                        assistant.chat(userId, prompt)
-                                .onPartialThinking(pt -> {
-                                    hasEmitted.set(true);
-                                    if (pt != null && pt.text() != null) {
-                                        sink.next(new ChatEvent("thinking", pt.text()));
-                                    }
-                                })
-                                .onPartialResponse(ct -> {
-                                    hasEmitted.set(true);
-                                    sink.next(new ChatEvent("content", ct));
-                                })
-                                .beforeToolExecution(evt -> {
-                                    hasEmitted.set(true);
-                                    String name = evt.request().name();
-                                    String query = WebSearchEventHelper.extractQuery(evt.request().arguments());
-                                    log.info("Tool call start [userId={}] {} query={}", userId, name, query);
-                                    sink.next(new ChatEvent("tool_call", WebSearchEventHelper.toolCallPayload(name, query)));
-                                })
-                                .onToolExecuted(exec -> {
-                                    hasEmitted.set(true);
-                                    String name = exec.request().name();
-                                    String result = exec.result();
-                                    int count = WebSearchEventHelper.countResults(result);
-                                    log.info("Tool call done [userId={}] {} count={}", userId, name, count);
-                                    sink.next(new ChatEvent("tool_result", WebSearchEventHelper.toolResultPayload(name, count, result)));
-                                })
-                                .onError(sink::error)
-                                .onCompleteResponse(r -> {
-                                    log.info("Stream completed [userId={}]", userId);
-                                    sink.complete();
-                                })
-                                .start()
-                )
-                .retryWhen(Retry.backoff(retryProperties.getLlm().getMaxAttempts(), retryProperties.getLlm().getMinBackoff())
-                        .maxBackoff(retryProperties.getLlm().getMaxBackoff())
-                        .filter(err -> !hasEmitted.get() && RetryPolicy.isRetryable(err))
-                        .doBeforeRetry(rs -> log.warn("LLM retry #{} [userId={}] cause={}",
-                                rs.totalRetries() + 1, userId, rs.failure().toString())))
+        return tokenStreamAdapter.bridge(assistant, userId, prompt, hasEmitted)
+                .retryWhen(buildRetrySpec(userId, hasEmitted))
                 .onErrorResume(err -> {
                     log.error("Stream error [userId={}]", userId, err);
-                    return Flux.just(new ChatEvent("error", err.getMessage() != null ? err.getMessage() : "AI 服务异常，请稍后重试"));
+                    String msg = err.getMessage() != null ? err.getMessage() : "AI 服务异常，请稍后重试";
+                    return Flux.just(new ChatEvent("error", msg));
                 })
                 .doOnCancel(() -> log.info("Stream cancelled [userId={}]", userId));
+    }
+
+    /**
+     * LLM 重试策略：仅在"流尚未推送任何事件"时重试，避免给前端发出半截流后又重来。
+     * v1 会抽到独立的 LlmRetrySpec 类。
+     */
+    private Retry buildRetrySpec(String userId, AtomicBoolean hasEmitted) {
+        return Retry.backoff(retryProperties.getLlm().getMaxAttempts(), retryProperties.getLlm().getMinBackoff())
+                .maxBackoff(retryProperties.getLlm().getMaxBackoff())
+                .filter(err -> !hasEmitted.get() && RetryPolicy.isRetryable(err))
+                .doBeforeRetry(rs -> log.warn("LLM retry #{} [userId={}] cause={}",
+                        rs.totalRetries() + 1, userId, rs.failure().toString()));
     }
 
     /**
