@@ -47,7 +47,9 @@
       "WebFetch(domain:claude.ai)",
       "Bash(./mvnw.cmd -q -DskipTests compile)",
       "Bash(mvn -q -DskipTests compile)",
-      "Bash(mvn -DskipTests compile)"
+      "Bash(mvn -DskipTests compile)",
+      "Bash(mvn compile *)",
+      "Bash(jps)"
     ]
   }
 }
