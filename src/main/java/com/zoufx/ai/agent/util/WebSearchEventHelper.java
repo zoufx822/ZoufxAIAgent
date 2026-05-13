@@ -80,18 +80,27 @@ public class WebSearchEventHelper {
     }
 
     /**
-     * 数搜索结果的条数（以 "\n- " 分隔符计数）。
+     * 数工具返回内容里的条目数，兼容两种列表格式：
+     * <ul>
+     *   <li>Bullet 列表（search_web 用）：行首或换行后是 {@code "- "}</li>
+     *   <li>编号列表（session_search 用）：行首或换行后是 {@code "1. " / "2. " ...}</li>
+     * </ul>
+     * 用一个正则在 multi-line 模式下统一计数，避免针对每个工具的输出分支判断。
      */
     public static int countResults(String result) {
         if (!StringUtils.hasText(result)) return 0;
         int count = 0;
-        int idx = 0;
-        while ((idx = result.indexOf("\n- ", idx)) != -1) {
-            count++;
-            idx += 3;
-        }
-        return result.startsWith("- ") ? count + 1 : count;
+        java.util.regex.Matcher m = LIST_ITEM_PATTERN.matcher(result);
+        while (m.find()) count++;
+        return count;
     }
+
+    /**
+     * 匹配列表条目首字符：行首（^）或换行后跟 "- " 或 "数字. "。
+     * 用 (?m) 让 ^ 匹配每行起点。
+     */
+    private static final java.util.regex.Pattern LIST_ITEM_PATTERN =
+            java.util.regex.Pattern.compile("(?m)^(?:-\\s|\\d+\\.\\s)");
 
     /**
      * 截断字符串到指定长度，超过部分用 "…" 代替。

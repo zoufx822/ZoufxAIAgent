@@ -110,11 +110,14 @@ public class SqliteMemoryStream implements MemoryStream {
 
     private List<StreamEntry> searchBlocking(String userId, String keyword, int limit) {
         int safeLimit = Math.min(Math.max(limit, 1), SEARCH_LIMIT_HARD_MAX);
-        // 把 keyword 也按 codepoint 切，包成 FTS5 phrase 查询：保证 token 相邻顺序匹配，
-        // 同时双引号外层包裹让特殊字符（* - ( ) 等）失去 FTS5 元义、按字面匹配
-        String tokenized = codepointSplit(keyword);
-        if (tokenized.isEmpty()) return List.of();
-        String phrase = "\"" + tokenized.replace("\"", "\"\"") + "\"";
+        // LLM 常传 "后端 编程语言" 这种空格分隔多关键词形式：每个 term 内要求字符相邻（phrase），
+        // 多个 term 之间走 OR（任一命中即算）。原因：LLM 的"概念性关键词"与历史原文的字面用词
+        // 经常不一致——比如用户原话说"Java"，LLM 搜"语言"，AND 会过严，OR 至少召回字面命中的部分，
+        // 让 LLM 自己看结果做相关性判断（FTS5 rank 排序帮过滤）。兼容：
+        //   "美式咖啡"     → 单短语 phrase MATCH（字符相邻）
+        //   "后端 编程语言" → ("后 端") OR ("编 程 语 言")
+        String matchExpr = buildFtsMatchExpression(keyword);
+        if (matchExpr == null) return List.of();
         return jdbc.query("""
                         SELECT ms.id, ms.role, ms.content, ms.created_at
                         FROM memory_stream_fts
@@ -128,7 +131,26 @@ public class SqliteMemoryStream implements MemoryStream {
                         rs.getString("role"),
                         rs.getString("content"),
                         rs.getLong("created_at")),
-                phrase, userId, safeLimit);
+                matchExpr, userId, safeLimit);
+    }
+
+    /**
+     * 把 LLM 传入的 keyword 转成 FTS5 MATCH 表达式：
+     * 空白切分成多个 term，每个 term codepoint-split + 双引号包成 phrase，整体 OR 组合。
+     * 返回 null 表示输入无可搜的 token。
+     */
+    static String buildFtsMatchExpression(String keyword) {
+        if (keyword == null || keyword.isBlank()) return null;
+        StringBuilder expr = new StringBuilder();
+        for (String term : keyword.trim().split("\\s+")) {
+            if (term.isEmpty()) continue;
+            String tokenized = codepointSplit(term);
+            if (tokenized.isEmpty()) continue;
+            if (expr.length() > 0) expr.append(" OR ");
+            // 双引号包 phrase，内部双引号转义为 "" 防 FTS5 语法注入
+            expr.append('"').append(tokenized.replace("\"", "\"\"")).append('"');
+        }
+        return expr.length() == 0 ? null : expr.toString();
     }
 
     private List<StreamEntry> loadRecentBlocking(String userId, int limit) {
