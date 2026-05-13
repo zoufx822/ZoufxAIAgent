@@ -11,6 +11,8 @@ import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -21,7 +23,8 @@ import java.util.List;
  *
  * 设计要点：
  * - 单文件 SQLite + WAL 模式（WAL PRAGMA 由 HikariCP connectionInitSql 注入，见 MemoryDataSourceConfig）
- * - LC4J 调用 ChatMemoryStore 走框架自身调度器（与 @Tool 同情境），不影响 WebFlux event loop
+ * - LC4J {@link ChatMemoryStore} 接口在框架线程同步调用：直接走私有 *Blocking 方法
+ * - 业务 {@link MemoryStore} 接口反应式签名：用 {@code Mono.fromCallable(...).subscribeOn(boundedElastic())} 包装相同的 *Blocking 方法
  * - {@code updateMessages} 语义为"全量替换"——LC4J 每次都传完整 list，所以事务里 DELETE + 批量 INSERT
  * - 序列化用 LC4J 自带的 {@link ChatMessageSerializer} / {@link ChatMessageDeserializer}，覆盖 ChatMessage 的所有子类型
  */
@@ -54,35 +57,61 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
         log.info("SqliteChatMemoryStore schema ready (chat_messages)");
     }
 
-    // ====== LC4J ChatMemoryStore ======
+    // ====== LC4J ChatMemoryStore（同步，框架线程调用）======
 
     @Override
     public List<ChatMessage> getMessages(Object memoryId) {
-        return loadByUserId(memoryId.toString());
+        return loadByUserIdBlocking(memoryId.toString());
     }
 
     @Override
     public void updateMessages(Object memoryId, List<ChatMessage> messages) {
-        saveByUserId(memoryId.toString(), messages);
+        saveByUserIdBlocking(memoryId.toString(), messages);
     }
 
     @Override
     public void deleteMessages(Object memoryId) {
-        deleteByUserId(memoryId.toString());
+        deleteByUserIdBlocking(memoryId.toString());
     }
 
-    // ====== 业务 MemoryStore ======
+    // ====== 业务 MemoryStore（反应式，自动 boundedElastic 调度）======
 
     @Override
-    public List<ChatMessage> loadByUserId(String userId) {
+    public Mono<List<ChatMessage>> loadByUserId(String userId) {
+        return Mono.fromCallable(() -> loadByUserIdBlocking(userId))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    @Override
+    public Mono<Void> saveByUserId(String userId, List<ChatMessage> messages) {
+        return Mono.<Void>fromRunnable(() -> saveByUserIdBlocking(userId, messages))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    @Override
+    public Mono<Void> deleteByUserId(String userId) {
+        return Mono.<Void>fromRunnable(() -> deleteByUserIdBlocking(userId))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    /**
+     * 注意：本方法保持同步——见 {@link MemoryStore#isEmpty(String)} 文档解释为何不能反应式。
+     */
+    @Override
+    public boolean isEmpty(String userId) {
+        return isEmptyBlocking(userId);
+    }
+
+    // ====== 私有同步实现（被两套接口共享）======
+
+    private List<ChatMessage> loadByUserIdBlocking(String userId) {
         return jdbc.query(
                 "SELECT content FROM chat_messages WHERE user_id = ? ORDER BY id ASC",
                 (rs, i) -> ChatMessageDeserializer.messageFromJson(rs.getString("content")),
                 userId);
     }
 
-    @Override
-    public void saveByUserId(String userId, List<ChatMessage> messages) {
+    private void saveByUserIdBlocking(String userId, List<ChatMessage> messages) {
         // 同批写入按毫秒+偏移单调递增，避免 v1 引入 Memory Stream 时所有 created_at 撞车
         long base = System.currentTimeMillis();
         tx.executeWithoutResult(status -> {
@@ -108,13 +137,11 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
         });
     }
 
-    @Override
-    public void deleteByUserId(String userId) {
+    private void deleteByUserIdBlocking(String userId) {
         jdbc.update("DELETE FROM chat_messages WHERE user_id = ?", userId);
     }
 
-    @Override
-    public boolean isEmpty(String userId) {
+    private boolean isEmptyBlocking(String userId) {
         Integer exists = jdbc.queryForObject(
                 "SELECT EXISTS(SELECT 1 FROM chat_messages WHERE user_id = ?)",
                 Integer.class, userId);
