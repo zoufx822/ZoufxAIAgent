@@ -26,9 +26,23 @@ import java.util.stream.Collectors;
  *   4. 工具集（自动从所有 ToolPromptContributor Bean 聚合，{today} 占位符替换）
  *   5. 全局响应规则
  *
- * 每次 chat 调用时由 LangChain4J 触发 compose(memoryId)，注入到 LLM 请求的 system 字段。
+ * <h2>Frozen Snapshot 约束（v1 显式化）</h2>
+ * {@link #compose(Object)} 由 LC4J 作为 SystemPromptProvider 在 ==每次 chat 请求的开始处==
+ * 同步内联调用 ==一次==——这是 LC4J 默认行为，单请求 system prompt 自然冻结。
  *
- * 线程上下文：本方法被 LC4J 作为 SystemPromptProvider 同步契约调用，在调用方线程上内联执行。
+ * ==请勿==在响应流的任何阶段（{@code doOnNext} / 工具回调 / 流尾 hook 等）主动重新调用 compose()，
+ * 否则会破坏「Hot Memory 修改要到下次请求才生效」的 Hermes Frozen Snapshot 语义：
+ *   T0: 请求开始 → compose() 读到 display_name=null → 注入陌生人迎接
+ *   T1: LLM 调 remember_user_name("张三") → user_profile 落盘
+ *   T2: LLM 继续输出 "你好张三..."
+ *   T3: 响应结束。==整个请求中 system prompt 不重读==
+ *   T4: 下次请求 → compose() 重新读到 display_name=张三
+ *
+ * v1 中此 provider 唯一注入点：{@code AssistantConfig} 把 {@link #asProvider()} 传给
+ * {@code AiServices.builder().systemMessageProvider(...)}。新增调用点必须沿用同款约束。
+ *
+ * <h2>线程上下文</h2>
+ * 本方法被 LC4J 作为 SystemPromptProvider 同步契约调用，在调用方线程上内联执行。
  * 上层从 WebFlux event loop 触发 chat，故 compose 也在 event loop 上跑——==所有 store 读取必须用同步签名==，
  * 不能 .block() 一个 Mono，否则被 Reactor NonBlockingHook 拦下抛错。
  */

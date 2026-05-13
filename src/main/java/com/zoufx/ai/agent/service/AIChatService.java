@@ -1,11 +1,10 @@
 package com.zoufx.ai.agent.service;
 
 import com.zoufx.ai.agent.assistant.ChatAssistant;
-import com.zoufx.ai.agent.config.properties.RetryProperties;
 import com.zoufx.ai.agent.memory.MemoryStore;
 import com.zoufx.ai.agent.memory.MemoryStream;
 import com.zoufx.ai.agent.model.ChatEvent;
-import com.zoufx.ai.agent.util.RetryPolicy;
+import com.zoufx.ai.agent.util.LlmRetrySpec;
 import com.zoufx.ai.agent.util.WebSearchEventHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +13,6 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
-import reactor.util.retry.Retry;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -49,7 +47,7 @@ public class AIChatService {
 
     private final MemoryStore memoryStore;
     private final MemoryStream memoryStream;
-    private final RetryProperties retryProperties;
+    private final LlmRetrySpec llmRetrySpec;
 
     public Flux<ChatEvent> chat(String userId, String prompt, boolean thinking) {
         ChatAssistant assistant = thinking ? thinkingAssistant : nonThinkingAssistant;
@@ -82,7 +80,7 @@ public class AIChatService {
     private Flux<ChatEvent> buildStream(ChatAssistant assistant, String userId, String prompt,
                                         AtomicBoolean hasEmitted, StringBuilder assistantBuffer) {
         return Flux.<ChatEvent>create(sink -> startTokenStream(sink, assistant, userId, prompt, hasEmitted))
-                .retryWhen(buildRetrySpec(userId, hasEmitted))
+                .retryWhen(llmRetrySpec.onlyRetryBeforeFirstEmission(hasEmitted))
                 .doOnNext(event -> {
                     if ("content".equals(event.type())) {
                         assistantBuffer.append(event.data());
@@ -153,18 +151,6 @@ public class AIChatService {
                     return Mono.empty();
                 })
                 .subscribe();
-    }
-
-    /**
-     * LLM 重试策略：仅在"流尚未推送任何事件"时重试，避免给前端发出半截流后又重来。
-     * v1 收尾 commit 会抽到独立的 LlmRetrySpec 类。
-     */
-    private Retry buildRetrySpec(String userId, AtomicBoolean hasEmitted) {
-        return Retry.backoff(retryProperties.getLlm().getMaxAttempts(), retryProperties.getLlm().getMinBackoff())
-                .maxBackoff(retryProperties.getLlm().getMaxBackoff())
-                .filter(err -> !hasEmitted.get() && RetryPolicy.isRetryable(err))
-                .doBeforeRetry(rs -> log.warn("LLM retry #{} [userId={}] cause={}",
-                        rs.totalRetries() + 1, userId, rs.failure().toString()));
     }
 
     /**
