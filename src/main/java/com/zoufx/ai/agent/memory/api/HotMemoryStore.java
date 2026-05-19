@@ -6,11 +6,11 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Hot Memory：结构化关键事实存储（user_profile 表）。
+ * Hot Memory：结构化关键事实存储（hot_memory 表）。
  *
  * 定位：与 Memory Stream（Cold Archive）==并行==的两条独立写入路径，不互相派生：
  * - Cold 自动 append 每轮对话原文
- * - Hot 由 LLM 通过 @Tool（v1：{@code remember_user_name}）主动晶化结构化字段写入
+ * - Hot 由 LLM 通过 @Tool（{@code update_hot_memory}）主动晶化结构化字段写入
  *
  * v1 启用 key 集合：{@code display_name}（解决 v0 身份"短期记忆"病灶）。
  * v2 会扩展到 language / timezone / role 等。

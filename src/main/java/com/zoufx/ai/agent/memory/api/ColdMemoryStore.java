@@ -19,7 +19,7 @@ import java.util.List;
  * v1 范围：tool_result 不进 stream（噪音大，等 v3 Consolidation 决策）。
  *
  * 所有方法均为反应式签名——调用方都在 WebFlux event loop（Controller / Service）或 LC4J 工具线程
- * （SessionSearchTool 内部可 .block() 桥接）；不与 LC4J SystemPromptProvider 同步契约挂钩，
+ * （ColdMemorySearchTool 内部可 .block() 桥接）；不与 LC4J SystemPromptProvider 同步契约挂钩，
  * 因此整接口可以全反应式（对比 {@link HotMemoryStore} 的 get/snapshot 必须同步）。
  */
 public interface ColdMemoryStore {

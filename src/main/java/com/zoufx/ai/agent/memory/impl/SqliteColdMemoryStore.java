@@ -25,7 +25,7 @@ import java.util.List;
  * - 解决：写入 FTS 索引时由 Java 侧按 codepoint 把内容打散成空格分隔的字符序列
  *   （原文 "我喜欢喝美式咖啡" → FTS 内容 "我 喜 欢 喝 美 式 咖 啡"）
  * - 查询时同样把 keyword 打散，并用 FTS5 phrase 语法 {@code "c1 c2 ..."} 保证相邻顺序
- * - FTS 索引存的是==分词版本==的内容，与主表 memory_stream.content 的==原文==分离；
+ * - FTS 索引存的是==分词版本==的内容，与主表 cold_memory.content 的==原文==分离；
  *   故 FTS 不采用 external content 模式，而是各自存储（FTS 表只是索引，体积小，重复存储可接受）
  * - 主表与 FTS 表写入在同一事务里，借 {@code last_insert_rowid()} 拿主表自增 id 当 FTS rowid，保证一一对应
  */
@@ -47,7 +47,7 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
     @PostConstruct
     public void init() {
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS memory_stream (
+                CREATE TABLE IF NOT EXISTS cold_memory (
                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id    TEXT    NOT NULL,
                     role       TEXT    NOT NULL,
@@ -56,11 +56,11 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
                     created_at INTEGER NOT NULL
                 )
                 """);
-        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_stream_user_time ON memory_stream(user_id, created_at)");
+        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_cold_memory_user_time ON cold_memory(user_id, created_at)");
 
         // FTS5 表：独立存储分词版本的内容（不用 external content 模式）
         jdbc.execute("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS memory_stream_fts USING fts5(
+                CREATE VIRTUAL TABLE IF NOT EXISTS cold_memory_fts USING fts5(
                     content,
                     tokenize='unicode61'
                 )
@@ -68,13 +68,13 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
 
         // DELETE 触发器：主表行删了，FTS 索引同步删（rowid 对齐）
         jdbc.execute("""
-                CREATE TRIGGER IF NOT EXISTS mstream_ad AFTER DELETE ON memory_stream BEGIN
-                    DELETE FROM memory_stream_fts WHERE rowid = old.id;
+                CREATE TRIGGER IF NOT EXISTS cold_memory_ad AFTER DELETE ON cold_memory BEGIN
+                    DELETE FROM cold_memory_fts WHERE rowid = old.id;
                 END
                 """);
         // INSERT 触发器不再使用——FTS 内容是分词版本，需要 Java 侧预处理，无法在 SQL 触发器里完成
 
-        log.info("SqliteColdMemoryStore schema ready (memory_stream + FTS5 with codepoint-split tokenization)");
+        log.info("SqliteColdMemoryStore schema ready (cold_memory + FTS5 with codepoint-split tokenization)");
     }
 
     @Override
@@ -102,10 +102,10 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
         // 同事务保证 last_insert_rowid 与刚 INSERT 的主表行对齐，且失败时两条都回滚
         tx.executeWithoutResult(status -> {
             jdbc.update(
-                    "INSERT INTO memory_stream (user_id, role, content, metadata, created_at) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO cold_memory (user_id, role, content, metadata, created_at) VALUES (?, ?, ?, ?, ?)",
                     userId, role, content, metadataJson, System.currentTimeMillis());
             jdbc.update(
-                    "INSERT INTO memory_stream_fts (rowid, content) SELECT last_insert_rowid(), ?",
+                    "INSERT INTO cold_memory_fts (rowid, content) SELECT last_insert_rowid(), ?",
                     tokenized);
         });
     }
@@ -122,9 +122,9 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
         if (matchExpr == null) return List.of();
         return jdbc.query("""
                         SELECT ms.id, ms.role, ms.content, ms.created_at
-                        FROM memory_stream_fts
-                        JOIN memory_stream ms ON memory_stream_fts.rowid = ms.id
-                        WHERE memory_stream_fts MATCH ? AND ms.user_id = ?
+                        FROM cold_memory_fts
+                        JOIN cold_memory ms ON cold_memory_fts.rowid = ms.id
+                        WHERE cold_memory_fts MATCH ? AND ms.user_id = ?
                         ORDER BY rank
                         LIMIT ?
                         """,
@@ -158,7 +158,7 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
     private List<ColdMemoryEntry> loadRecentBlocking(String userId, int limit) {
         int safeLimit = Math.min(Math.max(limit, 1), SEARCH_LIMIT_HARD_MAX);
         return jdbc.query(
-                "SELECT id, role, content, created_at FROM memory_stream WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                "SELECT id, role, content, created_at FROM cold_memory WHERE user_id = ? ORDER BY id DESC LIMIT ?",
                 (rs, i) -> new ColdMemoryEntry(
                         rs.getLong("id"),
                         rs.getString("role"),

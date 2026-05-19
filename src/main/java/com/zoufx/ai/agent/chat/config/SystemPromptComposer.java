@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
  * ==请勿==在响应流的任何阶段（{@code doOnNext} / 工具回调 / 流尾 hook 等）主动重新调用 compose()，
  * 否则会破坏「Hot Memory 修改要到下次请求才生效」的 Hermes Frozen Snapshot 语义：
  *   T0: 请求开始 → compose() 读到 display_name=null → 注入陌生人迎接
- *   T1: LLM 调 remember_user_name("张三") → user_profile 落盘
+ *   T1: LLM 调 update_hot_memory("display_name", "张三") → hot_memory 落盘
  *   T2: LLM 继续输出 "你好张三..."
  *   T3: 响应结束。==整个请求中 system prompt 不重读==
  *   T4: 下次请求 → compose() 重新读到 display_name=张三

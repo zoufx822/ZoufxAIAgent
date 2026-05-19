@@ -32,10 +32,12 @@ public class WebSearchEventHelper {
 
     /**
      * 构建 tool_call 事件的 JSON payload。
+     * 包含工具的方法名（英文）和汉语名称。
      */
-    public static String toolCallPayload(String tool, String query) {
+    public static String toolCallPayload(String tool, String chineseName, String query) {
         ObjectNode node = MAPPER.createObjectNode();
         node.put("tool", tool);
+        node.put("toolDisplay", chineseName);  // 前端使用此字段显示汉语名
         node.put("query", query);
         return node.toString();
     }
@@ -45,12 +47,12 @@ public class WebSearchEventHelper {
      * 手动转义特殊字符以确保 SSE 兼容性。
      * 不能依赖 Jackson，因为 SSE 流中不应该有真实换行符。
      */
-    public static String toolResultPayload(String tool, int count, String rawResult) {
+    public static String toolResultPayload(String tool, String chineseName, int count, String rawResult) {
         String preview = truncate(rawResult, 200);
         // 对 resultPreview 进行 JSON 转义
         String escaped = escapeJsonString(preview);
         // 直接使用字符串拼接，确保没有真实换行符进入 JSON
-        return String.format("{\"tool\":\"%s\",\"count\":%d,\"resultPreview\":\"%s\"}", tool, count, escaped);
+        return String.format("{\"tool\":\"%s\",\"toolDisplay\":\"%s\",\"count\":%d,\"resultPreview\":\"%s\"}", tool, chineseName, count, escaped);
     }
 
     /**
@@ -83,7 +85,7 @@ public class WebSearchEventHelper {
      * 数工具返回内容里的条目数，兼容两种列表格式：
      * <ul>
      *   <li>Bullet 列表（search_web 用）：行首或换行后是 {@code "- "}</li>
-     *   <li>编号列表（session_search 用）：行首或换行后是 {@code "1. " / "2. " ...}</li>
+     *   <li>编号列表（search_cold_memory 用）：行首或换行后是 {@code "1. " / "2. " ...}</li>
      * </ul>
      * 用一个正则在 multi-line 模式下统一计数，避免针对每个工具的输出分支判断。
      */

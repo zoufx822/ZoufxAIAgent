@@ -17,16 +17,16 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Cold Archive 召回工具：让 LLM 在"当前对话窗口里看不到、但对方暗示之前说过"时
- * 主动调用，到 Memory Stream 里 FTS5 检索原文。
+ * 冷内存搜索工具：让 LLM 在"当前对话窗口里看不到、但对方暗示之前说过"时
+ * 主动调用，到冷内存（cold_memory）里 FTS5 检索原文。
  *
  * 线程：LC4J 在工具线程上同步调用 @Tool 方法（与 WebFlux event loop 隔离），
- * 故 {@code .block()} 桥接反应式 {@link MemoryStreamContract#search} 是合规的。
+ * 故 {@code .block()} 桥接反应式 {@link ColdMemoryStore#search} 是合规的。
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class SessionSearchTool implements ToolPrompt {
+public class ColdMemorySearchTool implements ToolPrompt {
 
     private static final int DEFAULT_LIMIT = 5;
     private static final int HARD_MAX_LIMIT = 20;
@@ -38,13 +38,13 @@ public class SessionSearchTool implements ToolPrompt {
 
     @Override
     public String section() {
-        return "session_search（经历流检索）";
+        return "记忆检索";
     }
 
     @Override
     public String promptInstructions() {
         return """
-                ==必须触发==：当对方暗示"之前说过/聊过/讨论过"某事而当前对话窗口里看不到时，==立刻调用 session_search==。
+                ==必须触发==：当对方暗示"之前说过/聊过/讨论过"某事而当前对话窗口里看不到时，==立刻调用 search_cold_memory==。
                 必触发的信号示例：
                 - 「我之前说过…吗」「你还记得…吗」「上次聊到的…」「我跟你提过…」
                 - 「我刚才不是说过…」（但近期消息里没有时）
@@ -58,17 +58,17 @@ public class SessionSearchTool implements ToolPrompt {
                 """;
     }
 
-    @Tool("从完整经历流里按关键词检索过往消息。当对方暗示之前说过/聊过/讨论过，而当前对话窗口里看不到时使用。返回带时间戳、角色、内容的结果列表。")
-    public String session_search(
+    @Tool("记忆检索：从完整记忆流里按关键词检索过往消息。当对方暗示之前说过/聊过/讨论过，而当前对话窗口里看不到时使用。返回带时间戳、角色、内容的结果列表。")
+    public String search_cold_memory(
             @ToolMemoryId String userId,
             @P("搜索关键词（短词或短语，不要用整句话）") String keyword,
             @P("返回条数，默认 5，最大 20") int limit) {
         if (keyword == null || keyword.isBlank()) {
-            return "session_search 调用失败：keyword 不能为空";
+            return "search_cold_memory 调用失败：keyword 不能为空";
         }
         int effectiveLimit = limit > 0 ? Math.min(limit, HARD_MAX_LIMIT) : DEFAULT_LIMIT;
 
-        log.info("🔎 session_search [userId={}] keyword='{}' limit={}", userId, keyword, effectiveLimit);
+        log.info("🔎 search_cold_memory [userId={}] keyword='{}' limit={}", userId, keyword, effectiveLimit);
         List<ColdMemoryEntry> hits = memoryStream.search(userId, keyword, effectiveLimit).block();
         if (hits == null || hits.isEmpty()) {
             return "经历流里没找到与「" + keyword + "」相关的内容。";

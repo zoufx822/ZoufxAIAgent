@@ -40,7 +40,7 @@ public class TavilySearchTool implements ToolPrompt {
 
     @Override
     public String section() {
-        return "search_web（网络检索）";
+        return "网络检索";
     }
 
     @Override
@@ -61,7 +61,7 @@ public class TavilySearchTool implements ToolPrompt {
                 """;
     }
 
-    @Tool("在需要最新/实时信息时调用：新闻、近期事件、股价、产品发布、时效性问答等。返回带标题、URL、摘要的结果列表。")
+    @Tool("网络检索：在需要最新/实时信息时调用：新闻、近期事件、股价、产品发布、时效性问答等。返回带标题、URL、摘要的结果列表。")
     public String search_web(@P("搜索关键词，简洁中文或英文查询语句") String query) {
         if (engine == null) {
             log.warn("TavilySearchTool 被调用但 engine 未配置，降级返回");

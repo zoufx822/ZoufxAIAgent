@@ -35,7 +35,7 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
     @PostConstruct
     public void init() {
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS user_profile (
+                CREATE TABLE IF NOT EXISTS hot_memory (
                     user_id    TEXT    NOT NULL,
                     key        TEXT    NOT NULL,
                     value      TEXT    NOT NULL,
@@ -43,14 +43,14 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
                     PRIMARY KEY (user_id, key)
                 )
                 """);
-        log.info("SqliteHotMemoryStore schema ready (user_profile)");
+        log.info("SqliteHotMemoryStore schema ready (hot_memory)");
     }
 
     @Override
     public Optional<String> get(String userId, String key) {
         try {
             String value = jdbc.queryForObject(
-                    "SELECT value FROM user_profile WHERE user_id = ? AND key = ?",
+                    "SELECT value FROM hot_memory WHERE user_id = ? AND key = ?",
                     String.class, userId, key);
             return Optional.ofNullable(value);
         } catch (EmptyResultDataAccessException e) {
@@ -62,7 +62,7 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
     public Map<String, String> snapshot(String userId) {
         Map<String, String> result = new HashMap<>();
         jdbc.query(
-                "SELECT key, value FROM user_profile WHERE user_id = ?",
+                "SELECT key, value FROM hot_memory WHERE user_id = ?",
                 rs -> { result.put(rs.getString("key"), rs.getString("value")); },
                 userId);
         return result;
@@ -77,7 +77,7 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
     private void setBlocking(String userId, String key, String value) {
         // SQLite UPSERT 语法（3.24+）：后写覆盖前写
         jdbc.update("""
-                INSERT INTO user_profile (user_id, key, value, updated_at)
+                INSERT INTO hot_memory (user_id, key, value, updated_at)
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(user_id, key) DO UPDATE SET
                     value = excluded.value,

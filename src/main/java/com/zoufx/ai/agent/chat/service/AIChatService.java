@@ -9,6 +9,7 @@ import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import com.zoufx.ai.agent.chat.helper.RetryPolicyHelper;
 import com.zoufx.ai.agent.chat.helper.WebSearchEventHelper;
+import com.zoufx.ai.agent.tool.helper.ToolNameMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -53,6 +54,7 @@ public class AIChatService {
     private final ColdMemoryStore memoryStream;
     private final RetryProperties retryProperties;
     private final MoodProperties moodProperties;
+    private final ToolNameMapper toolNameMapper;
 
     public Flux<ChatEvent> chat(String userId, String prompt, boolean thinking) {
         ChatAssistant assistant = thinking ? thinkingAssistant : nonThinkingAssistant;
@@ -73,7 +75,7 @@ public class AIChatService {
     private Mono<Void> beforeStream(String userId, String prompt) {
         return memoryStream.append(userId, "user", prompt, null)
                 .onErrorResume(err -> {
-                    log.warn("Failed to append user message to memory_stream [userId={}]: {}",
+                    log.warn("Failed to append user message to cold_memory [userId={}]: {}",
                             userId, err.toString());
                     return Mono.empty();
                 });
@@ -134,16 +136,18 @@ public class AIChatService {
                     hasEmitted.set(true);
                     String name = evt.request().name();
                     String query = WebSearchEventHelper.extractQuery(evt.request().arguments());
-                    log.info("Tool call start [userId={}] {} query={}", userId, name, query);
-                    sink.next(new ChatEvent("tool_call", WebSearchEventHelper.toolCallPayload(name, query)));
+                    String chineseName = toolNameMapper.getChineseName(name);
+                    log.info("Tool call start [userId={}] {} ({}) query={}", userId, name, chineseName, query);
+                    sink.next(new ChatEvent("tool_call", WebSearchEventHelper.toolCallPayload(name, chineseName, query)));
                 })
                 .onToolExecuted(exec -> {
                     hasEmitted.set(true);
                     String name = exec.request().name();
                     String result = exec.result();
+                    String chineseName = toolNameMapper.getChineseName(name);
                     int count = WebSearchEventHelper.countResults(result);
-                    log.info("Tool call done [userId={}] {} count={}", userId, name, count);
-                    sink.next(new ChatEvent("tool_result", WebSearchEventHelper.toolResultPayload(name, count, result)));
+                    log.info("Tool call done [userId={}] {} ({}) count={}", userId, name, chineseName, count);
+                    sink.next(new ChatEvent("tool_result", WebSearchEventHelper.toolResultPayload(name, chineseName, count, result)));
                 })
                 .onError(sink::error)
                 .onCompleteResponse(r -> {
@@ -162,7 +166,7 @@ public class AIChatService {
         if (buffer.length() == 0) return;
         memoryStream.append(userId, "assistant", buffer.toString(), null)
                 .onErrorResume(err -> {
-                    log.warn("Failed to append assistant message to memory_stream [userId={}]: {}",
+                    log.warn("Failed to append assistant message to cold_memory [userId={}]: {}",
                             userId, err.toString());
                     return Mono.empty();
                 })

@@ -11,35 +11,31 @@ import org.springframework.stereotype.Component;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 
 /**
- * Hot Memory 写入工具（v1.1 多字段版）。
+ * 热内存更新工具（v1.1 多字段版）。
  *
- * <p>v1 版只有 {@code remember_user_name(name)} 单字段写入。v1.1 升级为通用
- * {@code update_user_profile(key, value)}：LLM 识别到对方告知任何画像属性（称呼/语言/时区
- * /职业/兴趣/对话风格）时调用，按 yml 白名单校验 key 后 UPSERT。
+ * <p>当 LLM 识别到对方告知任何画像属性（称呼/语言/时区/职业/兴趣/对话风格）时调用，
+ * 按 yml 白名单校验 key 后 UPSERT 到 hot_memory 表。
  *
  * <p>线程：LC4J 在工具线程上同步调用 @Tool 方法，故 {@code .block()} 桥接
- * 反应式 {@link HotMemoryStoreContract#set} 是合规的。
- *
- * <p>==删除旧 remember_user_name 工具==——LLM 看到的工具列表越短越好；
- * 在 system prompt 里更新工具说明片段，LLM 自然学到新姿势。
+ * 反应式 {@link HotMemoryStore#set} 是合规的。
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class UserProfileTool implements ToolPrompt {
+public class HotMemoryUpdateTool implements ToolPrompt {
 
     private final HotMemoryStore hotMemoryStore;
     private final UserProfileProperties properties;
 
     @Override
     public String section() {
-        return "update_user_profile（记住对方画像）";
+        return "用户印象更新";
     }
 
     @Override
     public String promptInstructions() {
         return """
-                ==必须触发==：只要对方在本轮发言里告知了关于自己的任何画像属性，==立刻调用 update_user_profile(key, value)==。
+                ==必须触发==：只要对方在本轮发言里告知了关于自己的任何画像属性，==立刻调用 update_hot_memory(key, value)==。
                 必触发的信号示例：
                 - 自我介绍 / 自报家门 → key="display_name"
                 - 提到所在地、时区、什么时间 → key="timezone"
@@ -60,24 +56,24 @@ public class UserProfileTool implements ToolPrompt {
                 """;
     }
 
-    @Tool("当对方明确告诉你关于自己的画像属性（称呼/语言/时区/职业/兴趣/对话风格）时，调用此工具写入长期记忆。下次对话起会被识别。")
-    public String update_user_profile(
+    @Tool("用户印象更新：当对方明确告诉你关于自己的属性（称呼/语言/时区/职业/兴趣/对话风格）时，调用此工具写入长期记忆。下次对话起会被识别。")
+    public String update_hot_memory(
             @ToolMemoryId String userId,
             @P("属性字段名。必须从白名单选：display_name / language / timezone / role / interests / tone") String key,
             @P("属性值。只传事实本身，不带「我是」「我叫」「我在」等前缀") String value) {
         if (key == null || key.isBlank()) {
-            return "update_user_profile 调用失败：key 不能为空";
+            return "update_hot_memory 调用失败：key 不能为空";
         }
         if (value == null || value.isBlank()) {
-            return "update_user_profile 调用失败：value 不能为空";
+            return "update_hot_memory 调用失败：value 不能为空";
         }
         String trimmedKey = key.trim();
         String trimmedValue = value.trim();
         if (!properties.getEnabledKeys().contains(trimmedKey)) {
-            log.warn("⛔ update_user_profile rejected [userId={}] key='{}' not in whitelist", userId, trimmedKey);
-            return "update_user_profile 调用失败：key '" + trimmedKey + "' 不在允许字段列表内";
+            log.warn("⛔ update_hot_memory rejected [userId={}] key='{}' not in whitelist", userId, trimmedKey);
+            return "update_hot_memory 调用失败：key '" + trimmedKey + "' 不在允许字段列表内";
         }
-        log.info("📝 update_user_profile [userId={}] {}={}", userId, trimmedKey, trimmedValue);
+        log.info("📝 update_hot_memory [userId={}] {}={}", userId, trimmedKey, trimmedValue);
         hotMemoryStore.set(userId, trimmedKey, trimmedValue).block();
         return "已记下：" + trimmedKey + "=" + trimmedValue;
     }

@@ -18,7 +18,7 @@ import java.util.Optional;
 /**
  * SOUL 的 SQLite 实现。
  *
- * <p>schema 与 user_profile 不同 —— 无 user_id（SOUL 全局单例）：
+ * <p>schema 与 hot_memory 不同 —— 无 user_id（SOUL 全局单例）：
  * <pre>
  *   soul_profile(key PK, value, updated_at)
  * </pre>

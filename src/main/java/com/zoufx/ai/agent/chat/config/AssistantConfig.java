@@ -1,9 +1,9 @@
 package com.zoufx.ai.agent.chat.config;
 
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
-import com.zoufx.ai.agent.tool.impl.SessionSearchTool;
+import com.zoufx.ai.agent.tool.impl.ColdMemorySearchTool;
 import com.zoufx.ai.agent.tool.impl.TavilySearchTool;
-import com.zoufx.ai.agent.tool.impl.UserProfileTool;
+import com.zoufx.ai.agent.tool.impl.HotMemoryUpdateTool;
 import dev.langchain4j.memory.chat.ChatMemoryProvider;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.service.AiServices;
@@ -17,8 +17,8 @@ import org.springframework.context.annotation.Configuration;
  *
  * 挂载的工具集：
  *   - TavilySearchTool：网络检索
- *   - SessionSearchTool：经历流（Cold Archive）召回
- *   - UserProfileTool：把对方称呼晶化到 Hot Memory
+ *   - ColdMemorySearchTool：记忆检索（冷内存搜索）
+ *   - HotMemoryUpdateTool：用户印象更新（热内存写入）
  *
  * System prompt 由 SystemPromptComposer 在每次调用时动态生成
  * （角色 + 当前日期 + 身份分支 + 工具说明 + 全局规则）。
@@ -31,14 +31,14 @@ public class AssistantConfig {
             @Qualifier("thinkingChatModel") StreamingChatModel model,
             ChatMemoryProvider chatMemoryProvider,
             TavilySearchTool tavilySearchTool,
-            SessionSearchTool sessionSearchTool,
-            UserProfileTool userProfileTool,
+            ColdMemorySearchTool coldMemorySearchTool,
+            HotMemoryUpdateTool hotMemoryUpdateTool,
             SystemPromptComposer composer) {
         return AiServices.builder(ChatAssistant.class)
                 .streamingChatModel(model)
                 .chatMemoryProvider(chatMemoryProvider)
                 .systemMessageProvider(composer.asProvider())
-                .tools(tavilySearchTool, sessionSearchTool, userProfileTool)
+                .tools(tavilySearchTool, coldMemorySearchTool, hotMemoryUpdateTool)
                 .build();
     }
 
@@ -47,14 +47,14 @@ public class AssistantConfig {
             @Qualifier("nonThinkingChatModel") StreamingChatModel model,
             ChatMemoryProvider chatMemoryProvider,
             TavilySearchTool tavilySearchTool,
-            SessionSearchTool sessionSearchTool,
-            UserProfileTool userProfileTool,
+            ColdMemorySearchTool coldMemorySearchTool,
+            HotMemoryUpdateTool hotMemoryUpdateTool,
             SystemPromptComposer composer) {
         return AiServices.builder(ChatAssistant.class)
                 .streamingChatModel(model)
                 .chatMemoryProvider(chatMemoryProvider)
                 .systemMessageProvider(composer.asProvider())
-                .tools(tavilySearchTool, sessionSearchTool, userProfileTool)
+                .tools(tavilySearchTool, coldMemorySearchTool, hotMemoryUpdateTool)
                 .build();
     }
 }

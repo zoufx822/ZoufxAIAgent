@@ -45,7 +45,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
     @PostConstruct
     public void init() {
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS chat_messages (
+                CREATE TABLE IF NOT EXISTS chat_memory (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id     TEXT    NOT NULL,
                     role        TEXT    NOT NULL,
@@ -54,8 +54,8 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
                 )
                 """);
         // v0 阶段每个 userId 数据量小，单列索引足够；ORDER BY id 走 PK，create_at 暂不需要联合索引
-        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_user ON chat_messages(user_id)");
-        log.info("SqliteChatMemoryStore schema ready (chat_messages)");
+        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_user ON chat_memory(user_id)");
+        log.info("SqliteChatMemoryStore schema ready (chat_memory)");
     }
 
     // ====== LC4J ChatMemoryStore（同步，框架线程调用）======
@@ -107,7 +107,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
 
     private List<ChatMessage> loadByUserIdBlocking(String userId) {
         return jdbc.query(
-                "SELECT content FROM chat_messages WHERE user_id = ? ORDER BY id ASC",
+                "SELECT content FROM chat_memory WHERE user_id = ? ORDER BY id ASC",
                 (rs, i) -> ChatMessageDeserializer.messageFromJson(rs.getString("content")),
                 userId);
     }
@@ -116,10 +116,10 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
         // 同批写入按毫秒+偏移单调递增，避免 v1 引入 Memory Stream 时所有 created_at 撞车
         long base = System.currentTimeMillis();
         tx.executeWithoutResult(status -> {
-            jdbc.update("DELETE FROM chat_messages WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM chat_memory WHERE user_id = ?", userId);
             if (messages.isEmpty()) return;
             jdbc.batchUpdate(
-                    "INSERT INTO chat_messages (user_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO chat_memory (user_id, role, content, created_at) VALUES (?, ?, ?, ?)",
                     new BatchPreparedStatementSetter() {
                         @Override
                         public void setValues(PreparedStatement ps, int i) throws SQLException {
@@ -139,12 +139,12 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
     }
 
     private void deleteByUserIdBlocking(String userId) {
-        jdbc.update("DELETE FROM chat_messages WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM chat_memory WHERE user_id = ?", userId);
     }
 
     private boolean isEmptyBlocking(String userId) {
         Integer exists = jdbc.queryForObject(
-                "SELECT EXISTS(SELECT 1 FROM chat_messages WHERE user_id = ?)",
+                "SELECT EXISTS(SELECT 1 FROM chat_memory WHERE user_id = ?)",
                 Integer.class, userId);
         return exists == null || exists == 0;
     }
