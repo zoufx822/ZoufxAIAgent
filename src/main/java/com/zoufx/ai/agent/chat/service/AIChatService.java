@@ -3,7 +3,7 @@ package com.zoufx.ai.agent.chat.service;
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
 import com.zoufx.ai.agent.chat.property.MoodProperties;
 import com.zoufx.ai.agent.chat.property.RetryProperties;
-import com.zoufx.ai.agent.chat.MoodStripper;
+import com.zoufx.ai.agent.chat.processor.MoodEventProcessor;
 import com.zoufx.ai.agent.memory.api.MemoryStore;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
@@ -109,10 +109,10 @@ public class AIChatService {
      */
     private void startTokenStream(FluxSink<ChatEvent> sink, ChatAssistant assistant,
                                   String userId, String prompt, AtomicBoolean hasEmitted) {
-        // v1.1：mood 启用时用 MoodStripper 包装 content 输出——剥离 <!--mood:KEYWORD-->，独立发 mood 事件。
+        // v1.1：mood 启用时用 MoodEventProcessor 包装 content 输出——剥离 <!--mood:KEYWORD-->，独立发 mood 事件。
         // 一条请求一个实例：内部维护 tail buffer + 命中状态，请求结束 flush() 兜底。
-        final MoodStripper moodStripper = moodProperties.isEnabled()
-                ? new MoodStripper(moodProperties.getTailBufferSize(), sink, userId)
+        final MoodEventProcessor moodStripper = moodProperties.isEnabled()
+                ? new MoodEventProcessor(moodProperties.getTailBufferSize(), sink, userId)
                 : null;
 
         assistant.chat(userId, prompt)

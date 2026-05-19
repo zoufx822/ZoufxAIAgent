@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.chat;
+package com.zoufx.ai.agent.chat.processor;
 
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +8,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 从 LLM content 流里剥离 {@code <!--mood:KEYWORD-->} 标记（v1.1）。
+ * 有状态的情绪事件处理器——从 LLM content 流里剥离 {@code <!--mood:KEYWORD-->} 标记（v1.1）。
  *
  * <p>工作方式：维护一个 buffer，每次 {@link #accept(String)} 时追加 token，
  * 扫描是否含完整 mood 标记，命中即剥离并发独立 SSE mood 事件。
@@ -20,7 +20,7 @@ import java.util.regex.Pattern;
  * <p>线程模型：accept / flush 都在 LC4J 单 token 回调线程上串行调用，无并发——不需要 synchronized。
  */
 @Slf4j
-public class MoodStripper {
+public class MoodEventProcessor {
 
     /** 匹配 {@code <!--mood:任何非 > 字符-->}，非贪婪。 */
     private static final Pattern MOOD = Pattern.compile("<!--mood:([^>]+?)-->");
@@ -30,7 +30,7 @@ public class MoodStripper {
     private final String userId;
     private final StringBuilder buffer = new StringBuilder();
 
-    public MoodStripper(int tailSize, FluxSink<ChatEvent> sink, String userId) {
+    public MoodEventProcessor(int tailSize, FluxSink<ChatEvent> sink, String userId) {
         this.tailSize = tailSize;
         this.sink = sink;
         this.userId = userId;
