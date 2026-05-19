@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.service;
 
 import com.zoufx.ai.agent.assistant.ChatAssistant;
-import com.zoufx.ai.agent.config.properties.MoodProperties;
+import com.zoufx.ai.agent.properties.MoodProperties;
 import com.zoufx.ai.agent.memory.MemoryStore;
 import com.zoufx.ai.agent.memory.MemoryStream;
 import com.zoufx.ai.agent.model.ChatEvent;

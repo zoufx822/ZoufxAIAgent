@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.controller;
 
-import com.zoufx.ai.agent.config.properties.SoulProperties;
+import com.zoufx.ai.agent.properties.SoulProperties;
 import com.zoufx.ai.agent.memory.SoulStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.util;
 
-import com.zoufx.ai.agent.config.properties.RetryProperties;
+import com.zoufx.ai.agent.properties.RetryProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

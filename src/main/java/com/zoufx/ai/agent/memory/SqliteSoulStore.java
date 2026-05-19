@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.memory;
 
-import com.zoufx.ai.agent.config.properties.SoulProperties;
+import com.zoufx.ai.agent.properties.SoulProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;

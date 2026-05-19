@@ -1,8 +1,8 @@
-package com.zoufx.ai.agent.config.ai;
+package com.zoufx.ai.agent.config;
 
-import com.zoufx.ai.agent.config.properties.MoodProperties;
-import com.zoufx.ai.agent.config.properties.SoulProperties;
-import com.zoufx.ai.agent.config.properties.UserProfileProperties;
+import com.zoufx.ai.agent.properties.MoodProperties;
+import com.zoufx.ai.agent.properties.SoulProperties;
+import com.zoufx.ai.agent.properties.UserProfileProperties;
 import com.zoufx.ai.agent.memory.HotMemoryStore;
 import com.zoufx.ai.agent.memory.MemoryStore;
 import com.zoufx.ai.agent.memory.SoulStore;

@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.config.ai;
+package com.zoufx.ai.agent.config;
 
 import com.zoufx.ai.agent.assistant.ChatAssistant;
 import com.zoufx.ai.agent.tool.SessionSearchTool;

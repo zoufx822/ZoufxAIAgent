@@ -1,6 +1,6 @@
-package com.zoufx.ai.agent.config.ai;
+package com.zoufx.ai.agent.config;
 
-import com.zoufx.ai.agent.config.properties.OpenAiProperties;
+import com.zoufx.ai.agent.properties.OpenAiProperties;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import lombok.RequiredArgsConstructor;

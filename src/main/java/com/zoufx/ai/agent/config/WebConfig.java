@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.config.web;
+package com.zoufx.ai.agent.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
