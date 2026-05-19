@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.chat.config;
 
-import com.zoufx.ai.agent.assistant.api.ChatAssistant;
+import com.zoufx.ai.agent.chat.api.ChatAssistant;
 import com.zoufx.ai.agent.tool.SessionSearchTool;
 import com.zoufx.ai.agent.tool.TavilySearchTool;
 import com.zoufx.ai.agent.tool.UserProfileTool;

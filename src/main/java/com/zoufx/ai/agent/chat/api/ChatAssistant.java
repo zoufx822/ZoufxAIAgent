@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.assistant.api;
+package com.zoufx.ai.agent.chat.api;
 
 import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.TokenStream;
