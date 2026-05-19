@@ -42,6 +42,16 @@ ai:
     max-messages: 20
     store:
       db-path: ./data/zoufx-ai.db
+    # Hot Memory（user_profile 表）启用字段白名单（v1.1 多字段扩展）
+    # update_user_profile 工具校验 key 必须在此列表内；compose() 按此顺序逐行注入有值的字段
+    hot:
+      enabled-keys:
+        - display_name
+        - language
+        - timezone
+        - role
+        - interests
+        - tone
   retry:
     llm:
       max-attempts: 2

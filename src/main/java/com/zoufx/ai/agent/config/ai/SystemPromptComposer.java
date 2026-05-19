@@ -1,6 +1,7 @@
 package com.zoufx.ai.agent.config.ai;
 
 import com.zoufx.ai.agent.config.properties.MoodProperties;
+import com.zoufx.ai.agent.config.properties.UserProfileProperties;
 import com.zoufx.ai.agent.memory.HotMemoryStore;
 import com.zoufx.ai.agent.memory.MemoryStore;
 import com.zoufx.ai.agent.tool.ToolPromptContributor;
@@ -8,9 +9,10 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -69,19 +71,33 @@ public class SystemPromptComposer {
             - 不要重复"你好"或机械地反复要名字——一次询问就够。
             """;
 
+    /** key → 注入模板。占位 {} 由 value 替换。LinkedHashMap 保留 yml 中 enabled-keys 的对齐顺序。 */
+    private static final Map<String, String> KEY_TEMPLATES = new LinkedHashMap<>();
+    static {
+        // display_name 不在这里——它单独走"称呼锚"段落，不作为普通字段一行注入
+        KEY_TEMPLATES.put("language",  "- 对方使用的语言：{}");
+        KEY_TEMPLATES.put("timezone",  "- 对方所在时区：{}（涉及时间话题时按这个时区作答）");
+        KEY_TEMPLATES.put("role",      "- 对方的身份/职业：{}");
+        KEY_TEMPLATES.put("interests", "- 对方的偏好/兴趣：{}");
+        KEY_TEMPLATES.put("tone",      "- 对方期望的对话风格：{}");
+    }
+
     private final List<ToolPromptContributor> tools;
     private final MemoryStore memoryStore;
     private final HotMemoryStore hotMemoryStore;
     private final MoodProperties moodProperties;
+    private final UserProfileProperties userProfileProperties;
 
     public SystemPromptComposer(List<ToolPromptContributor> tools,
                                 MemoryStore memoryStore,
                                 HotMemoryStore hotMemoryStore,
-                                MoodProperties moodProperties) {
+                                MoodProperties moodProperties,
+                                UserProfileProperties userProfileProperties) {
         this.tools = tools;
         this.memoryStore = memoryStore;
         this.hotMemoryStore = hotMemoryStore;
         this.moodProperties = moodProperties;
+        this.userProfileProperties = userProfileProperties;
     }
 
     public Function<Object, String> asProvider() {
@@ -138,20 +154,38 @@ public class SystemPromptComposer {
     }
 
     /**
-     * 身份识别三态分支：Hot 命中 → 注入称呼；记忆空 → 陌生人；既无 display_name 又有历史 → 静默。
+     * 身份识别三态分支（v1.1 多字段版）：
+     *   - Hot 有 display_name → 注入「关于对方」段：称呼锚 + 按 enabled-keys 顺序逐行注入有值字段
+     *   - 无 display_name 但记忆空 → 陌生人迎接
+     *   - 无 display_name 但有历史 → 静默，让 LLM 从 ChatMemory 自然接续
+     *
+     * <p>设计取舍：没有 display_name 时即使其他字段（language/timezone 等）有值也不注入「关于对方」段——
+     * 避免给 LLM 既"告知偏好"又被要求"问称呼"的矛盾。display_name 是身份锚。
      */
     private void appendIdentitySection(StringBuilder sb, String userId) {
         if (userId == null) return;
 
-        Optional<String> displayName = hotMemoryStore.get(userId, KEY_DISPLAY_NAME);
-        if (displayName.isPresent()) {
+        Map<String, String> snapshot = hotMemoryStore.snapshot(userId);
+        String displayName = snapshot.get(KEY_DISPLAY_NAME);
+        if (displayName != null && !displayName.isBlank()) {
             sb.append("## 关于对方\n\n");
-            sb.append("对方的称呼是「").append(displayName.get()).append("」。")
+            sb.append("对方的称呼是「").append(displayName).append("」。")
                     .append("这是你已经认识的人——\n")
-                    .append("- 直接称呼对方为「").append(displayName.get()).append("」，不要问名字、不要确认；\n")
+                    .append("- 直接称呼对方为「").append(displayName).append("」，不要问名字、不要确认；\n")
                     .append("- 每轮回复中至少自然地使用一次这个称呼（除非对方明确问你别叫他名字）；\n")
                     .append("- 如果对方问「我是谁」「你还记得我吗」之类的问题，明确回答对方就是「")
-                    .append(displayName.get()).append("」，不要敷衍说「刚开始聊天」「没有记录」。\n\n");
+                    .append(displayName).append("」，不要敷衍说「刚开始聊天」「没有记录」。\n");
+
+            // 多字段：按 enabled-keys 顺序逐行注入有值字段；display_name 上面已经处理，跳过
+            for (String key : userProfileProperties.getEnabledKeys()) {
+                if (KEY_DISPLAY_NAME.equals(key)) continue;
+                String template = KEY_TEMPLATES.get(key);
+                if (template == null) continue;  // 未知 key（yml 配错或预留），跳过
+                String value = snapshot.get(key);
+                if (value == null || value.isBlank()) continue;
+                sb.append(template.replace("{}", value)).append("\n");
+            }
+            sb.append("\n");
             return;
         }
         if (memoryStore.isEmpty(userId)) {
