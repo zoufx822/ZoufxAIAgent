@@ -9,9 +9,9 @@ import java.io.IOException;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 
-public final class RetryPolicy {
+public final class RetryPolicyHelper {
 
-    private RetryPolicy() {
+    private RetryPolicyHelper() {
     }
 
     public static boolean isRetryable(Throwable t) {

@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * 暴露的唯一方法 {@link #onlyRetryBeforeFirstEmission(AtomicBoolean)}：
  * 仅在"流尚未推送任何事件"时重试，避免给前端发出半截 token 后又重来。
- * 触发条件是 {@code !hasEmitted.get() && RetryPolicy.isRetryable(err)}。
+ * 触发条件是 {@code !hasEmitted.get() && RetryPolicyHelper.isRetryable(err)}。
  */
 @Slf4j
 @Component
@@ -36,7 +36,7 @@ public class LlmRetrySpec {
         RetryProperties.Llm cfg = retryProperties.getLlm();
         return Retry.backoff(cfg.getMaxAttempts(), cfg.getMinBackoff())
                 .maxBackoff(cfg.getMaxBackoff())
-                .filter(err -> !hasEmitted.get() && RetryPolicy.isRetryable(err))
+                .filter(err -> !hasEmitted.get() && RetryPolicyHelper.isRetryable(err))
                 .doBeforeRetry(rs -> log.warn("LLM retry #{} cause={}",
                         rs.totalRetries() + 1, rs.failure().toString()));
     }
