@@ -1,7 +1,8 @@
-package com.zoufx.ai.agent.chat;
+package com.zoufx.ai.agent.chat.controller;
 
 import com.zoufx.ai.agent.chat.model.ChatEventMapper;
 import com.zoufx.ai.agent.chat.model.ChatRequest;
+import com.zoufx.ai.agent.chat.service.AIChatService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

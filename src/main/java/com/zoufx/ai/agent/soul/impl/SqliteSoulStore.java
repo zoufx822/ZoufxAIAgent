@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.soul;
+package com.zoufx.ai.agent.soul.impl;
 
 import com.zoufx.ai.agent.soul.property.SoulProperties;
 import jakarta.annotation.PostConstruct;

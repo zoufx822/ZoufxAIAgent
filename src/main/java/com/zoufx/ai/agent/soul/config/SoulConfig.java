@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.soul.config;
 
-import com.zoufx.ai.agent.soul.SqliteSoulStore;
+import com.zoufx.ai.agent.soul.impl.SqliteSoulStore;
 import com.zoufx.ai.agent.soul.property.SoulProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
