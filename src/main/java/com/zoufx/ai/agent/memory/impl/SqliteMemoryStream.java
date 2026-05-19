@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.memory;
+package com.zoufx.ai.agent.memory.impl;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 import com.zoufx.ai.agent.memory.api.MemoryStream;
+import com.zoufx.ai.agent.memory.model.StreamEntry;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;

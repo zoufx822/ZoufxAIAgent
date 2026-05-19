@@ -1,8 +1,8 @@
-package com.zoufx.ai.agent.config;
+package com.zoufx.ai.agent.memory.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import com.zoufx.ai.agent.properties.MemoryStoreProperties;
+import com.zoufx.ai.agent.memory.property.MemoryStoreProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;

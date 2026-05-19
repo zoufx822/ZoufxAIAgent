@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.memory;
+package com.zoufx.ai.agent.memory.impl;
 
 import com.zoufx.ai.agent.memory.api.MemoryStore;
 import dev.langchain4j.data.message.ChatMessage;

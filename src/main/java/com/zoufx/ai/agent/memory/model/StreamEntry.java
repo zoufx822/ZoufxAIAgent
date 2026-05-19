@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.memory;
+package com.zoufx.ai.agent.memory.model;
 
 /**
  * Memory Stream（Cold Archive）的检索返回 DTO。

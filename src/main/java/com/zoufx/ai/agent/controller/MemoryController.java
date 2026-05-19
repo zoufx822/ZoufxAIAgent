@@ -2,7 +2,7 @@ package com.zoufx.ai.agent.controller;
 
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.api.MemoryStream;
-import com.zoufx.ai.agent.memory.StreamEntry;
+import com.zoufx.ai.agent.memory.model.StreamEntry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;

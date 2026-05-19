@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.memory.api;
 
 import reactor.core.publisher.Mono;
-import com.zoufx.ai.agent.memory.StreamEntry;
+import com.zoufx.ai.agent.memory.model.StreamEntry;
 
 import java.util.List;
 

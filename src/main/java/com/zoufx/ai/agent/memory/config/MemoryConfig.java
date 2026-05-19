@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.config;
+package com.zoufx.ai.agent.memory.config;
 
 import com.zoufx.ai.agent.chat.property.ChatMemoryProperties;
 import dev.langchain4j.memory.chat.ChatMemoryProvider;

@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.tool;
 
 import com.zoufx.ai.agent.memory.api.MemoryStream;
-import com.zoufx.ai.agent.memory.StreamEntry;
+import com.zoufx.ai.agent.memory.model.StreamEntry;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;

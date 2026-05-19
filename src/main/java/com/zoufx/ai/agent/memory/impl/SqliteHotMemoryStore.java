@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.memory;
+package com.zoufx.ai.agent.memory.impl;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
