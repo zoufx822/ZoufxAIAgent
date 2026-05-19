@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.tool.impl;
 
-import com.zoufx.ai.agent.memory.api.MemoryStream;
+import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.memory.model.StreamEntry;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -34,7 +34,7 @@ public class SessionSearchTool implements ToolPrompt {
     private static final DateTimeFormatter TIME_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.CHINA).withZone(ZoneId.systemDefault());
 
-    private final MemoryStream memoryStream;
+    private final ColdMemoryStore memoryStream;
 
     @Override
     public String section() {

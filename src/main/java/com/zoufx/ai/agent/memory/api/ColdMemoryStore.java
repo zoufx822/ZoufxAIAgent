@@ -6,11 +6,11 @@ import com.zoufx.ai.agent.memory.model.StreamEntry;
 import java.util.List;
 
 /**
- * 经历流（Cold Archive）业务接口。
+ * 冷内存（Cold Archive）业务接口——经历流存储。
  *
  * 与 {@link MemoryStore}（工作记忆，LC4J ChatMemoryStore 载体）并行：
  * - {@link MemoryStore}：滑窗 20 条，全量替换语义
- * - {@link MemoryStream}：所有用户/AI 消息按时间序==只追加==，无上限
+ * - {@link ColdMemoryStore}：所有用户/AI 消息按时间序==只追加==，无上限
  *
  * 写入路径为 Controller-driven Append（不在 LC4J Hook 里做，避免与 LC4J 全量替换语义冲突）：
  * - {@code AIChatController.chat()} 接到请求 → append user prompt
@@ -22,7 +22,7 @@ import java.util.List;
  * （SessionSearchTool 内部可 .block() 桥接）；不与 LC4J SystemPromptProvider 同步契约挂钩，
  * 因此整接口可以全反应式（对比 {@link HotMemoryStore} 的 get/snapshot 必须同步）。
  */
-public interface MemoryStream {
+public interface ColdMemoryStore {
 
     /**
      * 追加一条经历流记录。失败应仅记日志不抛错（不阻断主对话流）。

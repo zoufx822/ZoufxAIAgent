@@ -4,7 +4,7 @@ import com.zoufx.ai.agent.chat.api.ChatAssistant;
 import com.zoufx.ai.agent.chat.property.MoodProperties;
 import com.zoufx.ai.agent.chat.property.RetryProperties;
 import com.zoufx.ai.agent.memory.api.MemoryStore;
-import com.zoufx.ai.agent.memory.api.MemoryStream;
+import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import com.zoufx.ai.agent.chat.helper.RetryPolicyHelper;
 import com.zoufx.ai.agent.chat.helper.WebSearchEventHelper;
@@ -49,7 +49,7 @@ public class AIChatService {
     private final ChatAssistant nonThinkingAssistant;
 
     private final MemoryStore memoryStore;
-    private final MemoryStream memoryStream;
+    private final ColdMemoryStore memoryStream;
     private final RetryProperties retryProperties;
     private final MoodProperties moodProperties;
 

@@ -22,7 +22,7 @@ import java.nio.file.Paths;
  *
  * 独立的 DataSource / JdbcTemplate / TransactionTemplate 三件套，
  * 给 v0 的 {@link com.zoufx.ai.agent.memory.SqliteChatMemoryStoreContract}
- * 以及 v1 即将引入的 MemoryStream / HotMemoryStore 共用一套底座。
+ * 以及 v1 即将引入的 ColdMemoryStore / HotMemoryStore 共用一套底座。
  *
  * 不使用 Spring Boot 自动配置的 spring.datasource.*：
  * - 保留业务语义命名空间 ai.memory.store.db-path

@@ -7,14 +7,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
-import com.zoufx.ai.agent.memory.api.MemoryStream;
+import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.memory.model.StreamEntry;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 
 /**
- * Memory Stream 的 SQLite + FTS5 实现。
+ * 冷内存（ColdMemoryStore）的 SQLite + FTS5 实现。
  *
  * 设计要点：
  * - 与 SqliteChatMemoryStore 共用 memoryDataSource / memoryJdbcTemplate（HikariCP + WAL）
@@ -31,15 +31,15 @@ import java.util.List;
  */
 @Slf4j
 @Component
-public class SqliteMemoryStream implements MemoryStream {
+public class SqliteColdMemoryStore implements ColdMemoryStore {
 
     private static final int SEARCH_LIMIT_HARD_MAX = 20;
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
 
-    public SqliteMemoryStream(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc,
-                              @Qualifier("memoryTxTemplate") TransactionTemplate tx) {
+    public SqliteColdMemoryStore(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc,
+                                 @Qualifier("memoryTxTemplate") TransactionTemplate tx) {
         this.jdbc = jdbc;
         this.tx = tx;
     }
@@ -74,7 +74,7 @@ public class SqliteMemoryStream implements MemoryStream {
                 """);
         // INSERT 触发器不再使用——FTS 内容是分词版本，需要 Java 侧预处理，无法在 SQL 触发器里完成
 
-        log.info("SqliteMemoryStream schema ready (memory_stream + FTS5 with codepoint-split tokenization)");
+        log.info("SqliteColdMemoryStore schema ready (memory_stream + FTS5 with codepoint-split tokenization)");
     }
 
     @Override
