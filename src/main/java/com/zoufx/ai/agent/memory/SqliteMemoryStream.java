@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
+import com.zoufx.ai.agent.memory.api.MemoryStream;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
@@ -29,7 +30,7 @@ import java.util.List;
  */
 @Slf4j
 @Component
-public class SqliteMemoryStream implements MemoryStreamContract {
+public class SqliteMemoryStream implements MemoryStream {
 
     private static final int SEARCH_LIMIT_HARD_MAX = 20;
 

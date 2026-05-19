@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.memory;
 
+import com.zoufx.ai.agent.memory.api.MemoryStore;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ChatMessageDeserializer;
 import dev.langchain4j.data.message.ChatMessageSerializer;
@@ -24,13 +25,13 @@ import java.util.List;
  * 设计要点：
  * - 单文件 SQLite + WAL 模式（WAL PRAGMA 由 HikariCP connectionInitSql 注入，见 MemoryDataSourceConfig）
  * - LC4J {@link ChatMemoryStore} 接口在框架线程同步调用：直接走私有 *Blocking 方法
- * - 业务 {@link MemoryStoreContract} 接口反应式签名：用 {@code Mono.fromCallable(...).subscribeOn(boundedElastic())} 包装相同的 *Blocking 方法
+ * - 业务 {@link MemoryStore} 接口反应式签名：用 {@code Mono.fromCallable(...).subscribeOn(boundedElastic())} 包装相同的 *Blocking 方法
  * - {@code updateMessages} 语义为"全量替换"——LC4J 每次都传完整 list，所以事务里 DELETE + 批量 INSERT
  * - 序列化用 LC4J 自带的 {@link ChatMessageSerializer} / {@link ChatMessageDeserializer}，覆盖 ChatMessage 的所有子类型
  */
 @Slf4j
 @Component
-public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStoreContract {
+public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;

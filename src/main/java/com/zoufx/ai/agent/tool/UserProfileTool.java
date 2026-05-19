@@ -1,13 +1,14 @@
 package com.zoufx.ai.agent.tool;
 
 import com.zoufx.ai.agent.properties.UserProfileProperties;
-import com.zoufx.ai.agent.memory.HotMemoryStoreContract;
+import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import com.zoufx.ai.agent.tool.api.ToolPrompt;
 
 /**
  * Hot Memory 写入工具（v1.1 多字段版）。
@@ -25,9 +26,9 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class UserProfileTool implements ToolPromptContract {
+public class UserProfileTool implements ToolPrompt {
 
-    private final HotMemoryStoreContract hotMemoryStore;
+    private final HotMemoryStore hotMemoryStore;
     private final UserProfileProperties properties;
 
     @Override

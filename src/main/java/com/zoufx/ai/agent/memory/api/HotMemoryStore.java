@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.memory;
+package com.zoufx.ai.agent.memory.api;
 
 import reactor.core.publisher.Mono;
 
@@ -23,7 +23,7 @@ import java.util.Optional;
  * - {@link #set(String, String, String)} 反应式：调用方是 @Tool 方法（LC4J 工具线程），
  *   {@code .block()} 桥接合规；保持 Mono 签名为未来在 event loop 上写入（v2 后台任务等）留口子
  */
-public interface HotMemoryStoreContract {
+public interface HotMemoryStore {
 
     /**
      * 同步读单个 key。实现侧用 PK 单点查询，开销可忽略。

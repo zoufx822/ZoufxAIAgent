@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.tool;
 
+import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import com.zoufx.ai.agent.util.RetryPolicyHelper;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -20,7 +21,7 @@ import java.util.stream.Collectors;
  * 实现 ToolPromptContributor：把"何时调用 search_web"的规则从 AssistantConfig 下沉到工具自身。
  */
 @Slf4j
-public class TavilySearchTool implements ToolPromptContract {
+public class TavilySearchTool implements ToolPrompt {
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("yyyy 年 M 月 d 日", Locale.CHINA);

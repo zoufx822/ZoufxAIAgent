@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.tool;
 
-import com.zoufx.ai.agent.memory.MemoryStreamContract;
+import com.zoufx.ai.agent.memory.api.MemoryStream;
 import com.zoufx.ai.agent.memory.StreamEntry;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -8,6 +8,7 @@ import dev.langchain4j.agent.tool.ToolMemoryId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import com.zoufx.ai.agent.tool.api.ToolPrompt;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -25,7 +26,7 @@ import java.util.Locale;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class SessionSearchTool implements ToolPromptContract {
+public class SessionSearchTool implements ToolPrompt {
 
     private static final int DEFAULT_LIMIT = 5;
     private static final int HARD_MAX_LIMIT = 20;
@@ -33,7 +34,7 @@ public class SessionSearchTool implements ToolPromptContract {
     private static final DateTimeFormatter TIME_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.CHINA).withZone(ZoneId.systemDefault());
 
-    private final MemoryStreamContract memoryStream;
+    private final MemoryStream memoryStream;
 
     @Override
     public String section() {

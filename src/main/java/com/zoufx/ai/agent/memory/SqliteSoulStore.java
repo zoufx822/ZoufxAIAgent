@@ -8,6 +8,7 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+import com.zoufx.ai.agent.memory.api.SoulStore;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.HashMap;
@@ -30,7 +31,7 @@ import java.util.Optional;
  */
 @Slf4j
 @Component
-public class SqliteSoulStore implements SoulStoreContract {
+public class SqliteSoulStore implements SoulStore {
 
     private final JdbcTemplate jdbc;
     private final SoulProperties properties;
@@ -58,12 +59,12 @@ public class SqliteSoulStore implements SoulStoreContract {
     private void seedIfEmpty() {
         Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM soul_profile", Integer.class);
         if (count != null && count > 0) {
-            log.info("SoulStoreContract already has {} keys, skip seeding", count);
+            log.info("SoulStore already has {} keys, skip seeding", count);
             return;
         }
         Map<String, String> seed = properties.getSeed();
         if (seed == null || seed.isEmpty()) {
-            log.info("SoulStoreContract seed empty, nothing to insert");
+            log.info("SoulStore seed empty, nothing to insert");
             return;
         }
         long now = System.currentTimeMillis();
@@ -73,7 +74,7 @@ public class SqliteSoulStore implements SoulStoreContract {
                     "INSERT INTO soul_profile (key, value, updated_at) VALUES (?, ?, ?)",
                     e.getKey(), e.getValue(), now);
         }
-        log.info("SoulStoreContract seeded with {} keys", seed.size());
+        log.info("SoulStore seeded with {} keys", seed.size());
     }
 
     @Override

@@ -1,10 +1,10 @@
 package com.zoufx.ai.agent.service;
 
-import com.zoufx.ai.agent.assistant.ChatAssistantContract;
+import com.zoufx.ai.agent.assistant.api.ChatAssistant;
 import com.zoufx.ai.agent.properties.MoodProperties;
 import com.zoufx.ai.agent.properties.RetryProperties;
-import com.zoufx.ai.agent.memory.MemoryStoreContract;
-import com.zoufx.ai.agent.memory.MemoryStreamContract;
+import com.zoufx.ai.agent.memory.api.MemoryStore;
+import com.zoufx.ai.agent.memory.api.MemoryStream;
 import com.zoufx.ai.agent.model.ChatEvent;
 import com.zoufx.ai.agent.util.RetryPolicyHelper;
 import com.zoufx.ai.agent.util.WebSearchEventHelper;
@@ -43,18 +43,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class AIChatService {
 
     @Qualifier("thinkingAssistant")
-    private final ChatAssistantContract thinkingAssistant;
+    private final ChatAssistant thinkingAssistant;
 
     @Qualifier("nonThinkingAssistant")
-    private final ChatAssistantContract nonThinkingAssistant;
+    private final ChatAssistant nonThinkingAssistant;
 
-    private final MemoryStoreContract memoryStore;
-    private final MemoryStreamContract memoryStream;
+    private final MemoryStore memoryStore;
+    private final MemoryStream memoryStream;
     private final RetryProperties retryProperties;
     private final MoodProperties moodProperties;
 
     public Flux<ChatEvent> chat(String userId, String prompt, boolean thinking) {
-        ChatAssistantContract assistant = thinking ? thinkingAssistant : nonThinkingAssistant;
+        ChatAssistant assistant = thinking ? thinkingAssistant : nonThinkingAssistant;
         AtomicBoolean hasEmitted = new AtomicBoolean(false);
         // 流式 Flux 在单个 subscriber 上 onNext 串行，StringBuilder 线程安全足够；
         // retry 只在首次 emit 前生效，触发时此 buffer 仍是空，不会与重试残留串味
@@ -81,7 +81,7 @@ public class AIChatService {
     /**
      * LLM 流主体：在最外层 {@code Flux.create} 里启动 LC4J TokenStream，叠加重试 / 收集 / 错误兜底 / 完成钩子。
      */
-    private Flux<ChatEvent> buildStream(ChatAssistantContract assistant, String userId, String prompt,
+    private Flux<ChatEvent> buildStream(ChatAssistant assistant, String userId, String prompt,
                                         AtomicBoolean hasEmitted, StringBuilder assistantBuffer) {
         return Flux.<ChatEvent>create(sink -> startTokenStream(sink, assistant, userId, prompt, hasEmitted))
                 .retryWhen(buildRetrySpec(hasEmitted))
@@ -106,7 +106,7 @@ public class AIChatService {
      * {@code hasEmitted} 在任何首次回调里置 true，被 {@link #buildRetrySpec} 据此判断"流是否已开始"。
      * LC4J 的回调跑在框架自己的线程上，与 WebFlux event loop 隔离。
      */
-    private void startTokenStream(FluxSink<ChatEvent> sink, ChatAssistantContract assistant,
+    private void startTokenStream(FluxSink<ChatEvent> sink, ChatAssistant assistant,
                                   String userId, String prompt, AtomicBoolean hasEmitted) {
         // v1.1：mood 启用时用 MoodStripper 包装 content 输出——剥离 <!--mood:KEYWORD-->，独立发 mood 事件。
         // 一条请求一个实例：内部维护 tail buffer + 命中状态，请求结束 flush() 兜底。

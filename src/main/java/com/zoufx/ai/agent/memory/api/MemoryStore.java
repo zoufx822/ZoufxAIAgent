@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.memory;
+package com.zoufx.ai.agent.memory.api;
 
 import dev.langchain4j.data.message.ChatMessage;
 import reactor.core.publisher.Mono;
@@ -19,7 +19,7 @@ import java.util.List;
  * - WebFlux event loop（Controller/Service）：直接 chain，不阻塞
  * - LC4J 框架线程（SystemPromptProvider / @Tool 内部）：可 {@code .block()} 同步桥接
  */
-public interface MemoryStoreContract {
+public interface MemoryStore {
 
     Mono<List<ChatMessage>> loadByUserId(String userId);
 
