@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.memory.api;
 
 import reactor.core.publisher.Mono;
-import com.zoufx.ai.agent.memory.model.StreamEntry;
+import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
 
 import java.util.List;
 
@@ -37,10 +37,10 @@ public interface ColdMemoryStore {
      *
      * @param limit 调用方期望条数，实现侧应做上界裁剪（建议默认 5、上限 20）
      */
-    Mono<List<StreamEntry>> search(String userId, String keyword, int limit);
+    Mono<List<ColdMemoryEntry>> search(String userId, String keyword, int limit);
 
     /**
      * 调试用：拉最近 N 条经历。生产路径不调用。
      */
-    Mono<List<StreamEntry>> loadRecent(String userId, int limit);
+    Mono<List<ColdMemoryEntry>> loadRecent(String userId, int limit);
 }

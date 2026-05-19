@@ -2,7 +2,7 @@ package com.zoufx.ai.agent.memory.controller;
 
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
-import com.zoufx.ai.agent.memory.model.StreamEntry;
+import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -49,7 +49,7 @@ public class MemoryController {
      * 最近 N 条经历流。按 created_at DESC 返回，limit 默认 5、上限 50。
      */
     @GetMapping("/stream")
-    public Mono<List<StreamEntry>> stream(@PathVariable String userId,
+    public Mono<List<ColdMemoryEntry>> stream(@PathVariable String userId,
                                           @RequestParam(defaultValue = "5") int limit) {
         int effective = Math.max(1, Math.min(limit, STREAM_LIMIT_MAX));
         return memoryStream.loadRecent(userId, effective);

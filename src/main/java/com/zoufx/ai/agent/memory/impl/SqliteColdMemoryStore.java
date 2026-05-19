@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
-import com.zoufx.ai.agent.memory.model.StreamEntry;
+import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
@@ -84,13 +84,13 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
     }
 
     @Override
-    public Mono<List<StreamEntry>> search(String userId, String keyword, int limit) {
+    public Mono<List<ColdMemoryEntry>> search(String userId, String keyword, int limit) {
         return Mono.fromCallable(() -> searchBlocking(userId, keyword, limit))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
     @Override
-    public Mono<List<StreamEntry>> loadRecent(String userId, int limit) {
+    public Mono<List<ColdMemoryEntry>> loadRecent(String userId, int limit) {
         return Mono.fromCallable(() -> loadRecentBlocking(userId, limit))
                 .subscribeOn(Schedulers.boundedElastic());
     }
@@ -110,7 +110,7 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
         });
     }
 
-    private List<StreamEntry> searchBlocking(String userId, String keyword, int limit) {
+    private List<ColdMemoryEntry> searchBlocking(String userId, String keyword, int limit) {
         int safeLimit = Math.min(Math.max(limit, 1), SEARCH_LIMIT_HARD_MAX);
         // LLM 常传 "后端 编程语言" 这种空格分隔多关键词形式：每个 term 内要求字符相邻（phrase），
         // 多个 term 之间走 OR（任一命中即算）。原因：LLM 的"概念性关键词"与历史原文的字面用词
@@ -128,7 +128,7 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
                         ORDER BY rank
                         LIMIT ?
                         """,
-                (rs, i) -> new StreamEntry(
+                (rs, i) -> new ColdMemoryEntry(
                         rs.getLong("id"),
                         rs.getString("role"),
                         rs.getString("content"),
@@ -155,11 +155,11 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
         return expr.length() == 0 ? null : expr.toString();
     }
 
-    private List<StreamEntry> loadRecentBlocking(String userId, int limit) {
+    private List<ColdMemoryEntry> loadRecentBlocking(String userId, int limit) {
         int safeLimit = Math.min(Math.max(limit, 1), SEARCH_LIMIT_HARD_MAX);
         return jdbc.query(
                 "SELECT id, role, content, created_at FROM memory_stream WHERE user_id = ? ORDER BY id DESC LIMIT ?",
-                (rs, i) -> new StreamEntry(
+                (rs, i) -> new ColdMemoryEntry(
                         rs.getLong("id"),
                         rs.getString("role"),
                         rs.getString("content"),

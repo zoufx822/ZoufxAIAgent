@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.tool.impl;
 
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
-import com.zoufx.ai.agent.memory.model.StreamEntry;
+import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;
@@ -69,7 +69,7 @@ public class SessionSearchTool implements ToolPrompt {
         int effectiveLimit = limit > 0 ? Math.min(limit, HARD_MAX_LIMIT) : DEFAULT_LIMIT;
 
         log.info("🔎 session_search [userId={}] keyword='{}' limit={}", userId, keyword, effectiveLimit);
-        List<StreamEntry> hits = memoryStream.search(userId, keyword, effectiveLimit).block();
+        List<ColdMemoryEntry> hits = memoryStream.search(userId, keyword, effectiveLimit).block();
         if (hits == null || hits.isEmpty()) {
             return "经历流里没找到与「" + keyword + "」相关的内容。";
         }
@@ -77,7 +77,7 @@ public class SessionSearchTool implements ToolPrompt {
         StringBuilder sb = new StringBuilder();
         sb.append("找到 ").append(hits.size()).append(" 条相关经历（按相关性排序）：\n");
         int idx = 1;
-        for (StreamEntry e : hits) {
+        for (ColdMemoryEntry e : hits) {
             String time = TIME_FMT.format(Instant.ofEpochMilli(e.createdAt()));
             sb.append(idx++).append(". [").append(e.role()).append(" · ").append(time).append("] ")
                     .append(e.content().replace("\n", " ")).append("\n");
