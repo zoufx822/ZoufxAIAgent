@@ -100,10 +100,9 @@ ai:
       quirks: |
         - 描述工具调用时偶尔用"精密仪器"这个词
         - 描述记忆时偶尔用"记忆锚点"这个词
-
-langchain4j:
-  tavily-search:
+  web-search:
     enabled: true
+    type: tavily             # 使用的搜索引擎类型：tavily / google / bing 等
     tavily:
       # 生产环境通过环境变量 TAVILY_API_KEY 注入；空值时自动降级关闭（不阻塞启动）
       api-key: ${TAVILY_API_KEY:}
