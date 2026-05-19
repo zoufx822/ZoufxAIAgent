@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.model;
+package com.zoufx.ai.agent.chat.model;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;

@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.util;
+package com.zoufx.ai.agent.chat.helper;
 
 import dev.langchain4j.exception.HttpException;
 import dev.langchain4j.exception.NonRetriableException;

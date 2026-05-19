@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.tool;
 
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
-import com.zoufx.ai.agent.util.RetryPolicyHelper;
+import com.zoufx.ai.agent.chat.helper.RetryPolicyHelper;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.web.search.WebSearchEngine;

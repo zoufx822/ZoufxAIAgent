@@ -1,6 +1,6 @@
-package com.zoufx.ai.agent.service;
+package com.zoufx.ai.agent.chat;
 
-import com.zoufx.ai.agent.model.ChatEvent;
+import com.zoufx.ai.agent.chat.model.ChatEvent;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.FluxSink;
 

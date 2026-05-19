@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.util;
+package com.zoufx.ai.agent.chat.helper;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;

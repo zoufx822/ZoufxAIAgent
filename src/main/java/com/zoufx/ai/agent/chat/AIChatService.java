@@ -1,13 +1,13 @@
-package com.zoufx.ai.agent.service;
+package com.zoufx.ai.agent.chat;
 
 import com.zoufx.ai.agent.assistant.api.ChatAssistant;
 import com.zoufx.ai.agent.properties.MoodProperties;
 import com.zoufx.ai.agent.properties.RetryProperties;
 import com.zoufx.ai.agent.memory.api.MemoryStore;
 import com.zoufx.ai.agent.memory.api.MemoryStream;
-import com.zoufx.ai.agent.model.ChatEvent;
-import com.zoufx.ai.agent.util.RetryPolicyHelper;
-import com.zoufx.ai.agent.util.WebSearchEventHelper;
+import com.zoufx.ai.agent.chat.model.ChatEvent;
+import com.zoufx.ai.agent.chat.helper.RetryPolicyHelper;
+import com.zoufx.ai.agent.chat.helper.WebSearchEventHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
