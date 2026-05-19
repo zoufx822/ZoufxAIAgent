@@ -1,6 +1,6 @@
-package com.zoufx.ai.agent.memory;
+package com.zoufx.ai.agent.soul;
 
-import com.zoufx.ai.agent.properties.SoulProperties;
+import com.zoufx.ai.agent.soul.property.SoulProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -8,7 +8,7 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
-import com.zoufx.ai.agent.memory.api.SoulStore;
+import com.zoufx.ai.agent.soul.api.SoulStore;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.HashMap;

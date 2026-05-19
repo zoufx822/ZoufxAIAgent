@@ -1,7 +1,7 @@
-package com.zoufx.ai.agent.controller;
+package com.zoufx.ai.agent.soul.controller;
 
-import com.zoufx.ai.agent.properties.SoulProperties;
-import com.zoufx.ai.agent.memory.api.SoulStore;
+import com.zoufx.ai.agent.soul.property.SoulProperties;
+import com.zoufx.ai.agent.soul.api.SoulStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

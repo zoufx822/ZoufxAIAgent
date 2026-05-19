@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.memory.api;
+package com.zoufx.ai.agent.soul.api;
 
 import reactor.core.publisher.Mono;
 

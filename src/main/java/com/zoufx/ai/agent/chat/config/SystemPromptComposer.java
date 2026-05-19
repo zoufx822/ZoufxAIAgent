@@ -1,11 +1,11 @@
 package com.zoufx.ai.agent.chat.config;
 
 import com.zoufx.ai.agent.properties.MoodProperties;
-import com.zoufx.ai.agent.properties.SoulProperties;
 import com.zoufx.ai.agent.properties.UserProfileProperties;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.api.MemoryStore;
-import com.zoufx.ai.agent.memory.api.SoulStore;
+import com.zoufx.ai.agent.soul.api.SoulStore;
+import com.zoufx.ai.agent.soul.property.SoulProperties;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import org.springframework.stereotype.Component;
 
