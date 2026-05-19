@@ -1,9 +1,11 @@
 package com.zoufx.ai.agent.config.ai;
 
 import com.zoufx.ai.agent.config.properties.MoodProperties;
+import com.zoufx.ai.agent.config.properties.SoulProperties;
 import com.zoufx.ai.agent.config.properties.UserProfileProperties;
 import com.zoufx.ai.agent.memory.HotMemoryStore;
 import com.zoufx.ai.agent.memory.MemoryStore;
+import com.zoufx.ai.agent.memory.SoulStore;
 import com.zoufx.ai.agent.tool.ToolPromptContributor;
 import org.springframework.stereotype.Component;
 
@@ -85,19 +87,25 @@ public class SystemPromptComposer {
     private final List<ToolPromptContributor> tools;
     private final MemoryStore memoryStore;
     private final HotMemoryStore hotMemoryStore;
+    private final SoulStore soulStore;
     private final MoodProperties moodProperties;
     private final UserProfileProperties userProfileProperties;
+    private final SoulProperties soulProperties;
 
     public SystemPromptComposer(List<ToolPromptContributor> tools,
                                 MemoryStore memoryStore,
                                 HotMemoryStore hotMemoryStore,
+                                SoulStore soulStore,
                                 MoodProperties moodProperties,
-                                UserProfileProperties userProfileProperties) {
+                                UserProfileProperties userProfileProperties,
+                                SoulProperties soulProperties) {
         this.tools = tools;
         this.memoryStore = memoryStore;
         this.hotMemoryStore = hotMemoryStore;
+        this.soulStore = soulStore;
         this.moodProperties = moodProperties;
         this.userProfileProperties = userProfileProperties;
+        this.soulProperties = soulProperties;
     }
 
     public Function<Object, String> asProvider() {
@@ -110,6 +118,8 @@ public class SystemPromptComposer {
         StringBuilder sb = new StringBuilder();
         sb.append(ROLE).append("\n");
         sb.append("当前日期：").append(today).append("\n\n");
+
+        appendSoulSection(sb);
 
         String userId = memoryId == null ? null : memoryId.toString();
         appendIdentitySection(sb, userId);
@@ -125,6 +135,52 @@ public class SystemPromptComposer {
         appendMoodSection(sb);
 
         return sb.toString();
+    }
+
+    /**
+     * SOUL 段（v1.1）：注入 AI 自身人格 / 风格 / 原则 / 反模式 / 小习惯。
+     *
+     * 与 UserProfile 对偶 —— UserProfile 是"对方是谁"，SOUL 是"我是谁"。两段都遵循 Frozen Snapshot
+     * 约束（v1 第八章）：snapshot 在请求开头读一次，修改要等下次请求才生效。
+     *
+     * 注入顺序在 ROLE 之后、UserProfile 之前——先确立"我是谁"，再叠加"对方是谁"。
+     */
+    private void appendSoulSection(StringBuilder sb) {
+        List<String> enabled = soulProperties.getEnabledKeys();
+        if (enabled == null || enabled.isEmpty()) return;
+        Map<String, String> snap = soulStore.snapshot();
+        if (snap.isEmpty()) return;
+
+        // 收集已写入的 enabled key，决定是否值得开 "## 关于你自己" 段
+        Map<String, String> ordered = new LinkedHashMap<>();
+        for (String key : enabled) {
+            String v = snap.get(key);
+            if (v != null && !v.isBlank()) ordered.put(key, v);
+        }
+        if (ordered.isEmpty()) return;
+
+        sb.append("## 关于你自己\n\n");
+        String name = ordered.get("name");
+        String tone = ordered.get("tone");
+        if (name != null) {
+            sb.append("你叫").append(name).append("。");
+            if (tone != null) sb.append("你的说话风格是：").append(tone).append("。");
+            sb.append("\n\n");
+        } else if (tone != null) {
+            sb.append("你的说话风格是：").append(tone).append("。\n\n");
+        }
+        appendSoulBlock(sb, ordered, "principles",         "你坚持以下表达原则：");
+        appendSoulBlock(sb, ordered, "forbidden_patterns", "你**绝不**使用以下表达：");
+        appendSoulBlock(sb, ordered, "quirks",             "你有以下小习惯（自然流露即可，不要刻意）：");
+    }
+
+    /** SOUL 子块：value 可能是 multi-line（yml 用 |），原样保留缩进/列表符号注入 prompt。 */
+    private void appendSoulBlock(StringBuilder sb, Map<String, String> ordered, String key, String title) {
+        String value = ordered.get(key);
+        if (value == null || value.isBlank()) return;
+        sb.append(title).append("\n").append(value);
+        if (!value.endsWith("\n")) sb.append("\n");
+        sb.append("\n");
     }
 
     /**
