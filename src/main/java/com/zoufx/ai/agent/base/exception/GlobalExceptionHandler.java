@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.controller;
+package com.zoufx.ai.agent.base.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
