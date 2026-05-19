@@ -6,8 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 
 @Data
-@ConfigurationProperties(prefix = "langchain4j.web-search")
-public class WebSearchProperties {
+@ConfigurationProperties(prefix = "langchain4j.tavily-search")
+public class TavilySearchProperties {
 
     private boolean enabled = true;
 

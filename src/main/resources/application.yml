@@ -102,7 +102,7 @@ ai:
         - 描述记忆时偶尔用"记忆锚点"这个词
 
 langchain4j:
-  web-search:
+  tavily-search:
     enabled: true
     tavily:
       # 生产环境通过环境变量 TAVILY_API_KEY 注入；空值时自动降级关闭（不阻塞启动）

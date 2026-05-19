@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.tool.config;
 
 import com.zoufx.ai.agent.chat.property.RetryProperties;
-import com.zoufx.ai.agent.tool.property.WebSearchProperties;
+import com.zoufx.ai.agent.tool.property.TavilySearchProperties;
 import com.zoufx.ai.agent.tool.impl.TavilySearchTool;
 import dev.langchain4j.web.search.WebSearchEngine;
 import dev.langchain4j.web.search.tavily.TavilyWebSearchEngine;
@@ -16,16 +16,16 @@ import org.springframework.util.StringUtils;
  * apiKey 为空时仍然注册 TavilySearchTool（engine=null），让工具调用链路完整，
  * 模型真正触发工具时才返回「未配置」字符串降级，避免因缺 key 启动失败。
  *
- * 注意：@ConditionalOnProperty 只控制 langchain4j.web-search.enabled 开关，不依赖 api-key 是否存在。
+ * 注意：@ConditionalOnProperty 只控制 langchain4j.tavily-search.enabled 开关，不依赖 api-key 是否存在。
  */
 @Slf4j
 @Configuration
-@ConditionalOnProperty(prefix = "langchain4j.web-search", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "langchain4j.tavily-search", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class TavilySearchConfig {
 
     @Bean
-    public TavilySearchTool tavilySearchTool(WebSearchProperties props, RetryProperties retryProps) {
-        WebSearchProperties.Tavily t = props.getTavily();
+    public TavilySearchTool tavilySearchTool(TavilySearchProperties props, RetryProperties retryProps) {
+        TavilySearchProperties.Tavily t = props.getTavily();
         RetryProperties.Tavily r = retryProps.getTavily();
         WebSearchEngine engine = null;
         if (StringUtils.hasText(t.getApiKey())) {
