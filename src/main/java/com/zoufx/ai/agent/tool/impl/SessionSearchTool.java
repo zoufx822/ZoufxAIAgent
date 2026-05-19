@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.tool;
+package com.zoufx.ai.agent.tool.impl;
 
 import com.zoufx.ai.agent.memory.api.MemoryStream;
 import com.zoufx.ai.agent.memory.model.StreamEntry;

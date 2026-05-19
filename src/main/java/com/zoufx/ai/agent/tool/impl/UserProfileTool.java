@@ -1,6 +1,6 @@
-package com.zoufx.ai.agent.tool;
+package com.zoufx.ai.agent.tool.impl;
 
-import com.zoufx.ai.agent.properties.UserProfileProperties;
+import com.zoufx.ai.agent.tool.property.UserProfileProperties;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;

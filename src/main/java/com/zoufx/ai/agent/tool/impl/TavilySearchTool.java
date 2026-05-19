@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.tool;
+package com.zoufx.ai.agent.tool.impl;
 
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import com.zoufx.ai.agent.chat.helper.RetryPolicyHelper;

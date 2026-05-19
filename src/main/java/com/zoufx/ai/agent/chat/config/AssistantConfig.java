@@ -1,9 +1,9 @@
 package com.zoufx.ai.agent.chat.config;
 
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
-import com.zoufx.ai.agent.tool.SessionSearchTool;
-import com.zoufx.ai.agent.tool.TavilySearchTool;
-import com.zoufx.ai.agent.tool.UserProfileTool;
+import com.zoufx.ai.agent.tool.impl.SessionSearchTool;
+import com.zoufx.ai.agent.tool.impl.TavilySearchTool;
+import com.zoufx.ai.agent.tool.impl.UserProfileTool;
 import dev.langchain4j.memory.chat.ChatMemoryProvider;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.service.AiServices;
