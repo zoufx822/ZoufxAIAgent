@@ -29,7 +29,6 @@ public class MoodStripper {
     private final FluxSink<ChatEvent> sink;
     private final String userId;
     private final StringBuilder buffer = new StringBuilder();
-    private boolean moodEmitted = false;
 
     public MoodStripper(int tailSize, FluxSink<ChatEvent> sink, String userId) {
         this.tailSize = tailSize;
@@ -37,42 +36,46 @@ public class MoodStripper {
         this.userId = userId;
     }
 
-    /** 接收 LC4J 增量 token；可能 emit 0..1 content 事件 + 0..1 mood 事件。 */
+    /** 接收 LC4J 增量 token；可能 emit content + 0..N mood 事件（一轮 LLM 可能输出多次标记）。 */
     public void accept(String chunk) {
         if (chunk == null || chunk.isEmpty()) return;
         buffer.append(chunk);
-        if (!moodEmitted) scanAndStrip();
+        scanAndStrip();
         flushSafePrefix();
     }
 
     /** 流末尾兜底：再扫一次（标记可能正好在末尾）+ flush 全部剩余内容。 */
     public void flush() {
-        if (!moodEmitted) scanAndStrip();
+        scanAndStrip();
         if (buffer.length() > 0) {
             sink.next(new ChatEvent("content", buffer.toString()));
             buffer.setLength(0);
         }
     }
 
-    /** 扫描 buffer 内的 mood 标记并剥离。命中：emit 命中前内容 + 删除标记 + 发 mood 事件。 */
+    /**
+     * 扫描并剥离 buffer 内的所有 mood 标记。命中：emit 命中前内容 + 删除标记 + 发 mood 事件。
+     * <p>用 while 循环处理"一轮 LLM 输出多次 mood 标记"的情况（例如开头一次 + 末尾一次）。
+     * 前端 setMood 自然以后到为准，并通过 React key 重放 fade-in 动画。
+     */
     private void scanAndStrip() {
-        Matcher m = MOOD.matcher(buffer);
-        if (!m.find()) return;
-        String mood = m.group(1).trim();
-        String before = buffer.substring(0, m.start());
-        if (!before.isEmpty()) {
-            sink.next(new ChatEvent("content", before));
+        while (true) {
+            Matcher m = MOOD.matcher(buffer);
+            if (!m.find()) return;
+            String mood = m.group(1).trim();
+            String before = buffer.substring(0, m.start());
+            if (!before.isEmpty()) {
+                sink.next(new ChatEvent("content", before));
+            }
+            buffer.delete(0, m.end());
+            sink.next(new ChatEvent("mood", moodPayload(mood)));
+            log.info("Mood stripped [userId={}] mood={}", userId, mood);
         }
-        buffer.delete(0, m.end());
-        sink.next(new ChatEvent("mood", moodPayload(mood)));
-        moodEmitted = true;
-        log.info("Mood stripped [userId={}] mood={}", userId, mood);
     }
 
-    /** 流式途中：mood 未发时留尾防跨 chunk 切碎；mood 已发后全 emit。 */
+    /** 流式途中：总是保留尾部 tailSize 字符，防止跨 chunk 切碎下一个可能的标记。 */
     private void flushSafePrefix() {
-        int tail = moodEmitted ? 0 : tailSize;
-        int safeLen = buffer.length() - tail;
+        int safeLen = buffer.length() - tailSize;
         if (safeLen <= 0) return;
         String safe = buffer.substring(0, safeLen);
         sink.next(new ChatEvent("content", safe));
