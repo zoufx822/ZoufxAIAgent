@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.config.ai;
 
+import com.zoufx.ai.agent.config.properties.MoodProperties;
 import com.zoufx.ai.agent.memory.HotMemoryStore;
 import com.zoufx.ai.agent.memory.MemoryStore;
 import com.zoufx.ai.agent.tool.ToolPromptContributor;
@@ -71,13 +72,16 @@ public class SystemPromptComposer {
     private final List<ToolPromptContributor> tools;
     private final MemoryStore memoryStore;
     private final HotMemoryStore hotMemoryStore;
+    private final MoodProperties moodProperties;
 
     public SystemPromptComposer(List<ToolPromptContributor> tools,
                                 MemoryStore memoryStore,
-                                HotMemoryStore hotMemoryStore) {
+                                HotMemoryStore hotMemoryStore,
+                                MoodProperties moodProperties) {
         this.tools = tools;
         this.memoryStore = memoryStore;
         this.hotMemoryStore = hotMemoryStore;
+        this.moodProperties = moodProperties;
     }
 
     public Function<Object, String> asProvider() {
@@ -102,7 +106,35 @@ public class SystemPromptComposer {
         sb.append("## 响应规则\n\n");
         sb.append(GLOBAL_RULES);
 
+        appendMoodSection(sb);
+
         return sb.toString();
+    }
+
+    /**
+     * 情绪标记段（v1.1）：命令 LLM 在每条回复末尾追加 {@code <!--mood:KEYWORD-->} HTML 注释。
+     * 后端 AIChatService 在 content 流尾部用 tail buffer 扫描剥离，独立成 SSE mood 事件。
+     *
+     * 用命令式 + 反模式枚举，避免 weak model 漏标（参见 v1 第 5.4 节末尾的 prompt 调优坑）。
+     */
+    private void appendMoodSection(StringBuilder sb) {
+        if (!moodProperties.isEnabled()) return;
+        List<String> keywords = moodProperties.getKeywords();
+        if (keywords == null || keywords.isEmpty()) return;
+
+        sb.append("\n## 情绪标记\n\n")
+                .append("在你每条回复的**最末尾**，追加一个 HTML 注释标记你此刻的情绪，格式严格如下：\n")
+                .append("<!--mood:KEYWORD-->\n\n")
+                .append("KEYWORD 必须从以下词表中精确选择一个：\n")
+                .append(String.join(" / ", keywords)).append("\n\n")
+                .append("规则：\n")
+                .append("- 该注释不会显示给用户，仅供系统读取\n")
+                .append("- 务必每条回复都追加，不可省略\n")
+                .append("- 必须放在回复的最末尾（在所有正文与标点之后）\n")
+                .append("- 反模式：\n")
+                .append("  - 不要使用词表以外的词\n")
+                .append("  - 不要在注释里加解释（如 <!--mood:好奇，因为这个问题很有趣-->）\n")
+                .append("  - 不要把标记夹在正文中间\n");
     }
 
     /**

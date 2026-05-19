@@ -1,6 +1,7 @@
 package com.zoufx.ai.agent.service;
 
 import com.zoufx.ai.agent.assistant.ChatAssistant;
+import com.zoufx.ai.agent.config.properties.MoodProperties;
 import com.zoufx.ai.agent.memory.MemoryStore;
 import com.zoufx.ai.agent.memory.MemoryStream;
 import com.zoufx.ai.agent.model.ChatEvent;
@@ -48,6 +49,7 @@ public class AIChatService {
     private final MemoryStore memoryStore;
     private final MemoryStream memoryStream;
     private final LlmRetrySpec llmRetrySpec;
+    private final MoodProperties moodProperties;
 
     public Flux<ChatEvent> chat(String userId, String prompt, boolean thinking) {
         ChatAssistant assistant = thinking ? thinkingAssistant : nonThinkingAssistant;
@@ -104,6 +106,12 @@ public class AIChatService {
      */
     private void startTokenStream(FluxSink<ChatEvent> sink, ChatAssistant assistant,
                                   String userId, String prompt, AtomicBoolean hasEmitted) {
+        // v1.1：mood 启用时用 MoodStripper 包装 content 输出——剥离 <!--mood:KEYWORD-->，独立发 mood 事件。
+        // 一条请求一个实例：内部维护 tail buffer + 命中状态，请求结束 flush() 兜底。
+        final MoodStripper moodStripper = moodProperties.isEnabled()
+                ? new MoodStripper(moodProperties.getTailBufferSize(), sink, userId)
+                : null;
+
         assistant.chat(userId, prompt)
                 .onPartialThinking(pt -> {
                     hasEmitted.set(true);
@@ -113,7 +121,11 @@ public class AIChatService {
                 })
                 .onPartialResponse(ct -> {
                     hasEmitted.set(true);
-                    sink.next(new ChatEvent("content", ct));
+                    if (moodStripper != null) {
+                        moodStripper.accept(ct);
+                    } else {
+                        sink.next(new ChatEvent("content", ct));
+                    }
                 })
                 .beforeToolExecution(evt -> {
                     hasEmitted.set(true);
@@ -133,6 +145,7 @@ public class AIChatService {
                 .onError(sink::error)
                 .onCompleteResponse(r -> {
                     log.info("Stream completed [userId={}]", userId);
+                    if (moodStripper != null) moodStripper.flush();
                     sink.complete();
                 })
                 .start();

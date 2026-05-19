@@ -50,6 +50,21 @@ ai:
     tavily:
       max-attempts: 2
       backoff: 500ms
+  # 情绪 mood 系统（v1.1）。主 LLM 在回复末尾顺带输出 <!--mood:KEYWORD-->，后端剥离后独立成 SSE mood 事件
+  mood:
+    enabled: true
+    keywords:
+      - 好奇
+      - 温和
+      - 严肃
+      - 平静
+      - 共情
+      - 戏谑
+      - 困惑
+      - 疲惫
+      - 兴奋
+      - 挫败
+    tail-buffer-size: 32
 
 langchain4j:
   web-search:
