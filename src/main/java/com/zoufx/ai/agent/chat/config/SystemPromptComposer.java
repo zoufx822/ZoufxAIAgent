@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.chat.config;
 
-import com.zoufx.ai.agent.properties.MoodProperties;
+import com.zoufx.ai.agent.chat.property.MoodProperties;
 import com.zoufx.ai.agent.tool.property.UserProfileProperties;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.api.MemoryStore;

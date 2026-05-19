@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.controller;
+package com.zoufx.ai.agent.memory.controller;
 
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.api.MemoryStream;

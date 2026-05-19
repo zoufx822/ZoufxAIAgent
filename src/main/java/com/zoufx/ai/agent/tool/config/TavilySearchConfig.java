@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.tool.config;
 
-import com.zoufx.ai.agent.properties.RetryProperties;
+import com.zoufx.ai.agent.chat.property.RetryProperties;
 import com.zoufx.ai.agent.tool.property.WebSearchProperties;
 import com.zoufx.ai.agent.tool.impl.TavilySearchTool;
 import dev.langchain4j.web.search.WebSearchEngine;

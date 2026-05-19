@@ -1,8 +1,8 @@
 package com.zoufx.ai.agent.chat;
 
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
-import com.zoufx.ai.agent.properties.MoodProperties;
-import com.zoufx.ai.agent.properties.RetryProperties;
+import com.zoufx.ai.agent.chat.property.MoodProperties;
+import com.zoufx.ai.agent.chat.property.RetryProperties;
 import com.zoufx.ai.agent.memory.api.MemoryStore;
 import com.zoufx.ai.agent.memory.api.MemoryStream;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
