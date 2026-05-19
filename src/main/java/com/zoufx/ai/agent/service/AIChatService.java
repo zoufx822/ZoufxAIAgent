@@ -2,10 +2,11 @@ package com.zoufx.ai.agent.service;
 
 import com.zoufx.ai.agent.assistant.ChatAssistantContract;
 import com.zoufx.ai.agent.properties.MoodProperties;
+import com.zoufx.ai.agent.properties.RetryProperties;
 import com.zoufx.ai.agent.memory.MemoryStoreContract;
 import com.zoufx.ai.agent.memory.MemoryStreamContract;
 import com.zoufx.ai.agent.model.ChatEvent;
-import com.zoufx.ai.agent.util.LlmRetrySpec;
+import com.zoufx.ai.agent.util.RetryPolicyHelper;
 import com.zoufx.ai.agent.util.WebSearchEventHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -33,7 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * </pre>
  *
  * 入参校验由 ChatRequest 上的 Bean Validation 承担（GlobalExceptionHandler 翻译为 HTTP 400）。
- * 重试策略 {@link #buildRetrySpec} 留作 v1 收尾 commit 抽出为独立 LlmRetrySpec 类。
+ * 重试策略在 {@link #buildRetrySpec} 私有方法中定义。
  */
 @Slf4j
 @Service
@@ -48,7 +50,7 @@ public class AIChatService {
 
     private final MemoryStoreContract memoryStore;
     private final MemoryStreamContract memoryStream;
-    private final LlmRetrySpec llmRetrySpec;
+    private final RetryProperties retryProperties;
     private final MoodProperties moodProperties;
 
     public Flux<ChatEvent> chat(String userId, String prompt, boolean thinking) {
@@ -82,7 +84,7 @@ public class AIChatService {
     private Flux<ChatEvent> buildStream(ChatAssistantContract assistant, String userId, String prompt,
                                         AtomicBoolean hasEmitted, StringBuilder assistantBuffer) {
         return Flux.<ChatEvent>create(sink -> startTokenStream(sink, assistant, userId, prompt, hasEmitted))
-                .retryWhen(llmRetrySpec.onlyRetryBeforeFirstEmission(hasEmitted))
+                .retryWhen(buildRetrySpec(hasEmitted))
                 .doOnNext(event -> {
                     if ("content".equals(event.type())) {
                         assistantBuffer.append(event.data());
@@ -164,6 +166,19 @@ public class AIChatService {
                     return Mono.empty();
                 })
                 .subscribe();
+    }
+
+    /**
+     * 构造 LLM 调用的重试策略：仅在首次 emit 前对可重试错误生效，按指数退避重试。
+     * 调用方需持有 {@code hasEmitted}，并在 LC4J 任一回调触发时置为 true。
+     */
+    private Retry buildRetrySpec(AtomicBoolean hasEmitted) {
+        RetryProperties.Llm cfg = retryProperties.getLlm();
+        return Retry.backoff(cfg.getMaxAttempts(), cfg.getMinBackoff())
+                .maxBackoff(cfg.getMaxBackoff())
+                .filter(err -> !hasEmitted.get() && RetryPolicyHelper.isRetryable(err))
+                .doBeforeRetry(rs -> log.warn("LLM retry #{} cause={}",
+                        rs.totalRetries() + 1, rs.failure().toString()));
     }
 
     /**
