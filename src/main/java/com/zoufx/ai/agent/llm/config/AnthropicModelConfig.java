@@ -1,6 +1,6 @@
-package com.zoufx.ai.agent.config;
+package com.zoufx.ai.agent.llm.config;
 
-import com.zoufx.ai.agent.properties.AnthropicProperties;
+import com.zoufx.ai.agent.llm.property.AnthropicProperties;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import lombok.RequiredArgsConstructor;
