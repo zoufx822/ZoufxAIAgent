@@ -19,7 +19,7 @@ import java.util.List;
  * - WebFlux event loop（Controller/Service）：直接 chain，不阻塞
  * - LC4J 框架线程（SystemPromptProvider / @Tool 内部）：可 {@code .block()} 同步桥接
  */
-public interface MemoryStore {
+public interface MemoryStoreContract {
 
     Mono<List<ChatMessage>> loadByUserId(String userId);
 
@@ -30,7 +30,7 @@ public interface MemoryStore {
     /**
      * 用于"陌生人识别"——记忆为空 = AI 不认识此人。
      *
-     * ==同步签名（异常方法）==：唯一调用方是 {@link com.zoufx.ai.agent.config.ai.SystemPromptComposer#compose}，
+     * ==同步签名（异常方法）==：唯一调用方是 {@link com.zoufx.ai.agent.config.SystemPromptComposer#compose}，
      * 它作为 LC4J SystemPromptProvider 被同步内联调用在 WebFlux event loop 上，
      * 无法等待 Mono；改用 .block() 会被 Reactor NonBlockingHook 拦下。
      *

@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.tool;
 
-import com.zoufx.ai.agent.memory.MemoryStream;
+import com.zoufx.ai.agent.memory.MemoryStreamContract;
 import com.zoufx.ai.agent.memory.StreamEntry;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -20,12 +20,12 @@ import java.util.Locale;
  * 主动调用，到 Memory Stream 里 FTS5 检索原文。
  *
  * 线程：LC4J 在工具线程上同步调用 @Tool 方法（与 WebFlux event loop 隔离），
- * 故 {@code .block()} 桥接反应式 {@link MemoryStream#search} 是合规的。
+ * 故 {@code .block()} 桥接反应式 {@link MemoryStreamContract#search} 是合规的。
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class SessionSearchTool implements ToolPromptContributor {
+public class SessionSearchTool implements ToolPromptContract {
 
     private static final int DEFAULT_LIMIT = 5;
     private static final int HARD_MAX_LIMIT = 20;
@@ -33,7 +33,7 @@ public class SessionSearchTool implements ToolPromptContributor {
     private static final DateTimeFormatter TIME_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.CHINA).withZone(ZoneId.systemDefault());
 
-    private final MemoryStream memoryStream;
+    private final MemoryStreamContract memoryStream;
 
     @Override
     public String section() {

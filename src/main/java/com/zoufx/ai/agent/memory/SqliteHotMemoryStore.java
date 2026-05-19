@@ -18,12 +18,12 @@ import java.util.Optional;
  *
  * - 与其他 store 共用 memoryDataSource / memoryJdbcTemplate
  * - schema 在自身 @PostConstruct 里建
- * - get / snapshot 同步：见 {@link HotMemoryStore} 接口文档（compose() 在 event loop 上不能 .block()）
+ * - get / snapshot 同步：见 {@link HotMemoryStoreContract} 接口文档（compose() 在 event loop 上不能 .block()）
  * - set 反应式：阻塞 JDBC 包到 boundedElastic
  */
 @Slf4j
 @Component
-public class SqliteHotMemoryStore implements HotMemoryStore {
+public class SqliteHotMemoryStore implements HotMemoryStoreContract {
 
     private final JdbcTemplate jdbc;
 

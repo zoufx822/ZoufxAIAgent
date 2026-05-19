@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * 实现 ToolPromptContributor：把"何时调用 search_web"的规则从 AssistantConfig 下沉到工具自身。
  */
 @Slf4j
-public class TavilySearchTool implements ToolPromptContributor {
+public class TavilySearchTool implements ToolPromptContract {
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("yyyy 年 M 月 d 日", Locale.CHINA);

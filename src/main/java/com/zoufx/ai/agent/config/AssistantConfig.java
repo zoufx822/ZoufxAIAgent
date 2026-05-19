@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.config;
 
-import com.zoufx.ai.agent.assistant.ChatAssistant;
+import com.zoufx.ai.agent.assistant.ChatAssistantContract;
 import com.zoufx.ai.agent.tool.SessionSearchTool;
 import com.zoufx.ai.agent.tool.TavilySearchTool;
 import com.zoufx.ai.agent.tool.UserProfileTool;
@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 装配两个 ChatAssistant Bean：分别绑定 thinking / nonThinking 的 StreamingChatModel。
+ * 装配两个 ChatAssistantContract Bean：分别绑定 thinking / nonThinking 的 StreamingChatModel。
  * 共享同一个 ChatMemoryProvider——同 userId 跨模式切换历史连续。
  *
  * 挂载的工具集：
@@ -27,14 +27,14 @@ import org.springframework.context.annotation.Configuration;
 public class AssistantConfig {
 
     @Bean
-    public ChatAssistant thinkingAssistant(
+    public ChatAssistantContract thinkingAssistant(
             @Qualifier("thinkingChatModel") StreamingChatModel model,
             ChatMemoryProvider chatMemoryProvider,
             TavilySearchTool tavilySearchTool,
             SessionSearchTool sessionSearchTool,
             UserProfileTool userProfileTool,
             SystemPromptComposer composer) {
-        return AiServices.builder(ChatAssistant.class)
+        return AiServices.builder(ChatAssistantContract.class)
                 .streamingChatModel(model)
                 .chatMemoryProvider(chatMemoryProvider)
                 .systemMessageProvider(composer.asProvider())
@@ -43,14 +43,14 @@ public class AssistantConfig {
     }
 
     @Bean
-    public ChatAssistant nonThinkingAssistant(
+    public ChatAssistantContract nonThinkingAssistant(
             @Qualifier("nonThinkingChatModel") StreamingChatModel model,
             ChatMemoryProvider chatMemoryProvider,
             TavilySearchTool tavilySearchTool,
             SessionSearchTool sessionSearchTool,
             UserProfileTool userProfileTool,
             SystemPromptComposer composer) {
-        return AiServices.builder(ChatAssistant.class)
+        return AiServices.builder(ChatAssistantContract.class)
                 .streamingChatModel(model)
                 .chatMemoryProvider(chatMemoryProvider)
                 .systemMessageProvider(composer.asProvider())

@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.controller;
 
 import com.zoufx.ai.agent.properties.SoulProperties;
-import com.zoufx.ai.agent.memory.SoulStore;
+import com.zoufx.ai.agent.memory.SoulStoreContract;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +23,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SoulController {
 
-    private final SoulStore soulStore;
+    private final SoulStoreContract soulStore;
     private final SoulProperties properties;
 
     /** 拉 SOUL 全量 snapshot。 */

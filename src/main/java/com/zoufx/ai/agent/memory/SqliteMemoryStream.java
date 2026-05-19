@@ -29,7 +29,7 @@ import java.util.List;
  */
 @Slf4j
 @Component
-public class SqliteMemoryStream implements MemoryStream {
+public class SqliteMemoryStream implements MemoryStreamContract {
 
     private static final int SEARCH_LIMIT_HARD_MAX = 20;
 

@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.tool;
 
 import com.zoufx.ai.agent.properties.UserProfileProperties;
-import com.zoufx.ai.agent.memory.HotMemoryStore;
+import com.zoufx.ai.agent.memory.HotMemoryStoreContract;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;
@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
  * /职业/兴趣/对话风格）时调用，按 yml 白名单校验 key 后 UPSERT。
  *
  * <p>线程：LC4J 在工具线程上同步调用 @Tool 方法，故 {@code .block()} 桥接
- * 反应式 {@link HotMemoryStore#set} 是合规的。
+ * 反应式 {@link HotMemoryStoreContract#set} 是合规的。
  *
  * <p>==删除旧 remember_user_name 工具==——LLM 看到的工具列表越短越好；
  * 在 system prompt 里更新工具说明片段，LLM 自然学到新姿势。
@@ -25,9 +25,9 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class UserProfileTool implements ToolPromptContributor {
+public class UserProfileTool implements ToolPromptContract {
 
-    private final HotMemoryStore hotMemoryStore;
+    private final HotMemoryStoreContract hotMemoryStore;
     private final UserProfileProperties properties;
 
     @Override

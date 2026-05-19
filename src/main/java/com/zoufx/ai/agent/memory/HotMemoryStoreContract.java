@@ -17,13 +17,13 @@ import java.util.Optional;
  *
  * ==读/写接口签名风格不一致的设计取舍==：
  * - {@link #get(String, String)} / {@link #snapshot(String)} ==同步==：调用方是
- *   {@link com.zoufx.ai.agent.config.ai.SystemPromptComposer#compose}，由 LC4J 在
+ *   {@link com.zoufx.ai.agent.config.SystemPromptComposer#compose}，由 LC4J 在
  *   WebFlux event loop 上同步内联调用（{@code Function<Object, String>} 契约），
- *   无法 {@code .block()} 等 Mono——见 MemoryStore.isEmpty 的同款例外
+ *   无法 {@code .block()} 等 Mono——见 MemoryStoreContract.isEmpty 的同款例外
  * - {@link #set(String, String, String)} 反应式：调用方是 @Tool 方法（LC4J 工具线程），
  *   {@code .block()} 桥接合规；保持 Mono 签名为未来在 event loop 上写入（v2 后台任务等）留口子
  */
-public interface HotMemoryStore {
+public interface HotMemoryStoreContract {
 
     /**
      * 同步读单个 key。实现侧用 PK 单点查询，开销可忽略。

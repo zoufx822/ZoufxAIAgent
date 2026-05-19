@@ -3,10 +3,10 @@ package com.zoufx.ai.agent.config;
 import com.zoufx.ai.agent.properties.MoodProperties;
 import com.zoufx.ai.agent.properties.SoulProperties;
 import com.zoufx.ai.agent.properties.UserProfileProperties;
-import com.zoufx.ai.agent.memory.HotMemoryStore;
-import com.zoufx.ai.agent.memory.MemoryStore;
-import com.zoufx.ai.agent.memory.SoulStore;
-import com.zoufx.ai.agent.tool.ToolPromptContributor;
+import com.zoufx.ai.agent.memory.HotMemoryStoreContract;
+import com.zoufx.ai.agent.memory.MemoryStoreContract;
+import com.zoufx.ai.agent.memory.SoulStoreContract;
+import com.zoufx.ai.agent.tool.ToolPromptContract;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  *      - Hot Memory 有 display_name → 注入"对方叫 X"片段，跳过陌生人迎接
  *      - 无 display_name 但记忆为空 → 陌生人迎接，主动询问称呼
  *      - 无 display_name 但有历史对话 → 不注入额外身份片段（已认识但还没告知名字）
- *   4. 工具集（自动从所有 ToolPromptContributor Bean 聚合，{today} 占位符替换）
+ *   4. 工具集（自动从所有 ToolPromptContract Bean 聚合，{today} 占位符替换）
  *   5. 全局响应规则
  *
  * <h2>Frozen Snapshot 约束（v1 显式化）</h2>
@@ -84,24 +84,24 @@ public class SystemPromptComposer {
         KEY_TEMPLATES.put("tone",      "- 对方期望的对话风格：{}");
     }
 
-    private final List<ToolPromptContributor> tools;
-    private final MemoryStore memoryStore;
-    private final HotMemoryStore hotMemoryStore;
-    private final SoulStore soulStore;
+    private final List<ToolPromptContract> tools;
+    private final MemoryStoreContract memoryStore;
+    private final HotMemoryStoreContract hotMemoryStoreContract;
+    private final SoulStoreContract soulStore;
     private final MoodProperties moodProperties;
     private final UserProfileProperties userProfileProperties;
     private final SoulProperties soulProperties;
 
-    public SystemPromptComposer(List<ToolPromptContributor> tools,
-                                MemoryStore memoryStore,
-                                HotMemoryStore hotMemoryStore,
-                                SoulStore soulStore,
+    public SystemPromptComposer(List<ToolPromptContract> tools,
+                                MemoryStoreContract memoryStore,
+                                HotMemoryStoreContract hotMemoryStoreContract,
+                                SoulStoreContract soulStore,
                                 MoodProperties moodProperties,
                                 UserProfileProperties userProfileProperties,
                                 SoulProperties soulProperties) {
         this.tools = tools;
         this.memoryStore = memoryStore;
-        this.hotMemoryStore = hotMemoryStore;
+        this.hotMemoryStoreContract = hotMemoryStoreContract;
         this.soulStore = soulStore;
         this.moodProperties = moodProperties;
         this.userProfileProperties = userProfileProperties;
@@ -221,7 +221,7 @@ public class SystemPromptComposer {
     private void appendIdentitySection(StringBuilder sb, String userId) {
         if (userId == null) return;
 
-        Map<String, String> snapshot = hotMemoryStore.snapshot(userId);
+        Map<String, String> snapshot = hotMemoryStoreContract.snapshot(userId);
         String displayName = snapshot.get(KEY_DISPLAY_NAME);
         if (displayName != null && !displayName.isBlank()) {
             sb.append("## 关于对方\n\n");

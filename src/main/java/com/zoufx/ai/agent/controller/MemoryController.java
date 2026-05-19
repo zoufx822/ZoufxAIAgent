@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.controller;
 
-import com.zoufx.ai.agent.memory.HotMemoryStore;
-import com.zoufx.ai.agent.memory.MemoryStream;
+import com.zoufx.ai.agent.memory.HotMemoryStoreContract;
+import com.zoufx.ai.agent.memory.MemoryStreamContract;
 import com.zoufx.ai.agent.memory.StreamEntry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,8 +36,8 @@ public class MemoryController {
     /** 单次 stream 拉取的硬上限，超过即裁剪到此值。 */
     private static final int STREAM_LIMIT_MAX = 50;
 
-    private final HotMemoryStore hotMemoryStore;
-    private final MemoryStream memoryStream;
+    private final HotMemoryStoreContract hotMemoryStore;
+    private final MemoryStreamContract memoryStream;
 
     /** Hot Memory snapshot：返回该 userId 写入过的全部 key/value（不做白名单过滤，前端按需用）。 */
     @GetMapping("/hot")

@@ -30,7 +30,7 @@ import java.util.Optional;
  */
 @Slf4j
 @Component
-public class SqliteSoulStore implements SoulStore {
+public class SqliteSoulStore implements SoulStoreContract {
 
     private final JdbcTemplate jdbc;
     private final SoulProperties properties;
@@ -58,12 +58,12 @@ public class SqliteSoulStore implements SoulStore {
     private void seedIfEmpty() {
         Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM soul_profile", Integer.class);
         if (count != null && count > 0) {
-            log.info("SoulStore already has {} keys, skip seeding", count);
+            log.info("SoulStoreContract already has {} keys, skip seeding", count);
             return;
         }
         Map<String, String> seed = properties.getSeed();
         if (seed == null || seed.isEmpty()) {
-            log.info("SoulStore seed empty, nothing to insert");
+            log.info("SoulStoreContract seed empty, nothing to insert");
             return;
         }
         long now = System.currentTimeMillis();
@@ -73,7 +73,7 @@ public class SqliteSoulStore implements SoulStore {
                     "INSERT INTO soul_profile (key, value, updated_at) VALUES (?, ?, ?)",
                     e.getKey(), e.getValue(), now);
         }
-        log.info("SoulStore seeded with {} keys", seed.size());
+        log.info("SoulStoreContract seeded with {} keys", seed.size());
     }
 
     @Override
