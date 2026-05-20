@@ -1,0 +1,31 @@
+{
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true
+  },
+  "hooks": {
+    "SubagentStop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rm -f \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.log \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.yml \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.png \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.jpg \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.jpeg \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.webp 2>/dev/null; exit 0"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rm -f \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.log \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.yml \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.png \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.jpg \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.jpeg \"$CLAUDE_PROJECT_DIR/.playwright-mcp/\"*.webp 2>/dev/null; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
