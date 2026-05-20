@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.List;
 
 /**
- * Hot Memory（hot_memory 表）启用字段白名单配置（v1.1）。
+ * Hot Memory（hot_memory 表）启用字段白名单配置（v0.11）。
  *
  * <p>双重作用：
  * <ul>
@@ -16,7 +16,7 @@ import java.util.List;
  *       按白名单顺序遍历 snapshot，仅注入有值的 key</li>
  * </ul>
  *
- * <p>v1 只启用 {@code display_name}；v1.1 起扩展到多字段。
+ * <p>v0.1 只启用 {@code display_name}；v0.11 起扩展到多字段。
  * 后续新字段必须同步在 SystemPromptComposer 加注入模板。
  */
 @Data

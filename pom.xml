@@ -13,7 +13,7 @@
 
     <groupId>com.zoufx</groupId>
     <artifactId>ZoufxAIAgent</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.12.0-SNAPSHOT</version>
     <name>ZoufxAIAgent</name>
     <description>Java LLM Integration Project</description>
     <packaging>jar</packaging>
@@ -67,7 +67,7 @@
         </dependency>
 
         <!-- Spring JDBC：JdbcTemplate / TransactionTemplate + HikariCP 连接池，
-             给记忆持久化层（ChatMemory v0 + v1 即将加的 MemoryStream / HotMemoryStore）共用一套底座 -->
+             给记忆持久化层（ChatMemory v0.01 + v0.1 加的 MemoryStream / HotMemoryStore）共用一套底座 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
@@ -93,7 +93,7 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- SQLite JDBC 驱动：v0 ChatMemory 持久化（与 Hermes 同款方案，零运维单文件） -->
+        <!-- SQLite JDBC 驱动：v0.01 ChatMemory 持久化（与 Hermes 同款方案，零运维单文件） -->
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>

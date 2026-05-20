@@ -11,9 +11,9 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 
 /**
- * SOUL（AI 自身人格）管理 API（v1.1）。
+ * SOUL（AI 自身人格）管理 API（v0.11）。
  *
- * <p>==无鉴权==——同 v0~v1 风格，单机开发环境。v3 / 真上线前一定要补鉴权。
+ * <p>==无鉴权==——同 v0.01~v0.1 风格，单机开发环境。v0.3 / 真上线前一定要补鉴权。
  *
  * <p>读 API 也开放给前端（StatePanel 可选展示）。写 API 仅供管理调用——LLM 不能改自己的人格。
  */

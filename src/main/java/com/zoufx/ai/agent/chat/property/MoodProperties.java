@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.List;
 
 /**
- * mood 情感词系统的配置（v1.1）。
+ * mood 情感词系统的配置（v0.11）。
  *
  * <p>mood 由主 LLM 在每条回复末尾顺带输出 {@code <!--mood:KEYWORD-->} HTML 注释，
  * 后端在 content 流尾部用 tail buffer 扫描 + 剥离，独立成 SSE {@code mood} 事件发给前端。
@@ -18,10 +18,10 @@ import java.util.List;
 @ConfigurationProperties(prefix = "ai.mood")
 public class MoodProperties {
 
-    /** 总开关。false 时不注入情绪标记指令、不剥离 mood、不发 mood 事件——纯 v1 行为。 */
+    /** 总开关。false 时不注入情绪标记指令、不剥离 mood、不发 mood 事件——纯 v0.1 行为。 */
     private boolean enabled = true;
 
-    /** 词表（v1.1 起步 10 词）。LLM 必须严格从中选一个。 */
+    /** 词表（v0.11 起步 10 词）。LLM 必须严格从中选一个。 */
     private List<String> keywords = List.of(
             "好奇", "温和", "严肃", "平静", "共情",
             "戏谑", "困惑", "疲惫", "兴奋", "挫败"

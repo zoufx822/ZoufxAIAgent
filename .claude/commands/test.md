@@ -86,6 +86,9 @@ git diff HEAD --stat               # 变更概况
 - 使用 Playwright MCP 操作浏览器
 - 每个测试用例结束后记录结果：✅ 通过 / ❌ 失败（附截图路径）/ ⚠️ 异常（描述现象）
 - 发现失败时：描述复现步骤，不要自行修复，等待主 Agent 处理
+- ==截图约束==：调用 `browser_take_screenshot` 时**只传纯文件名**（如 `tc10-fail.png`），
+  不要传带斜杠的相对路径、不要传绝对路径、不要传 `/tmp/...`。
+  Playwright MCP 会自动落到项目内的 `.playwright-mcp/` 目录，由 SubagentStop 钩子统一清理。
 
 【测试前准备】
 1. 确认服务已启动（curl http://localhost:8080 或 mvn spring-boot:run）
@@ -106,7 +109,7 @@ git diff HEAD --stat               # 变更概况
 | 用例 | 描述 | 结果 | 备注 |
 |-----|------|------|------|
 | TC-01 | ... | ✅ | |
-| TC-10 | ... | ❌ | 截图：/tmp/tc10.png |
+| TC-10 | ... | ❌ | 截图：.playwright-mcp/tc10-fail.png |
 
 **Console Errors**：{数量}（基线 vs 测试后）
 **失败用例**：{列表}
@@ -132,9 +135,9 @@ git diff HEAD --stat               # 变更概况
 
 ### 第五步：清理
 
-```bash
-rm -f /tmp/tc*.png /tmp/test_*.png   # 删除测试截图
-```
+==无需手动清理==。`.claude/settings.json` 配置了 `SubagentStop` + `SessionStart` 钩子，
+子 Agent 结束 / 下次会话启动时会自动清空 `.playwright-mcp/` 下的 *.log / *.yml / *.png / *.jpg / *.webp。
+==测试时如需保留特定截图，请用非 `.playwright-mcp/` 的输出路径==。
 
 ---
 

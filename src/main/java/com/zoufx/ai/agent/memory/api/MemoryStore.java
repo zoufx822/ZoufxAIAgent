@@ -12,7 +12,7 @@ import java.util.List;
  * key 类型是 {@code Object memoryId}；这里抽一层窄接口面向业务（{@code String userId}），
  * 方便后续扩展 recall / search / 分类型查询，且业务代码绑接口不绑实现。
  *
- * v1 起所有方法返回 {@code Mono<T>}：阻塞 JDBC 由实现层 {@code boundedElastic} 包装下沉，
+ * v0.1 起所有方法返回 {@code Mono<T>}：阻塞 JDBC 由实现层 {@code boundedElastic} 包装下沉，
  * 调用方不再手写 {@code Mono.fromRunnable(...).subscribeOn(boundedElastic())} 胶水。
  *
  * 三类调用上下文：

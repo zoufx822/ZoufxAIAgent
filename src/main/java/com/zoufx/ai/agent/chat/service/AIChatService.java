@@ -73,7 +73,7 @@ public class AIChatService {
      *   <li>持久化清理 chat_memory 里的孤儿 tool 消息（防止上一次 stop 留下半成品消息序列让 LLM 校验失败）</li>
      *   <li>把 user prompt 写入 Memory Stream（Cold Archive）</li>
      * </ol>
-     * 两步都失败仅记日志、不阻断主流——清理/写流失败不应影响主对话（v1 风险表 #10）。
+     * 两步都失败仅记日志、不阻断主流——清理/写流失败不应影响主对话（v0.1 风险表 #10）。
      */
     private Mono<Void> beforeStream(String userId, String prompt) {
         Mono<Void> cleanup = memoryStore.cleanupOrphans(userId)
@@ -126,7 +126,7 @@ public class AIChatService {
      */
     private void startTokenStream(FluxSink<ChatEvent> sink, ChatAssistant assistant,
                                   String userId, String prompt, AtomicBoolean hasEmitted) {
-        // v1.1：mood 启用时用 MoodEventProcessor 包装 content 输出——剥离 <!--mood:KEYWORD-->，独立发 mood 事件。
+        // v0.11：mood 启用时用 MoodEventProcessor 包装 content 输出——剥离 <!--mood:KEYWORD-->，独立发 mood 事件。
         // 一条请求一个实例：内部维护 tail buffer + 命中状态，请求结束 flush() 兜底。
         final MoodEventProcessor moodStripper = moodProperties.isEnabled()
                 ? new MoodEventProcessor(moodProperties.getTailBufferSize(), sink, userId)
@@ -203,7 +203,7 @@ public class AIChatService {
 
     /**
      * 清空指定 userId 的全部记忆。
-     * v1 起 {@link com.zoufx.ai.agent.memory.MemoryStoreContract} 接口本身返回 {@code Mono<Void>}，
+     * v0.1 起 {@link com.zoufx.ai.agent.memory.MemoryStoreContract} 接口本身返回 {@code Mono<Void>}，
      * 阻塞 JDBC + boundedElastic 包装下沉到实现层，调用方按反应式 chain 自然组合。
      */
     public Mono<Void> clearUserMemory(String userId) {

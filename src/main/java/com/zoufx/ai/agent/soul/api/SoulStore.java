@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * SOUL Store：AI 自身人格 / 说话风格 / 价值观 / 口头禅（v1.1）。
+ * SOUL Store：AI 自身人格 / 说话风格 / 价值观 / 口头禅（v0.11）。
  *
  * <p>与 {@link HotMemoryStore}（UserProfile）的对偶：
  * <ul>

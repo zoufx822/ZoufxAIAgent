@@ -16,10 +16,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 记忆暴露 API（v1.1）—— 给前端 StatePanel / Heartbeat 拉对方画像 + 经历流的只读入口。
+ * 记忆暴露 API（v0.11）—— 给前端 StatePanel / Heartbeat 拉对方画像 + 经历流的只读入口。
  *
- * <p>==无鉴权==——同 v0~v1 风格，单机开发环境。任何 userId 都能查任何 userId 的数据；
- * v3 / 真上线前必须补。
+ * <p>==无鉴权==——同 v0.01~v0.1 风格，单机开发环境。任何 userId 都能查任何 userId 的数据；
+ * v0.3 / 真上线前必须补。
  *
  * <p>设计取舍：
  * <ul>

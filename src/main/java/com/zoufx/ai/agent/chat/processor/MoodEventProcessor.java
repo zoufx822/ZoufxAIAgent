@@ -8,7 +8,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 有状态的情绪事件处理器——从 LLM content 流里剥离 {@code <!--mood:KEYWORD-->} 标记（v1.1）。
+ * 有状态的情绪事件处理器——从 LLM content 流里剥离 {@code <!--mood:KEYWORD-->} 标记（v0.11）。
  *
  * <p>工作方式：维护一个 buffer，每次 {@link #accept(String)} 时追加 token，
  * 扫描是否含完整 mood 标记，命中即剥离并发独立 SSE mood 事件。

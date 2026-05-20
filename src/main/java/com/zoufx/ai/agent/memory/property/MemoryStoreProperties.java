@@ -4,7 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 记忆持久化存储配置。v0 阶段对应 SQLite 单文件落盘。
+ * 记忆持久化存储配置。v0.01 阶段对应 SQLite 单文件落盘。
  */
 @Data
 @ConfigurationProperties(prefix = "ai.memory.store")

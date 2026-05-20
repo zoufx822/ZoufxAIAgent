@@ -24,14 +24,14 @@ import java.util.stream.Collectors;
  * 分层：
  *   1. 角色（who am I）
  *   2. 全局上下文（当前日期等运行时数据）
- *   3. 身份识别（v1 起三态）：
+ *   3. 身份识别（v0.1 起三态）：
  *      - Hot Memory 有 display_name → 注入"对方叫 X"片段，跳过陌生人迎接
  *      - 无 display_name 但记忆为空 → 陌生人迎接，主动询问称呼
  *      - 无 display_name 但有历史对话 → 不注入额外身份片段（已认识但还没告知名字）
  *   4. 工具集（自动从所有 ToolPrompt Bean 聚合，{today} 占位符替换）
  *   5. 全局响应规则
  *
- * <h2>Frozen Snapshot 约束（v1 显式化）</h2>
+ * <h2>Frozen Snapshot 约束（v0.1 显式化）</h2>
  * {@link #compose(Object)} 由 LC4J 作为 SystemPromptProvider 在 ==每次 chat 请求的开始处==
  * 同步内联调用 ==一次==——这是 LC4J 默认行为，单请求 system prompt 自然冻结。
  *
@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  *   T3: 响应结束。==整个请求中 system prompt 不重读==
  *   T4: 下次请求 → compose() 重新读到 display_name=张三
  *
- * v1 中此 provider 唯一注入点：{@code AssistantConfig} 把 {@link #asProvider()} 传给
+ * v0.1 中此 provider 唯一注入点：{@code AssistantConfig} 把 {@link #asProvider()} 传给
  * {@code AiServices.builder().systemMessageProvider(...)}。新增调用点必须沿用同款约束。
  *
  * <h2>线程上下文</h2>
@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
 @Component
 public class SystemPromptComposer {
 
-    /** v1 Hot Memory 唯一启用的 key。v2 会改为从 yml 读取 enabled-keys 列表。 */
+    /** v0.1 Hot Memory 唯一启用的 key。v0.2 会改为从 yml 读取 enabled-keys 列表。 */
     private static final String KEY_DISPLAY_NAME = "display_name";
 
     private static final DateTimeFormatter DATE_FMT =
@@ -138,10 +138,10 @@ public class SystemPromptComposer {
     }
 
     /**
-     * SOUL 段（v1.1）：注入 AI 自身人格 / 风格 / 原则 / 反模式 / 小习惯。
+     * SOUL 段（v0.11）：注入 AI 自身人格 / 风格 / 原则 / 反模式 / 小习惯。
      *
      * 与 UserProfile 对偶 —— UserProfile 是"对方是谁"，SOUL 是"我是谁"。两段都遵循 Frozen Snapshot
-     * 约束（v1 第八章）：snapshot 在请求开头读一次，修改要等下次请求才生效。
+     * 约束（v0.1 第八章）：snapshot 在请求开头读一次，修改要等下次请求才生效。
      *
      * 注入顺序在 ROLE 之后、UserProfile 之前——先确立"我是谁"，再叠加"对方是谁"。
      */
@@ -184,10 +184,10 @@ public class SystemPromptComposer {
     }
 
     /**
-     * 情绪标记段（v1.1）：命令 LLM 在每条回复末尾追加 {@code <!--mood:KEYWORD-->} HTML 注释。
+     * 情绪标记段（v0.11）：命令 LLM 在每条回复末尾追加 {@code <!--mood:KEYWORD-->} HTML 注释。
      * 后端 AIChatService 在 content 流尾部用 tail buffer 扫描剥离，独立成 SSE mood 事件。
      *
-     * 用命令式 + 反模式枚举，避免 weak model 漏标（参见 v1 第 5.4 节末尾的 prompt 调优坑）。
+     * 用命令式 + 反模式枚举，避免 weak model 漏标（参见 v0.1 第 5.4 节末尾的 prompt 调优坑）。
      */
     private void appendMoodSection(StringBuilder sb) {
         if (!moodProperties.isEnabled()) return;
@@ -210,7 +210,7 @@ public class SystemPromptComposer {
     }
 
     /**
-     * 身份识别三态分支（v1.1 多字段版）：
+     * 身份识别三态分支（v0.11 多字段版）：
      *   - Hot 有 display_name → 注入「关于对方」段：称呼锚 + 按 enabled-keys 顺序逐行注入有值字段
      *   - 无 display_name 但记忆空 → 陌生人迎接
      *   - 无 display_name 但有历史 → 静默，让 LLM 从 ChatMemory 自然接续

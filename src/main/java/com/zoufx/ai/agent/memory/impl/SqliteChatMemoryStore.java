@@ -58,7 +58,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
                     created_at  INTEGER NOT NULL
                 )
                 """);
-        // v0 阶段每个 userId 数据量小，单列索引足够；ORDER BY id 走 PK，create_at 暂不需要联合索引
+        // v0.01 阶段每个 userId 数据量小，单列索引足够；ORDER BY id 走 PK，create_at 暂不需要联合索引
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_user ON chat_memory(user_id)");
         log.info("SqliteChatMemoryStore schema ready (chat_memory)");
     }
@@ -192,7 +192,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
     }
 
     private void saveByUserIdBlocking(String userId, List<ChatMessage> messages) {
-        // 同批写入按毫秒+偏移单调递增，避免 v1 引入 Memory Stream 时所有 created_at 撞车
+        // 同批写入按毫秒+偏移单调递增，避免 v0.1 引入 Memory Stream 时所有 created_at 撞车
         long base = System.currentTimeMillis();
         tx.executeWithoutResult(status -> {
             jdbc.update("DELETE FROM chat_memory WHERE user_id = ?", userId);

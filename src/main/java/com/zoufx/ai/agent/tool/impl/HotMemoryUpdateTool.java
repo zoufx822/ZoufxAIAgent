@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 
 /**
- * 热内存更新工具（v1.1 多字段版）。
+ * 热内存更新工具（v0.11 多字段版）。
  *
  * <p>当 LLM 识别到对方告知任何画像属性（称呼/语言/时区/职业/兴趣/对话风格）时调用，
  * 按 yml 白名单校验 key 后 UPSERT 到 hot_memory 表。

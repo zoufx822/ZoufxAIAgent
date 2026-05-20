@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * SOUL 灵魂系统装配（v1.1）。
+ * SOUL 灵魂系统装配（v0.11）。
  *
  * 职责：
  * - SqliteSoulStore Bean 注册

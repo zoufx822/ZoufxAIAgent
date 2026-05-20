@@ -21,12 +21,12 @@ import java.nio.file.Paths;
  * 记忆持久化层数据源装配。
  *
  * 独立的 DataSource / JdbcTemplate / TransactionTemplate 三件套，
- * 给 v0 的 {@link com.zoufx.ai.agent.memory.SqliteChatMemoryStoreContract}
- * 以及 v1 即将引入的 ColdMemoryStore / HotMemoryStore 共用一套底座。
+ * 给 v0.01 的 {@link com.zoufx.ai.agent.memory.SqliteChatMemoryStoreContract}
+ * 以及 v0.1 引入的 ColdMemoryStore / HotMemoryStore 共用一套底座。
  *
  * 不使用 Spring Boot 自动配置的 spring.datasource.*：
  * - 保留业务语义命名空间 ai.memory.store.db-path
- * - 为未来 v3 多 DataSource 共存（如 SQLite + Postgres）留口子
+ * - 为未来 v0.3 多 DataSource 共存（如 SQLite + Postgres）留口子
  */
 @Slf4j
 @Configuration

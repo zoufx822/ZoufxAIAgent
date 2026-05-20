@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * SOUL（AI 自身人格）配置（v1.1）。
+ * SOUL（AI 自身人格）配置（v0.11）。
  *
  * <p>双重作用：
  * <ul>

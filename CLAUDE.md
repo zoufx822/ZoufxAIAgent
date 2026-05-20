@@ -27,3 +27,5 @@ Spring Boot 4.0.3 + LangChain4J 1.11.0，通过 Anthropic 兼容接口连接 Min
 - 目标不清晰时停下来讨论，不做假设
 - 临时文件按需清理，用户主动要求时执行
 - 新功能完成后执行 `/test` 自测
+- 版本号变更时，`pom.xml` 的 `<version>` 必须同步更新（格式 `major.minor.patch-SNAPSHOT`，如 v0.12 → `0.12.0-SNAPSHOT`）
+- `git commit` / `git push` / 创建 PR 等写操作绝不主动执行，等用户明确发命令再做（只读命令如 `git status` / `git diff` 不受限）

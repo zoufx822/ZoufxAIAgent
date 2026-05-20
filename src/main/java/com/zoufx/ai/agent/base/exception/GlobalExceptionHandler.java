@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 /**
  * 全局异常 → HTTP 响应翻译。
  *
- * v0 之前的"参数缺失返回 200 + SSE error 事件"语义错位（SSE error 是流中途出错），
+ * v0.01 之前的"参数缺失返回 200 + SSE error 事件"语义错位（SSE error 是流中途出错），
  * 改造后参数校验失败统一走 HTTP 400 + JSON，前端按 HTTP 错误分支处理。
  */
 @Slf4j
