@@ -28,6 +28,15 @@ public interface MemoryStore {
     Mono<Void> deleteByUserId(String userId);
 
     /**
+     * 清理孤儿 tool 消息——AiMessage(tool_calls) 没对应 ToolExecutionResultMessage，反之亦然。
+     * <p>触发场景：用户在 LC4J 调用工具期间按下前端 stop 按钮，导致 chat_memory 残留半成品消息序列。
+     * 由 {@link com.zoufx.ai.agent.chat.service.AIChatService#beforeStream} 在每次请求入口调一次，
+     * 在 LC4J 接管 ChatMemoryStore 之前持久化清理，让 LC4J 内部 add 流程不受 sanitize 干扰。
+     * <p>返回是否真的清理了内容（仅用于日志）。
+     */
+    Mono<Boolean> cleanupOrphans(String userId);
+
+    /**
      * 用于"陌生人识别"——记忆为空 = AI 不认识此人。
      *
      * ==同步签名（异常方法）==：唯一调用方是 {@link com.zoufx.ai.agent.config.SystemPromptComposer#compose}，

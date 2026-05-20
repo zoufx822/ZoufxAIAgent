@@ -68,17 +68,32 @@ public class AIChatService {
     }
 
     /**
-     * Hook：流启动前——把 user prompt 写入 Memory Stream（Cold Archive）。
-     * 失败仅记日志、返回 {@code Mono.empty()}，不阻断后续 LLM 流——
-     * 经历流写失败不应影响主对话（v1 风险表 #10）。
+     * Hook：流启动前——
+     * <ol>
+     *   <li>持久化清理 chat_memory 里的孤儿 tool 消息（防止上一次 stop 留下半成品消息序列让 LLM 校验失败）</li>
+     *   <li>把 user prompt 写入 Memory Stream（Cold Archive）</li>
+     * </ol>
+     * 两步都失败仅记日志、不阻断主流——清理/写流失败不应影响主对话（v1 风险表 #10）。
      */
     private Mono<Void> beforeStream(String userId, String prompt) {
-        return memoryStream.append(userId, "user", prompt, null)
+        Mono<Void> cleanup = memoryStore.cleanupOrphans(userId)
+                .doOnNext(changed -> {
+                    if (Boolean.TRUE.equals(changed)) {
+                        log.info("Pre-stream sanitize fired [userId={}]", userId);
+                    }
+                })
+                .onErrorResume(err -> {
+                    log.warn("Pre-stream sanitize failed [userId={}]: {}", userId, err.toString());
+                    return Mono.empty();
+                })
+                .then();
+        Mono<Void> appendUser = memoryStream.append(userId, "user", prompt, null)
                 .onErrorResume(err -> {
                     log.warn("Failed to append user message to cold_memory [userId={}]: {}",
                             userId, err.toString());
                     return Mono.empty();
                 });
+        return cleanup.then(appendUser);
     }
 
     /**
