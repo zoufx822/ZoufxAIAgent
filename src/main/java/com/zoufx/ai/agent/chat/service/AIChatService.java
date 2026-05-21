@@ -1,15 +1,17 @@
 package com.zoufx.ai.agent.chat.service;
 
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
-import com.zoufx.ai.agent.chat.property.MoodProperties;
-import com.zoufx.ai.agent.chat.property.RetryProperties;
+import com.zoufx.ai.agent.soul.property.MoodProperties;
+import com.zoufx.ai.agent.llm.property.LlmRetryProperties;
 import com.zoufx.ai.agent.chat.processor.MoodEventProcessor;
 import com.zoufx.ai.agent.memory.api.MemoryStore;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import com.zoufx.ai.agent.chat.helper.RetryPolicyHelper;
 import com.zoufx.ai.agent.chat.helper.WebSearchEventHelper;
-import com.zoufx.ai.agent.tool.helper.ToolNameMapper;
+import com.zoufx.ai.agent.tool.api.ToolPrompt;
+import dev.langchain4j.agent.tool.Tool;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -19,6 +21,10 @@ import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
+import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -52,9 +58,21 @@ public class AIChatService {
 
     private final MemoryStore memoryStore;
     private final ColdMemoryStore memoryStream;
-    private final RetryProperties retryProperties;
+    private final LlmRetryProperties llmRetryProperties;
     private final MoodProperties moodProperties;
-    private final ToolNameMapper toolNameMapper;
+    private final List<ToolPrompt> tools;
+    private final Map<String, String> toolNameMap = new HashMap<>();
+
+    @PostConstruct
+    public void initToolNameMap() {
+        for (ToolPrompt tool : tools) {
+            for (Method m : tool.getClass().getDeclaredMethods()) {
+                if (m.isAnnotationPresent(Tool.class)) {
+                    toolNameMap.put(m.getName(), tool.section());
+                }
+            }
+        }
+    }
 
     public Flux<ChatEvent> chat(String userId, String prompt, boolean thinking) {
         ChatAssistant assistant = thinking ? thinkingAssistant : nonThinkingAssistant;
@@ -151,7 +169,7 @@ public class AIChatService {
                     hasEmitted.set(true);
                     String name = evt.request().name();
                     String query = WebSearchEventHelper.extractQuery(evt.request().arguments());
-                    String chineseName = toolNameMapper.getChineseName(name);
+                    String chineseName = toolNameMap.getOrDefault(name, name);
                     log.info("Tool call start [userId={}] {} ({}) query={}", userId, name, chineseName, query);
                     sink.next(new ChatEvent("tool_call", WebSearchEventHelper.toolCallPayload(name, chineseName, query)));
                 })
@@ -159,7 +177,7 @@ public class AIChatService {
                     hasEmitted.set(true);
                     String name = exec.request().name();
                     String result = exec.result();
-                    String chineseName = toolNameMapper.getChineseName(name);
+                    String chineseName = toolNameMap.getOrDefault(name, name);
                     int count = WebSearchEventHelper.countResults(result);
                     log.info("Tool call done [userId={}] {} ({}) count={}", userId, name, chineseName, count);
                     sink.next(new ChatEvent("tool_result", WebSearchEventHelper.toolResultPayload(name, chineseName, count, result)));
@@ -193,9 +211,8 @@ public class AIChatService {
      * 调用方需持有 {@code hasEmitted}，并在 LC4J 任一回调触发时置为 true。
      */
     private Retry buildRetrySpec(AtomicBoolean hasEmitted) {
-        RetryProperties.Llm cfg = retryProperties.getLlm();
-        return Retry.backoff(cfg.getMaxAttempts(), cfg.getMinBackoff())
-                .maxBackoff(cfg.getMaxBackoff())
+        return Retry.backoff(llmRetryProperties.getMaxAttempts(), llmRetryProperties.getMinBackoff())
+                .maxBackoff(llmRetryProperties.getMaxBackoff())
                 .filter(err -> !hasEmitted.get() && RetryPolicyHelper.isRetryable(err))
                 .doBeforeRetry(rs -> log.warn("LLM retry #{} cause={}",
                         rs.totalRetries() + 1, rs.failure().toString()));

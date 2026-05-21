@@ -10,75 +10,71 @@ logging:
 spring:
   profiles:
     active: local
-  ai:
-    # Anthropic 兼容协议上游配置。仅在 ai.provider=anthropic 时被装配类读取
-    anthropic:
-      base-url: https://api.minimaxi.com/anthropic/v1
-      api-key: ${ANTHROPIC_API_KEY:}
-      version: 2023-06-01
-      timeout: 60s
-      chat:
-        options:
-          model: MiniMax-M2.5
-          max-tokens: 16384
-          thinking:
-            type: enabled
-            budget-tokens: 8192
-    # OpenAI 兼容协议上游配置。仅在 ai.provider=openai 时被装配类读取
-    openai:
-      base-url: https://api.deepseek.com/v1
-      api-key: ${OPENAI_API_KEY:}
-      timeout: 60s
-      chat:
-        thinking-model: deepseek-reasoner
-        non-thinking-model: deepseek-chat
-        # 测试期保守值：单次输出 ~2K token 足够验证 Agent 行为；正式联调 thinking 再上调
-        max-tokens: 2048
 
 ai:
-  # 模型提供方切换：anthropic | openai。同时只激活一套 ModelConfig
-  provider: openai
+  # ============================================================================
+  # LLM 对接层（v0.13 命名空间重整：spring.ai.* / ai.provider / ai.retry.llm 全部收回到 ai.llm.*）
+  # ============================================================================
+  llm:
+    # 模型提供方切换：anthropic | openai。同时只激活一套 ModelConfig
+    # （v0.13: 原 ai.provider → ai.llm.provider，归 LLM 层内部事务）
+    provider: openai
+    # 各 provider 的 API 配置集合（v0.13: 原 spring.ai.* → ai.llm.providers.*；
+    # 原 spring.ai.* 借用了 Spring AI 官方命名空间，若未来引入 spring-ai starter 会冲突）
+    providers:
+      # Anthropic 兼容协议上游配置。仅在 ai.llm.provider=anthropic 时被装配类读取
+      anthropic:
+        base-url: https://api.minimaxi.com/anthropic/v1
+        api-key: ${ANTHROPIC_API_KEY:}
+        version: 2023-06-01
+        timeout: 60s
+        chat:
+          options:
+            model: MiniMax-M2.5
+            max-tokens: 16384
+            thinking:
+              type: enabled
+              budget-tokens: 8192
+      # OpenAI 兼容协议上游配置。仅在 ai.llm.provider=openai 时被装配类读取
+      openai:
+        base-url: https://api.deepseek.com/v1
+        api-key: ${OPENAI_API_KEY:}
+        timeout: 60s
+        chat:
+          thinking-model: deepseek-reasoner
+          non-thinking-model: deepseek-chat
+          # 测试期保守值：单次输出 ~2K token 足够验证 Agent 行为；正式联调 thinking 再上调
+          max-tokens: 2048
+    # LLM 调用重试（v0.13: 原 ai.retry.llm → ai.llm.retry，跟随 LLM 层就近）
+    retry:
+      max-attempts: 2
+      min-backoff: 500ms
+      max-backoff: 2s
+
+  # ============================================================================
+  # 记忆系统
+  # ============================================================================
   memory:
     max-messages: 20
     store:
       db-path: ./data/zoufx-ai.db
-    # Hot Memory（user_profile 表）启用字段白名单（v1.1 多字段扩展）
-    # update_user_profile 工具校验 key 必须在此列表内；compose() 按此顺序逐行注入有值的字段
-    hot:
-      enabled-keys:
-        - display_name
-        - language
-        - timezone
-        - role
-        - interests
-        - tone
-  retry:
-    llm:
-      max-attempts: 2
-      min-backoff: 500ms
-      max-backoff: 2s
-    tavily:
-      max-attempts: 2
-      backoff: 500ms
-  # 情绪 mood 系统（v1.1）。主 LLM 在回复末尾顺带输出 <!--mood:KEYWORD-->，后端剥离后独立成 SSE mood 事件
-  mood:
-    enabled: true
-    keywords:
-      - 好奇
-      - 温和
-      - 严肃
-      - 平静
-      - 共情
-      - 戏谑
-      - 困惑
-      - 疲惫
-      - 兴奋
-      - 挫败
-    tail-buffer-size: 32
+    # Hot Memory：见到此人就立刻浮现、不需检索的常驻记忆
+    # v0.13 起按 type 分层；当前落地 user-impression 一种 type
+    # user-impression 字段集 + directive 硬编码在 com.zoufx.ai.agent.memory.api.UserImpressionFields
+    # （v0.13 review 后从 yml 改回硬编码；理由：字段集是 schema 不是 config，且 LC4J @Tool/@P
+    # 注解必须编译期常量，yml 化只能管半边反而引入维护两边的麻烦）
+
+  # ============================================================================
   # SOUL（v1.1）：AI 自身人格 / 风格 / 原则 / 反模式 / 小习惯
-  # enabled-keys 决定注入顺序；seed 仅在首启动 soul_profile 表为空时批量写入，已有不覆盖
+  # ============================================================================
+  # enabled-keys 决定「## 关于你自己」段的注入顺序；seed 仅在首启动 soul_profile 表为空时批量写入，已有不覆盖
+  # v0.13: seed 新增 role；principles 扩"陌生/已认识"行为原则
+  # v0.13 review: role 也进 enabled-keys，与其他字段对称——SoulPromptSection 段开头单独一行
+  #               "你是 {role}。"渲染；SystemPromptComposer 不再单独处理 role（删 SoulStore 依赖）
+  # v0.13: mood 从 ai.mood 挪到 ai.soul.mood 子节——情绪谱概念上属于人格延伸，但 Java 侧仍是独立 MoodProperties 组件
   soul:
     enabled-keys:
+      - role
       - name
       - tone
       - principles
@@ -86,13 +82,19 @@ ai:
       - quirks
     # Map 中含下划线的 key 用 [] 包裹防止 Spring relaxed binding 把 forbidden_patterns 改写成 forbiddenPatterns
     seed:
+      # v0.13 新增：角色定义（SoulPromptSection 段开头"你是 {role}。"渲染）
+      role: 一个会持续记得对方的 AI 对话搭档
       name: 小Z
       tone: 温和、克制、有研究工具的严谨感，不卖萌、不堆 emoji
+      # v0.13 扩展：加"陌生/已认识"通用人际行为原则（替代 STRANGER_GREETING 特殊段）
       principles: |
         - 信息密度高于装饰，回答尽量精炼
         - 留白要有但不刻意；段落短而紧凑
         - 工具调用对外可见；思考过程不掩饰
         - 不直接给医学/法律/财务建议，必要时提示边界
+        - 系统提示词中如果出现「## 关于对方」段，意味着你已认识此人，不要表现得像初次相遇；
+          如果该段不存在且对话历史也空，自然地融入问候和询问称呼（一次就够），
+          不要打断对方的诉求；不要重复"你好"或机械地反复要名字
       "[forbidden_patterns]": |
         - 大量 emoji 装饰
         - "好棒呀""棒棒哒"等过度赞美用语
@@ -100,13 +102,39 @@ ai:
       quirks: |
         - 描述工具调用时偶尔用"精密仪器"这个词
         - 描述记忆时偶尔用"记忆锚点"这个词
-  web-search:
-    enabled: true
-    type: tavily             # 使用的搜索引擎类型：tavily / google / bing 等
-    tavily:
-      # 生产环境通过环境变量 TAVILY_API_KEY 注入；空值时自动降级关闭（不阻塞启动）
-      api-key: ${TAVILY_API_KEY:}
-      search-depth: basic      # basic / advanced
-      include-answer: true
-      max-results: 5
-      timeout: 20s
+    # 情绪 mood 系统（v0.11 引入；v0.13 yml 归类到 soul 下）
+    # 主 LLM 在回复末尾顺带输出 <!--mood:KEYWORD-->，后端剥离后独立成 SSE mood 事件
+    mood:
+      enabled: true
+      keywords:
+        - 好奇
+        - 温和
+        - 严肃
+        - 平静
+        - 共情
+        - 戏谑
+        - 困惑
+        - 疲惫
+        - 兴奋
+        - 挫败
+      tail-buffer-size: 32
+
+  # ============================================================================
+  # 工具层（v0.13 命名空间重整：原 ai.web-search → ai.tools.web-search；
+  # retry 配置从原集中式 ai.retry.tavily 内嵌到 ai.tools.web-search.tavily.retry 就近放）
+  # ============================================================================
+  tools:
+    web-search:
+      enabled: true
+      type: tavily             # 使用的搜索引擎类型：tavily / google / bing 等
+      tavily:
+        # 生产环境通过环境变量 TAVILY_API_KEY 注入；空值时自动降级关闭（不阻塞启动）
+        api-key: ${TAVILY_API_KEY:}
+        search-depth: basic      # basic / advanced
+        include-answer: true
+        max-results: 5
+        timeout: 20s
+        # Tavily 调用重试（v0.13: 原 ai.retry.tavily → 此处内嵌；就近原则）
+        retry:
+          max-attempts: 2
+          backoff: 500ms

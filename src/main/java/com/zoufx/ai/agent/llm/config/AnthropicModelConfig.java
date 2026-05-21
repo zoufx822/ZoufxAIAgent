@@ -12,12 +12,13 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Anthropic 协议下的 StreamingChatModel 装配。
  *
- * 仅在 ai.provider=anthropic 时激活。配置来自 {@link AnthropicProperties}。
+ * 仅在 {@code ai.llm.provider=anthropic} 时激活（v0.13 起从 ai.provider 迁到 ai.llm.provider）。
+ * 配置来自 {@link AnthropicProperties}。
  */
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "ai.provider", havingValue = "anthropic")
+@ConditionalOnProperty(name = "ai.llm.provider", havingValue = "anthropic")
 public class AnthropicModelConfig {
 
     private final AnthropicProperties props;

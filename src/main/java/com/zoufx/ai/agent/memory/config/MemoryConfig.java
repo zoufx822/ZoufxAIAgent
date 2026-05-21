@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.memory.config;
 
-import com.zoufx.ai.agent.chat.property.ChatMemoryProperties;
+import com.zoufx.ai.agent.memory.property.MemoryProperties;
 import dev.langchain4j.memory.chat.ChatMemoryProvider;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.store.memory.chat.ChatMemoryStore;
@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Configuration;
 @RequiredArgsConstructor
 public class MemoryConfig {
 
-    private final ChatMemoryProperties props;
+    private final MemoryProperties props;
 
     @Bean
     public ChatMemoryProvider chatMemoryProvider(ChatMemoryStore chatMemoryStore) {

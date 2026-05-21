@@ -1,6 +1,7 @@
 package com.zoufx.ai.agent.memory.controller;
 
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import com.zoufx.ai.agent.memory.api.HotMemoryType;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
 import lombok.RequiredArgsConstructor;
@@ -39,10 +40,17 @@ public class MemoryController {
     private final HotMemoryStore hotMemoryStore;
     private final ColdMemoryStore memoryStream;
 
-    /** Hot Memory snapshot：返回该 userId 写入过的全部 key/value（不做白名单过滤，前端按需用）。 */
+    /**
+     * Hot Memory snapshot：返回该 userId 在指定 type 下写入过的全部 key/value。
+     *
+     * <p>v0.13 起 hot_memory 按 type 分层，{@code type} 为必填 query param——
+     * 强制调用方显式选择类型，避免 v0.14+ 加新 type 时默认值带来的语义漂移。
+     * 当前合法 type 见 {@link HotMemoryType}（v0.13 仅 {@code user-impression}）。
+     */
     @GetMapping("/hot")
-    public Mono<Map<String, String>> hot(@PathVariable String userId) {
-        return Mono.fromCallable(() -> hotMemoryStore.snapshot(userId));
+    public Mono<Map<String, String>> hot(@PathVariable String userId,
+                                         @RequestParam String type) {
+        return Mono.fromCallable(() -> hotMemoryStore.snapshot(userId, type));
     }
 
     /**

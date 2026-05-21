@@ -11,7 +11,8 @@ public interface ToolPrompt {
 
     /**
      * 工具的使用规则正文。
-     * 可使用 {today} 占位符，由 SystemPromptComposer 在拼装时替换为今日日期。
+     * <p>v0.13 起：==无任何占位符替换机制==——LLM 已通过系统提示词顶部「当前日期」获得日期，
+     * 工具内需要日期时让 LLM 自行组装即可，prompt 内不要写 {today} 之类的字面占位符。
      */
     String promptInstructions();
 }

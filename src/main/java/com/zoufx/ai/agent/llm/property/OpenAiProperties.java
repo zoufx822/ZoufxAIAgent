@@ -6,12 +6,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 
 /**
- * OpenAI 兼容协议配置。
- * 仅在 ai.provider=openai 时由 OpenAiModelConfig 装配读取。
+ * OpenAI 兼容协议配置（v0.13 起 prefix 从 spring.ai.openai 迁到 ai.llm.providers.openai）。
+ *
+ * <p>仅在 {@code ai.llm.provider=openai} 时由 OpenAiModelConfig 装配读取。
  * thinking 与 non-thinking 走不同模型名（OpenAI 协议下 reasoning 由模型本身决定）。
+ *
+ * <p>v0.13 命名空间重整理由：参见 {@link AnthropicProperties} javadoc。
  */
 @Data
-@ConfigurationProperties(prefix = "spring.ai.openai")
+@ConfigurationProperties(prefix = "ai.llm.providers.openai")
 public class OpenAiProperties {
 
     private String baseUrl;

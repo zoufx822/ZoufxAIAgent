@@ -12,13 +12,14 @@ import org.springframework.context.annotation.Configuration;
 /**
  * OpenAI 兼容协议下的 StreamingChatModel 装配。
  *
- * 仅在 ai.provider=openai 时激活。配置来自 {@link OpenAiProperties}。
+ * 仅在 {@code ai.llm.provider=openai} 时激活（v0.13 起从 ai.provider 迁到 ai.llm.provider）。
+ * 配置来自 {@link OpenAiProperties}。
  * thinking 模型开启 returnThinking，让 reasoning_content 通过 onPartialThinking 回调流出。
  */
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "ai.provider", havingValue = "openai")
+@ConditionalOnProperty(name = "ai.llm.provider", havingValue = "openai")
 public class OpenAiModelConfig {
 
     private final OpenAiProperties props;

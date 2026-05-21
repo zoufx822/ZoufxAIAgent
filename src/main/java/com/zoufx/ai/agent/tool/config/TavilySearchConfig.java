@@ -1,6 +1,5 @@
 package com.zoufx.ai.agent.tool.config;
 
-import com.zoufx.ai.agent.chat.property.RetryProperties;
 import com.zoufx.ai.agent.tool.property.TavilySearchProperties;
 import com.zoufx.ai.agent.tool.property.WebSearchProperties;
 import com.zoufx.ai.agent.tool.impl.TavilySearchTool;
@@ -17,18 +16,20 @@ import org.springframework.util.StringUtils;
  * apiKey 为空时仍然注册 TavilySearchTool（engine=null），让工具调用链路完整，
  * 模型真正触发工具时才返回「未配置」字符串降级，避免因缺 key 启动失败。
  *
- * 注意：@ConditionalOnProperty 检查 ai.web-search.type=tavily，确保当前配置使用 Tavily 引擎。
+ * v0.13: @ConditionalOnProperty 跟随 prefix 迁到 ai.tools.web-search；
+ * retry 从原集中式 RetryProperties.Tavily 改读 TavilySearchProperties.Retry 内嵌字段（就近）。
  */
 @Slf4j
 @Configuration
-@ConditionalOnProperty(prefix = "ai.web-search", name = "type", havingValue = "tavily", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "ai.tools.web-search", name = "type", havingValue = "tavily", matchIfMissing = true)
 public class TavilySearchConfig {
 
     @Bean
-    public TavilySearchTool tavilySearchTool(WebSearchProperties webProps, TavilySearchProperties tavilyProps, RetryProperties retryProps) {
+    public TavilySearchTool tavilySearchTool(WebSearchProperties webProps, TavilySearchProperties tavilyProps) {
+        TavilySearchProperties.Retry retry = tavilyProps.getRetry();
         if (!webProps.isEnabled()) {
-            log.warn("Web search 已禁用（ai.web-search.enabled=false）");
-            return new TavilySearchTool(null, tavilyProps.getMaxResults(), retryProps.getTavily().getMaxAttempts(), retryProps.getTavily().getBackoff().toMillis());
+            log.warn("Web search 已禁用（ai.tools.web-search.enabled=false）");
+            return new TavilySearchTool(null, tavilyProps.getMaxResults(), retry.getMaxAttempts(), retry.getBackoff().toMillis());
         }
 
         WebSearchEngine engine = null;
@@ -44,6 +45,6 @@ public class TavilySearchConfig {
         } else {
             log.warn("TAVILY_API_KEY 未配置，网络检索功能将降级（工具调用返回提示字符串）");
         }
-        return new TavilySearchTool(engine, tavilyProps.getMaxResults(), retryProps.getTavily().getMaxAttempts(), retryProps.getTavily().getBackoff().toMillis());
+        return new TavilySearchTool(engine, tavilyProps.getMaxResults(), retry.getMaxAttempts(), retry.getBackoff().toMillis());
     }
 }

@@ -55,26 +55,29 @@ public class SqliteSoulStore implements SoulStore {
         log.info("SqliteSoulStore schema ready (soul_profile)");
     }
 
-    /** 表为空时批量 seed yml 默认值。已有则一行不改——保护管理 API 已写入的人格。 */
+    /**
+     * 按 yml seed 逐条 INSERT OR IGNORE——已有 key 不覆盖（保护管理 API 已写入的人格），
+     * 新 key 插入（如 v0.13 新增的 role）。不会因为旧库已有数据就跳过整批 seed。 */
     private void seedIfEmpty() {
-        Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM soul_profile", Integer.class);
-        if (count != null && count > 0) {
-            log.info("SoulStore already has {} keys, skip seeding", count);
-            return;
-        }
         Map<String, String> seed = properties.getSeed();
         if (seed == null || seed.isEmpty()) {
             log.info("SoulStore seed empty, nothing to insert");
             return;
         }
         long now = System.currentTimeMillis();
+        int inserted = 0;
         for (Map.Entry<String, String> e : seed.entrySet()) {
             if (e.getValue() == null || e.getValue().isBlank()) continue;
-            jdbc.update(
-                    "INSERT INTO soul_profile (key, value, updated_at) VALUES (?, ?, ?)",
+            int rows = jdbc.update(
+                    "INSERT OR IGNORE INTO soul_profile (key, value, updated_at) VALUES (?, ?, ?)",
                     e.getKey(), e.getValue(), now);
+            inserted += rows;
         }
-        log.info("SoulStore seeded with {} keys", seed.size());
+        if (inserted > 0) {
+            log.info("SoulStore seeded with {} new keys ({} skipped)", inserted, seed.size() - inserted);
+        } else {
+            log.debug("SoulStore all {} seed keys already exist, nothing inserted", seed.size());
+        }
     }
 
     @Override
