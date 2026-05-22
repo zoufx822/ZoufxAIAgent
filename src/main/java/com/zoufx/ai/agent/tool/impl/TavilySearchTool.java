@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.tool.impl;
 
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
-import com.zoufx.ai.agent.chat.helper.RetryPolicyHelper;
+import com.zoufx.ai.agent.chat.support.RetryableExceptions;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.web.search.WebSearchEngine;
@@ -98,7 +98,7 @@ public class TavilySearchTool implements ToolPrompt {
                 return engine.search(req);
             } catch (RuntimeException ex) {
                 last = ex;
-                if (!RetryPolicyHelper.isRetryable(ex) || attempt == maxAttempts) break;
+                if (!RetryableExceptions.isRetryable(ex) || attempt == maxAttempts) break;
                 log.warn("Tavily retry {}/{} [query={}]: {}", attempt + 1, maxAttempts, query, ex.toString());
                 try {
                     Thread.sleep(backoffMs * (attempt + 1L));

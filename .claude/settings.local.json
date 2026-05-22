@@ -53,7 +53,12 @@
       "Bash(awk '{print $NF}')",
       "Bash(xargs -I{} taskkill //F //PID {})",
       "Bash(mvn spring-boot:run > /tmp/zoufx-v1-c3d.log 2>&1 & *)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(ls ../ZoufxAIAgent-Web/ 2>/dev/null || echo \"not found\")",
+      "Read(//e/ZoufxDemo/ZoufxAIAgent-Web/**)",
+      "Read(//e/ZoufxDemo/**)",
+      "Bash(mvn spring-boot:run -q -DskipTests)",
+      "Bash(curl -s http://localhost:8080/health)"
     ]
   }
 }

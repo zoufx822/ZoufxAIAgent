@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.chat.processor;
+package com.zoufx.ai.agent.chat.support;
 
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import lombok.extern.slf4j.Slf4j;

@@ -39,7 +39,7 @@ public interface MemoryStore {
     /**
      * 用于"陌生人识别"——记忆为空 = AI 不认识此人。
      *
-     * ==同步签名（异常方法）==：唯一调用方是 {@link com.zoufx.ai.agent.config.SystemPromptComposer#compose}，
+     * ==同步签名（异常方法）==：唯一调用方是 {@link com.zoufx.ai.agent.chat.impl.SystemPromptComposer#compose}，
      * 它作为 LC4J SystemPromptProvider 被同步内联调用在 WebFlux event loop 上，
      * 无法等待 Mono；改用 .block() 会被 Reactor NonBlockingHook 拦下。
      *

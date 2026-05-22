@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.chat.builder;
+package com.zoufx.ai.agent.chat.impl;
 
 import com.zoufx.ai.agent.chat.api.PromptSection;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;

@@ -1,6 +1,7 @@
 package com.zoufx.ai.agent.chat.config;
 
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
+import com.zoufx.ai.agent.chat.impl.SystemPromptComposer;
 import com.zoufx.ai.agent.tool.impl.ColdMemorySearchTool;
 import com.zoufx.ai.agent.tool.impl.TavilySearchTool;
 import com.zoufx.ai.agent.tool.impl.UserImpressionUpdateTool;

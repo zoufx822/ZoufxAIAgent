@@ -8,11 +8,9 @@ import org.jspecify.annotations.Nullable;
  * <p>各业务模块自建实现 Bean，由 {@code SystemPromptComposer} 按 {@link #order()}
  * 升序串行调 {@link #render(String)} 拼接。Composer 退化为编排器，业务逻辑全部内聚到各 Section。
  *
- * <p>归属规则：
- * <ul>
- *   <li>单一模块的 Section 归该模块 builder 子包（如 SoulPromptSection 归 soul/builder/）</li>
- *   <li>跨模块协调的 Section 一律落 chat/builder/（如 IdentityPromptSection / ToolsPromptSection）</li>
- * </ul>
+ * <p>归属：所有 PromptSection 实现一律落 chat/impl/。Section 本质是 chat 编排器的输入，
+ * 业务模块只通过 api/property 暴露数据源（如 SoulStore / HotMemoryStore / ToolPrompt），
+ * "如何把数据拼成 prompt 段"的知识集中在 chat 编排层，不下放到各业务模块。
  *
  * <p><b>契约</b>：
  * <ul>

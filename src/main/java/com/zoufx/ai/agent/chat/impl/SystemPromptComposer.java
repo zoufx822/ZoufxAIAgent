@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.chat.config;
+package com.zoufx.ai.agent.chat.impl;
 
 import com.zoufx.ai.agent.chat.api.PromptSection;
 import lombok.extern.slf4j.Slf4j;

@@ -3,12 +3,12 @@ package com.zoufx.ai.agent.chat.service;
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
 import com.zoufx.ai.agent.soul.property.MoodProperties;
 import com.zoufx.ai.agent.llm.property.LlmRetryProperties;
-import com.zoufx.ai.agent.chat.processor.MoodEventProcessor;
 import com.zoufx.ai.agent.memory.api.MemoryStore;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
-import com.zoufx.ai.agent.chat.helper.RetryPolicyHelper;
-import com.zoufx.ai.agent.chat.helper.WebSearchEventHelper;
+import com.zoufx.ai.agent.chat.support.MoodEventProcessor;
+import com.zoufx.ai.agent.chat.support.RetryableExceptions;
+import com.zoufx.ai.agent.chat.support.WebSearchEvents;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.annotation.PostConstruct;
@@ -168,19 +168,19 @@ public class AIChatService {
                 .beforeToolExecution(evt -> {
                     hasEmitted.set(true);
                     String name = evt.request().name();
-                    String query = WebSearchEventHelper.extractQuery(evt.request().arguments());
+                    String query = WebSearchEvents.extractQuery(evt.request().arguments());
                     String chineseName = toolNameMap.getOrDefault(name, name);
                     log.info("Tool call start [userId={}] {} ({}) query={}", userId, name, chineseName, query);
-                    sink.next(new ChatEvent("tool_call", WebSearchEventHelper.toolCallPayload(name, chineseName, query)));
+                    sink.next(new ChatEvent("tool_call", WebSearchEvents.toolCallPayload(name, chineseName, query)));
                 })
                 .onToolExecuted(exec -> {
                     hasEmitted.set(true);
                     String name = exec.request().name();
                     String result = exec.result();
                     String chineseName = toolNameMap.getOrDefault(name, name);
-                    int count = WebSearchEventHelper.countResults(result);
+                    int count = WebSearchEvents.countResults(result);
                     log.info("Tool call done [userId={}] {} ({}) count={}", userId, name, chineseName, count);
-                    sink.next(new ChatEvent("tool_result", WebSearchEventHelper.toolResultPayload(name, chineseName, count, result)));
+                    sink.next(new ChatEvent("tool_result", WebSearchEvents.toolResultPayload(name, chineseName, count, result)));
                 })
                 .onError(sink::error)
                 .onCompleteResponse(r -> {
@@ -213,7 +213,7 @@ public class AIChatService {
     private Retry buildRetrySpec(AtomicBoolean hasEmitted) {
         return Retry.backoff(llmRetryProperties.getMaxAttempts(), llmRetryProperties.getMinBackoff())
                 .maxBackoff(llmRetryProperties.getMaxBackoff())
-                .filter(err -> !hasEmitted.get() && RetryPolicyHelper.isRetryable(err))
+                .filter(err -> !hasEmitted.get() && RetryableExceptions.isRetryable(err))
                 .doBeforeRetry(rs -> log.warn("LLM retry #{} cause={}",
                         rs.totalRetries() + 1, rs.failure().toString()));
     }

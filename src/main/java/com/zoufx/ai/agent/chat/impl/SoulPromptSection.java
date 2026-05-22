@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.soul.builder;
+package com.zoufx.ai.agent.chat.impl;
 
 import com.zoufx.ai.agent.chat.api.PromptSection;
 import com.zoufx.ai.agent.soul.api.SoulStore;

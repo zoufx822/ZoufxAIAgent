@@ -1,4 +1,4 @@
-package com.zoufx.ai.agent.chat.helper;
+package com.zoufx.ai.agent.chat.support;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -8,16 +8,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 
 /**
- * 网络检索 SSE 事件的构建和解析工具。
+ * Web 搜索类工具的 SSE 事件 payload 工厂——构造 {@code tool_call} / {@code tool_result} JSON、解析工具入参、统计结果条数。
+ *
+ * <p>纯静态工具集，无状态。被 chat service 流式处理链路与工具内部回调共用。
  */
 @Slf4j
-public class WebSearchEventHelper {
+public final class WebSearchEvents {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /**
-     * 从工具入参 JSON 字符串中提取 query 字段。
-     */
+    private WebSearchEvents() {
+    }
+
+    /** 从工具入参 JSON 字符串中提取 query 字段。 */
     public static String extractQuery(String argumentsJson) {
         if (!StringUtils.hasText(argumentsJson)) return "";
         try {
@@ -30,34 +33,28 @@ public class WebSearchEventHelper {
         }
     }
 
-    /**
-     * 构建 tool_call 事件的 JSON payload。
-     * 包含工具的方法名（英文）和汉语名称。
-     */
+    /** 构造 tool_call 事件 payload，含工具方法名（英文）与展示名（中文）。 */
     public static String toolCallPayload(String tool, String chineseName, String query) {
         ObjectNode node = MAPPER.createObjectNode();
         node.put("tool", tool);
-        node.put("toolDisplay", chineseName);  // 前端使用此字段显示汉语名
+        node.put("toolDisplay", chineseName);
         node.put("query", query);
         return node.toString();
     }
 
     /**
-     * 构建 tool_result 事件的 JSON payload。
-     * 手动转义特殊字符以确保 SSE 兼容性。
-     * 不能依赖 Jackson，因为 SSE 流中不应该有真实换行符。
+     * 构造 tool_result 事件 payload。
+     *
+     * <p>resultPreview 字段==手动转义==而非走 Jackson——SSE 流里不应出现真实换行符，
+     * 用字符串拼接 + escapeJsonString 兜底确保 payload 单行安全。
      */
     public static String toolResultPayload(String tool, String chineseName, int count, String rawResult) {
         String preview = truncate(rawResult, 200);
-        // 对 resultPreview 进行 JSON 转义
         String escaped = escapeJsonString(preview);
-        // 直接使用字符串拼接，确保没有真实换行符进入 JSON
-        return String.format("{\"tool\":\"%s\",\"toolDisplay\":\"%s\",\"count\":%d,\"resultPreview\":\"%s\"}", tool, chineseName, count, escaped);
+        return String.format("{\"tool\":\"%s\",\"toolDisplay\":\"%s\",\"count\":%d,\"resultPreview\":\"%s\"}",
+                tool, chineseName, count, escaped);
     }
 
-    /**
-     * 转义字符串以符合 JSON 标准和 SSE 要求。
-     */
     private static String escapeJsonString(String s) {
         if (s == null) return "";
         StringBuilder sb = new StringBuilder();
@@ -97,16 +94,11 @@ public class WebSearchEventHelper {
         return count;
     }
 
-    /**
-     * 匹配列表条目首字符：行首（^）或换行后跟 "- " 或 "数字. "。
-     * 用 (?m) 让 ^ 匹配每行起点。
-     */
+    /** 匹配列表条目首字符：行首（^）或换行后跟 "- " 或 "数字. "。用 (?m) 让 ^ 匹配每行起点。 */
     private static final java.util.regex.Pattern LIST_ITEM_PATTERN =
             java.util.regex.Pattern.compile("(?m)^(?:-\\s|\\d+\\.\\s)");
 
-    /**
-     * 截断字符串到指定长度，超过部分用 "…" 代替。
-     */
+    /** 截断字符串到指定长度，超过部分用 "…" 代替。 */
     public static String truncate(String s, int max) {
         if (s == null) return "";
         return s.length() <= max ? s : s.substring(0, max) + "…";

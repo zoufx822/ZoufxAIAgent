@@ -24,7 +24,7 @@ import java.util.List;
  * 不属于 SOUL 的"被 LLM 读的自由文本"语义空间——不进 {@code enabled-keys / seed} 体系，
  * 仅 yml 路径归类表达血缘关系。
  *
- * <p>处理流程上，{@link com.zoufx.ai.agent.chat.builder.MoodPromptSection} 与
+ * <p>处理流程上，{@link com.zoufx.ai.agent.chat.impl.MoodPromptSection} 与
  * mood 流剥离器等仍归 chat 包（mood 的"流"性质与 chat 编排紧密相关）。
  */
 @Data
