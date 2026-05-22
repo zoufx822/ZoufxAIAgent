@@ -35,15 +35,4 @@ public interface MemoryStore {
      * <p>返回是否真的清理了内容（仅用于日志）。
      */
     Mono<Boolean> cleanupOrphans(String userId);
-
-    /**
-     * 用于"陌生人识别"——记忆为空 = AI 不认识此人。
-     *
-     * ==同步签名（异常方法）==：唯一调用方是 {@link com.zoufx.ai.agent.chat.impl.SystemPromptComposer#compose}，
-     * 它作为 LC4J SystemPromptProvider 被同步内联调用在 WebFlux event loop 上，
-     * 无法等待 Mono；改用 .block() 会被 Reactor NonBlockingHook 拦下。
-     *
-     * 实现侧用 {@code SELECT EXISTS} 单次 PK 查询，开销可忽略，event loop 上同步执行可接受。
-     */
-    boolean isEmpty(String userId);
 }

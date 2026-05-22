@@ -17,7 +17,7 @@ import org.jspecify.annotations.Nullable;
  *   <li>{@link #render(String)} 由 LC4J 作为 SystemMessageProvider 在 ==WebFlux event loop 上同步内联==调用——
  *       禁止 {@code .block()} 反应式 Mono；所有 Store 读必须用同步签名</li>
  *   <li>返回 null / 空串 表示本段在当前请求跳过（如 SOUL 在 enabled-keys 为空时跳过；
- *       Identity 在 user-impression 字段全空时跳过）</li>
+ *       注意 Identity 自 v0.13.1 起==永远渲染==——username 缺失时也渲染"还不认识"分支）</li>
  *   <li>实现必须 ==无状态==——多请求复用同一 Bean，状态藏在注入的 Store 里</li>
  * </ul>
  *

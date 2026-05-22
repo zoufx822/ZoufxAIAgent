@@ -106,14 +106,6 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
-    /**
-     * 注意：本方法保持同步——见 {@link MemoryStore#isEmpty(String)} 文档解释为何不能反应式。
-     */
-    @Override
-    public boolean isEmpty(String userId) {
-        return isEmptyBlocking(userId);
-    }
-
     // ====== 私有同步实现（被两套接口共享）======
 
     private List<ChatMessage> loadByUserIdBlocking(String userId) {
@@ -219,12 +211,5 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
 
     private void deleteByUserIdBlocking(String userId) {
         jdbc.update("DELETE FROM chat_memory WHERE user_id = ?", userId);
-    }
-
-    private boolean isEmptyBlocking(String userId) {
-        Integer exists = jdbc.queryForObject(
-                "SELECT EXISTS(SELECT 1 FROM chat_memory WHERE user_id = ?)",
-                Integer.class, userId);
-        return exists == null || exists == 0;
     }
 }
