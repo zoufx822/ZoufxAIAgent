@@ -114,7 +114,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
         // 若 sanitize 放这里，会在 add(AiMessage_tool_calls) 写完 store、
         // 紧接着 add(ToolExecutionResultMessage) 时把刚写入的 AiMessage 当孤儿丢掉，
         // 反而把 LC4J 自己的正常工作流弄坏。
-        // 改为在每次请求入口（AIChatService.beforeStream）显式调 cleanupOrphans() 持久化一次。
+        // 改为在每次请求入口（ChatService.beforeStream）显式调 cleanupOrphans() 持久化一次。
         return jdbc.query(
                 "SELECT content FROM chat_memory WHERE user_id = ? ORDER BY id ASC",
                 (rs, i) -> ChatMessageDeserializer.messageFromJson(rs.getString("content")),

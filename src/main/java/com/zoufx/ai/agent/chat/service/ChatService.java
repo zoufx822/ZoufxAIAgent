@@ -1,8 +1,9 @@
 package com.zoufx.ai.agent.chat.service;
 
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
+import com.zoufx.ai.agent.chat.api.LlmCapabilities;
 import com.zoufx.ai.agent.soul.property.MoodProperties;
-import com.zoufx.ai.agent.llm.property.LlmRetryProperties;
+import com.zoufx.ai.agent.chat.property.RetryProperties;
 import com.zoufx.ai.agent.memory.api.MemoryStore;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
@@ -14,7 +15,6 @@ import dev.langchain4j.agent.tool.Tool;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
@@ -48,17 +48,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AIChatService {
+public class ChatService {
 
-    @Qualifier("thinkingAssistant")
-    private final ChatAssistant thinkingAssistant;
-
-    @Qualifier("nonThinkingAssistant")
-    private final ChatAssistant nonThinkingAssistant;
-
+    private final ChatAssistant chatAssistant;
+    private final LlmCapabilities llmCapabilities;
     private final MemoryStore memoryStore;
     private final ColdMemoryStore memoryStream;
-    private final LlmRetryProperties llmRetryProperties;
+    private final RetryProperties retryProperties;
     private final MoodProperties moodProperties;
     private final List<ToolPrompt> tools;
     private final Map<String, String> toolNameMap = new HashMap<>();
@@ -74,15 +70,23 @@ public class AIChatService {
         }
     }
 
+    /**
+     * v0.135：thinking 字段语义重定义为"用户希望本轮 LLM 思考"。
+     * 当前 capability.thinkingToggle=false（LC4J 1.13.1 langchain4j-anthropic 限制——不支持
+     * per-call thinking 覆盖），此参数==被静默忽略 + warn log==。等上游解除时改回按 capability 透传。
+     */
     public Flux<ChatEvent> chat(String userId, String prompt, boolean thinking) {
-        ChatAssistant assistant = thinking ? thinkingAssistant : nonThinkingAssistant;
+        if (thinking && !llmCapabilities.thinkingToggle()) {
+            log.warn("Request asks thinking=true but profile [{}] does not support thinkingToggle; ignored",
+                    llmCapabilities.profile());
+        }
         AtomicBoolean hasEmitted = new AtomicBoolean(false);
         // 流式 Flux 在单个 subscriber 上 onNext 串行，StringBuilder 线程安全足够；
         // retry 只在首次 emit 前生效，触发时此 buffer 仍是空，不会与重试残留串味
         StringBuilder assistantBuffer = new StringBuilder();
 
         return beforeStream(userId, prompt)
-                .thenMany(buildStream(assistant, userId, prompt, hasEmitted, assistantBuffer));
+                .thenMany(buildStream(chatAssistant, userId, prompt, hasEmitted, assistantBuffer));
     }
 
     /**
@@ -211,20 +215,11 @@ public class AIChatService {
      * 调用方需持有 {@code hasEmitted}，并在 LC4J 任一回调触发时置为 true。
      */
     private Retry buildRetrySpec(AtomicBoolean hasEmitted) {
-        return Retry.backoff(llmRetryProperties.getMaxAttempts(), llmRetryProperties.getMinBackoff())
-                .maxBackoff(llmRetryProperties.getMaxBackoff())
+        return Retry.backoff(retryProperties.getMaxAttempts(), retryProperties.getMinBackoff())
+                .maxBackoff(retryProperties.getMaxBackoff())
                 .filter(err -> !hasEmitted.get() && RetryableExceptions.isRetryable(err))
                 .doBeforeRetry(rs -> log.warn("LLM retry #{} cause={}",
                         rs.totalRetries() + 1, rs.failure().toString()));
     }
 
-    /**
-     * 清空指定 userId 的全部记忆。
-     * v0.1 起 {@link com.zoufx.ai.agent.memory.MemoryStoreContract} 接口本身返回 {@code Mono<Void>}，
-     * 阻塞 JDBC + boundedElastic 包装下沉到实现层，调用方按反应式 chain 自然组合。
-     */
-    public Mono<Void> clearUserMemory(String userId) {
-        return memoryStore.deleteByUserId(userId)
-                .doOnSubscribe(s -> log.info("Clearing user memory: {}", userId));
-    }
 }

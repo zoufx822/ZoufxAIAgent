@@ -13,8 +13,8 @@ import java.util.List;
  * - {@link ColdMemoryStore}：所有用户/AI 消息按时间序==只追加==，无上限
  *
  * 写入路径为 Controller-driven Append（不在 LC4J Hook 里做，避免与 LC4J 全量替换语义冲突）：
- * - {@code AIChatController.chat()} 接到请求 → append user prompt
- * - {@code AIChatService.chat()} 流式响应拼装完 → append assistant text
+ * - {@code ChatController.chat()} 接到请求 → append user prompt
+ * - {@code ChatService.chat()} 流式响应拼装完 → append assistant text
  *
  * v0.1 范围：tool_result 不进 stream（噪音大，等 v0.3 Consolidation 决策）。
  *

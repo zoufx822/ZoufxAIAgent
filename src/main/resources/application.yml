@@ -13,43 +13,45 @@ spring:
 
 ai:
   # ============================================================================
-  # LLM 对接层（v0.13 命名空间重整：spring.ai.* / ai.provider / ai.retry.llm 全部收回到 ai.llm.*）
+  # LLM 对接层
+  # v0.135 profile 化重整（替代 v0.13 的 ai.llm.provider + ai.llm.providers.* 结构）：
+  #   ai.llm.profile (deepseek-v4|minimax) —— 切换 profile 仅改本行
+  #   ai.llm.<profile>.* —— 各 profile 的独立配置命名空间
+  # @ConditionalOnProperty 按 profile 路由对应 ModelConfig 装配 chatModel + LlmCapabilities Bean
   # ============================================================================
   llm:
-    # 模型提供方切换：anthropic | openai。同时只激活一套 ModelConfig
-    # （v0.13: 原 ai.provider → ai.llm.provider，归 LLM 层内部事务）
-    provider: openai
-    # 各 provider 的 API 配置集合（v0.13: 原 spring.ai.* → ai.llm.providers.*；
-    # 原 spring.ai.* 借用了 Spring AI 官方命名空间，若未来引入 spring-ai starter 会冲突）
-    providers:
-      # Anthropic 兼容协议上游配置。仅在 ai.llm.provider=anthropic 时被装配类读取
-      anthropic:
-        base-url: https://api.minimaxi.com/anthropic/v1
-        api-key: ${ANTHROPIC_API_KEY:}
-        version: 2023-06-01
-        timeout: 60s
-        chat:
-          options:
-            model: MiniMax-M2.5
-            max-tokens: 16384
-            thinking:
-              type: enabled
-              budget-tokens: 8192
-      # OpenAI 兼容协议上游配置。仅在 ai.llm.provider=openai 时被装配类读取
-      openai:
-        base-url: https://api.deepseek.com/v1
-        api-key: ${OPENAI_API_KEY:}
-        timeout: 60s
-        chat:
-          thinking-model: deepseek-reasoner
-          non-thinking-model: deepseek-chat
-          # 测试期保守值：单次输出 ~2K token 足够验证 Agent 行为；正式联调 thinking 再上调
-          max-tokens: 2048
-    # LLM 调用重试（v0.13: 原 ai.retry.llm → ai.llm.retry，跟随 LLM 层就近）
-    retry:
-      max-attempts: 2
-      min-backoff: 500ms
-      max-backoff: 2s
+    # 当前激活的 LLM profile：deepseek-v4 | minimax
+    # 同时只激活一套 ModelConfig，由 @ConditionalOnProperty(name=ai.llm.profile, havingValue=...) 路由
+    profile: deepseek-v4
+
+    # ---------- DeepSeek v4 profile ----------
+    # 仅在 ai.llm.profile=deepseek-v4 时被 DeepSeekV4Config 装配读取
+    # DeepSeek v4 是 hybrid 模型 always-on 自适应思考，配置层不暴露 thinking on/off
+    deepseek-v4:
+      base-url: https://api.deepseek.com
+      api-key: ${OPENAI_API_KEY:}
+      timeout: 60s
+      chat:
+        # 具体模型：deepseek-v4-pro / deepseek-v4-flash（pro/flash 内部细分仅改本字段）
+        model: deepseek-v4-pro
+        # 测试期保守值：单次输出 ~2K token 足够验证 Agent 行为；正式联调再上调
+        max-tokens: 2048
+
+    # ---------- MiniMax profile ----------
+    # 仅在 ai.llm.profile=minimax 时被 MinimaxConfig 装配读取
+    # 走 Anthropic 兼容协议，builder 期固定开启 thinking；LC4J 1.13.1 限制无法 per-call 覆盖
+    # 详见 总设计方案.md 的"已知技术债"章节
+    minimax:
+      base-url: https://api.minimaxi.com/anthropic/v1
+      api-key: ${ANTHROPIC_API_KEY:}
+      version: 2023-06-01
+      timeout: 60s
+      chat:
+        model: MiniMax-M2.5
+        max-tokens: 16384
+      thinking:
+        type: enabled
+        budget-tokens: 8192
 
   # ============================================================================
   # 记忆系统
@@ -136,3 +138,13 @@ ai:
         retry:
           max-attempts: 2
           backoff: 500ms
+
+  # ============================================================================
+  # 通用重试策略（v0.135: 从 ai.llm.retry 挪到 ai.retry——retry 是运行时通用策略，
+  # 多 profile 共用同一份配置，不该嵌套在 ai.llm.* 命名空间下）
+  # 用于 ChatService 的 LLM 流主体调用；Tavily 工具的 retry 内嵌在自己的 yml 节里
+  # ============================================================================
+  retry:
+    max-attempts: 2
+    min-backoff: 500ms
+    max-backoff: 2s

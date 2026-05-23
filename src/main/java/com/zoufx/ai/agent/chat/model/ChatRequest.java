@@ -19,7 +19,14 @@ public class ChatRequest {
     private String userId;
 
     /**
-     * 是否启用思考模式，默认 false
+     * 用户希望本轮 LLM 思考（v0.135 起语义重定义）。
+     *
+     * <p>v0.13 及之前的语义为"路由到 thinkingAssistant 还是 nonThinkingAssistant"（实现细节泄漏）；
+     * v0.135 合并双 Assistant 后，本字段重定义为==用户意图==：true 表示希望本轮模型深思考。
+     *
+     * <p>当前激活 profile 的 capability（{@code GET /ai/capabilities}）决定本字段是否生效：
+     * {@code thinkingToggle=false} 时被后端 {@code ChatService} 静默忽略 + warn log，不报 400。
+     * 前端可按 capability 决定是否在请求体携带本字段。
      */
     private boolean thinking = false;
 }

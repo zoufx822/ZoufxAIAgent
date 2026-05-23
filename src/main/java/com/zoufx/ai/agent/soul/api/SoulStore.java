@@ -15,11 +15,11 @@ import java.util.Optional;
  * </ul>
  *
  * <p>由 {@code SystemPromptComposer.compose()} 在每次请求开头读 snapshot 注入 system prompt。
- * 修改入口仅 {@code SoulController.PUT /admin/soul/{key}}——==不暴露写工具给 LLM==
- * （AI 不能自己改自己的人格）。
+ * v0.135 起没有 HTTP 写入端点——==也不暴露写工具给 LLM==（AI 不能自己改自己的人格）。
+ * 写能力（{@link #set(String, String)}）保留给未来"AI 自完善 SOUL"工具或运维接口。
  *
  * <p>读/写接口签名分裂规则同 {@link HotMemoryStore}：get / snapshot 同步（compose 在 event loop
- * 上不能 .block()），set 反应式（管理 API 在反应式 chain 上调用）。
+ * 上不能 .block()），set 反应式（未来管理路径在反应式 chain 上调用）。
  */
 public interface SoulStore {
 

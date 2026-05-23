@@ -8,51 +8,38 @@ import com.zoufx.ai.agent.tool.impl.UserImpressionUpdateTool;
 import dev.langchain4j.memory.chat.ChatMemoryProvider;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.service.AiServices;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 装配两个 ChatAssistant Bean：分别绑定 thinking / nonThinking 的 StreamingChatModel。
- * 共享同一个 ChatMemoryProvider——同 userId 跨模式切换历史连续。
+ * 装配单一 {@link ChatAssistant} Bean，绑定当前激活 profile 装配的 {@code chatModel}。
  *
- * 挂载的工具集：
- *   - TavilySearchTool：网络检索
- *   - ColdMemorySearchTool：记忆检索（冷内存搜索）
- *   - UserImpressionUpdateTool：用户印象更新（hot_memory 的 user-impression type 写入；v0.13 起从 HotMemoryUpdateTool 重命名）
+ * <p>v0.135 重构：旧版本装配 thinkingAssistant / nonThinkingAssistant 双 Bean，分别绑定双 ChatModel——
+ * 该二分对 DeepSeek v4 hybrid（always-on 自适应）是伪二分；对 MiniMax 也无法做 per-call thinking
+ * 覆盖（LC4J 1.13.1 langchain4j-anthropic 限制）。本类合并为单 Bean，thinking 行为由模型自身决定。
  *
- * System prompt 由 SystemPromptComposer 按 PromptSection 序列动态组装
- * （v0.13：顶部 role+date + SoulPromptSection + IdentityPromptSection + ToolsPromptSection + MoodPromptSection）。
+ * <p>挂载的工具集：
+ * <ul>
+ *   <li>{@link TavilySearchTool}：网络检索</li>
+ *   <li>{@link ColdMemorySearchTool}：记忆检索（冷内存搜索）</li>
+ *   <li>{@link UserImpressionUpdateTool}：用户印象更新（hot_memory 的 user-impression type 写入）</li>
+ * </ul>
+ *
+ * <p>System prompt 由 {@link SystemPromptComposer} 按 PromptSection 序列动态组装。
  */
 @Configuration
 public class AssistantConfig {
 
     @Bean
-    public ChatAssistant thinkingAssistant(
-            @Qualifier("thinkingChatModel") StreamingChatModel model,
+    public ChatAssistant chatAssistant(
+            StreamingChatModel chatModel,
             ChatMemoryProvider chatMemoryProvider,
             TavilySearchTool tavilySearchTool,
             ColdMemorySearchTool coldMemorySearchTool,
             UserImpressionUpdateTool userImpressionUpdateTool,
             SystemPromptComposer composer) {
         return AiServices.builder(ChatAssistant.class)
-                .streamingChatModel(model)
-                .chatMemoryProvider(chatMemoryProvider)
-                .systemMessageProvider(composer.asProvider())
-                .tools(tavilySearchTool, coldMemorySearchTool, userImpressionUpdateTool)
-                .build();
-    }
-
-    @Bean
-    public ChatAssistant nonThinkingAssistant(
-            @Qualifier("nonThinkingChatModel") StreamingChatModel model,
-            ChatMemoryProvider chatMemoryProvider,
-            TavilySearchTool tavilySearchTool,
-            ColdMemorySearchTool coldMemorySearchTool,
-            UserImpressionUpdateTool userImpressionUpdateTool,
-            SystemPromptComposer composer) {
-        return AiServices.builder(ChatAssistant.class)
-                .streamingChatModel(model)
+                .streamingChatModel(chatModel)
                 .chatMemoryProvider(chatMemoryProvider)
                 .systemMessageProvider(composer.asProvider())
                 .tools(tavilySearchTool, coldMemorySearchTool, userImpressionUpdateTool)

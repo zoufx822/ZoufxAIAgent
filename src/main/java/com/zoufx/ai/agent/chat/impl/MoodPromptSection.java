@@ -12,7 +12,7 @@ import java.util.List;
  * 「## 情绪标记」段（v0.13 从 SystemPromptComposer.appendMoodSection 抽出）。
  *
  * <p>命令 LLM 在每条回复末尾追加 {@code <!--mood:KEYWORD-->} HTML 注释。
- * 后端 AIChatService 在 content 流尾部用 tail buffer 扫描剥离，独立成 SSE mood 事件。
+ * 后端 ChatService 在 content 流尾部用 tail buffer 扫描剥离，独立成 SSE mood 事件。
  *
  * <p>用命令式 + 反模式枚举，避免 weak model 漏标。
  *
