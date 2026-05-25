@@ -1,30 +1,21 @@
 package com.zoufx.ai.agent.memory.api;
 
+import com.zoufx.ai.agent.memory.model.HotMemoryEntry;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * Hot Memory：见到此人就立刻浮现、不需检索的常驻记忆（v0.13 起分 type）。
+ * Hot Memory 存储契约——见到此人就立刻浮现、不需检索的常驻记忆。
  *
- * <p>定位：与 Memory Stream（Cold Archive）==并行==的两条独立写入路径，不互相派生：
- * <ul>
- *   <li>Cold 自动 append 每轮对话原文</li>
- *   <li>Hot 由 LLM 通过 @Tool 主动晶化结构化信息写入</li>
- * </ul>
+ * <p>与 Memory Stream（Cold Archive）并行写入，不互相派生：Hot 由 LLM 通过 {@code @Tool} 主动晶化，
+ * Cold 自动 append 每轮对话原文。
  *
- * <p>==v0.13 引入 type 维度==：hot_memory 是父概念，user-impression / significant-event / ...
- * 是子分类。每条记录都属于某个 type，PK 为 (user_id, type, key)。
- * type 常量见 {@link HotMemoryType}。
- *
- * <p>==读/写接口签名风格不一致的设计取舍==：
- * <ul>
- *   <li>{@link #get} / {@link #snapshot} ==同步==：调用方是 PromptSection.render，由 LC4J 在
- *     WebFlux event loop 上同步内联调用，无法 .block() 等 Mono</li>
- *   <li>{@link #set} 反应式：调用方是 @Tool 方法（LC4J 工具线程），.block() 桥接合规；
- *     保持 Mono 签名为未来在 event loop 上写入留口子</li>
- * </ul>
+ * <p><b>读/写签名分裂原因</b>：读方法（{@link #get}/{@link #snapshot}/{@link #recent}）同步——
+ * 调用方 {@code PromptSection.render} 在 WebFlux event loop 上执行，无法 {@code .block()}；
+ * 写方法（{@link #set}）反应式——调用方是 {@code @Tool} 方法，在工具线程上可 {@code .block()} 桥接。
  */
 public interface HotMemoryStore {
 
@@ -45,4 +36,10 @@ public interface HotMemoryStore {
      * 调用方在 @Tool 线程，会用 {@code .block()} 桥接。
      */
     Mono<Void> set(String userId, String type, String key, String value);
+
+    /**
+     * 同步读该 (userId, type) 下最近 N 条记录，按 {@code updated_at DESC} 排序。
+     * 供 significant-event / commitment 等 append-only type 的 Section 注入用。
+     */
+    List<HotMemoryEntry> recent(String userId, String type, int limit);
 }

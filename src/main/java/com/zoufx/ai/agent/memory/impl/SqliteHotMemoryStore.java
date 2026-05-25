@@ -8,9 +8,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import com.zoufx.ai.agent.memory.model.HotMemoryEntry;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -81,6 +83,19 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
     public Mono<Void> set(String userId, String type, String key, String value) {
         return Mono.<Void>fromRunnable(() -> setBlocking(userId, type, key, value))
                 .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    @Override
+    public List<HotMemoryEntry> recent(String userId, String type, int limit) {
+        return jdbc.query(
+                "SELECT key, value, updated_at FROM hot_memory "
+                        + "WHERE user_id = ? AND type = ? "
+                        + "ORDER BY updated_at DESC LIMIT ?",
+                (rs, rowNum) -> new HotMemoryEntry(
+                        rs.getString("key"),
+                        rs.getString("value"),
+                        rs.getLong("updated_at")),
+                userId, type, limit);
     }
 
     private void setBlocking(String userId, String type, String key, String value) {

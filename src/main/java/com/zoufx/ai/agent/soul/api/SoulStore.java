@@ -6,20 +6,14 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * SOUL Store：AI 自身人格 / 说话风格 / 价值观 / 口头禅（v0.11）。
+ * SOUL Store——AI 自身人格的全局单例存储（无 userId 维度）。
  *
- * <p>与 {@link HotMemoryStore}（UserProfile）的对偶：
- * <ul>
- *   <li>HotMemoryStore 是 AI 对 "用户" 的认知（每个 userId 一份）</li>
- *   <li>SoulStore 是 AI 对 "自己" 的人格（==全局单例，无 userId 维度==）</li>
- * </ul>
+ * <p>与 {@link HotMemoryStore}（按 userId 存储用户认知）对偶。每次请求开始时由
+ * {@code SystemPromptComposer} 读取 snapshot 注入 system prompt。
+ * 不暴露写工具给 LLM（AI 不能自己改自己的人格），{@link #set} 保留给运维接口。
  *
- * <p>由 {@code SystemPromptComposer.compose()} 在每次请求开头读 snapshot 注入 system prompt。
- * v0.135 起没有 HTTP 写入端点——==也不暴露写工具给 LLM==（AI 不能自己改自己的人格）。
- * 写能力（{@link #set(String, String)}）保留给未来"AI 自完善 SOUL"工具或运维接口。
- *
- * <p>读/写接口签名分裂规则同 {@link HotMemoryStore}：get / snapshot 同步（compose 在 event loop
- * 上不能 .block()），set 反应式（未来管理路径在反应式 chain 上调用）。
+ * <p>读/写签名分裂原因同 {@link HotMemoryStore}：get/snapshot 同步（event loop），
+ * set 反应式（boundedElastic）。
  */
 public interface SoulStore {
 

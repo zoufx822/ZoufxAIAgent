@@ -2,8 +2,8 @@ package com.zoufx.ai.agent.chat.service;
 
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
 import com.zoufx.ai.agent.chat.api.LlmCapabilities;
-import com.zoufx.ai.agent.soul.property.MoodProperties;
-import com.zoufx.ai.agent.chat.property.RetryProperties;
+import com.zoufx.ai.agent.soul.property.SoulProperties;
+import com.zoufx.ai.agent.chat.property.ChatProperties;
 import com.zoufx.ai.agent.memory.api.MemoryStore;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
@@ -54,8 +54,8 @@ public class ChatService {
     private final LlmCapabilities llmCapabilities;
     private final MemoryStore memoryStore;
     private final ColdMemoryStore memoryStream;
-    private final RetryProperties retryProperties;
-    private final MoodProperties moodProperties;
+    private final ChatProperties chatProperties;
+    private final SoulProperties soulProperties;
     private final List<ToolPrompt> tools;
     private final Map<String, String> toolNameMap = new HashMap<>();
 
@@ -150,8 +150,8 @@ public class ChatService {
                                   String userId, String prompt, AtomicBoolean hasEmitted) {
         // v0.11：mood 启用时用 MoodEventProcessor 包装 content 输出——剥离 <!--mood:KEYWORD-->，独立发 mood 事件。
         // 一条请求一个实例：内部维护 tail buffer + 命中状态，请求结束 flush() 兜底。
-        final MoodEventProcessor moodStripper = moodProperties.isEnabled()
-                ? new MoodEventProcessor(moodProperties.getTailBufferSize(), sink, userId)
+        final MoodEventProcessor moodStripper = soulProperties.getMood().isEnabled()
+                ? new MoodEventProcessor(soulProperties.getMood().getTailBufferSize(), sink, userId)
                 : null;
 
         assistant.chat(userId, prompt)
@@ -215,8 +215,9 @@ public class ChatService {
      * 调用方需持有 {@code hasEmitted}，并在 LC4J 任一回调触发时置为 true。
      */
     private Retry buildRetrySpec(AtomicBoolean hasEmitted) {
-        return Retry.backoff(retryProperties.getMaxAttempts(), retryProperties.getMinBackoff())
-                .maxBackoff(retryProperties.getMaxBackoff())
+        ChatProperties.Retry r = chatProperties.getRetry();
+        return Retry.backoff(r.getMaxAttempts(), r.getMinBackoff())
+                .maxBackoff(r.getMaxBackoff())
                 .filter(err -> !hasEmitted.get() && RetryableExceptions.isRetryable(err))
                 .doBeforeRetry(rs -> log.warn("LLM retry #{} cause={}",
                         rs.totalRetries() + 1, rs.failure().toString()));

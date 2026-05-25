@@ -6,7 +6,7 @@ import com.zoufx.ai.agent.chat.model.ChatRequest;
 import com.zoufx.ai.agent.chat.service.ChatService;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
-import com.zoufx.ai.agent.memory.api.HotMemoryType;
+import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,21 +22,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * AI Agent HTTP 入口 —— 项目对外端点总集（v0.135 起合并原 MemoryController / CapabilitiesController）。
+ * AI Agent HTTP 入口（全部归 {@code /ai/*} 命名空间）。
  *
- * <p>对外端点（全部归 {@code /ai/*} 命名空间）：
+ * <p>端点：
  * <ul>
- *   <li>{@code POST /ai/chat}：SSE 流式聊天主路径</li>
- *   <li>{@code GET  /ai/capabilities}：当前激活 profile 的 LLM 能力声明（前端启动拉一次缓存）</li>
- *   <li>{@code GET  /ai/memory/hot/{userId}?type=...}：Hot Memory snapshot（指定 type 下的 KV）</li>
- *   <li>{@code GET  /ai/memory/cold/{userId}?limit=N}：最近 N 条 Cold Memory 经历流</li>
+ *   <li>{@code POST /ai/chat}：SSE 流式聊天</li>
+ *   <li>{@code GET  /ai/capabilities}：LLM 能力声明</li>
+ *   <li>{@code GET  /ai/memory/hot/{userId}?type=...}：Hot Memory snapshot</li>
+ *   <li>{@code GET  /ai/memory/cold/{userId}?limit=N}：最近 N 条 Cold Memory</li>
  * </ul>
  *
- * <p>入参校验由 {@link jakarta.validation.Valid @Valid} + {@link ChatRequest} 上的 Bean Validation 注解承担；
- * 校验失败由 {@code GlobalExceptionHandler} 统一翻译为 HTTP 400，不再走 SSE error 事件分支。
- *
- * <p>==无鉴权==——同 v0.01~v0.13 风格，单机开发环境。任何 userId 都能查任何 userId 的数据；
- * 真上线前必须补。
+ * <p>无鉴权（开发环境）；真上线前必须补。
  */
 @Slf4j
 @RestController

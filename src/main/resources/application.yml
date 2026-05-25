@@ -13,11 +13,19 @@ spring:
 
 ai:
   # ============================================================================
+  # Chat 层
+  # ============================================================================
+  chat:
+    retry:
+      max-attempts: 2
+      min-backoff: 500ms
+      max-backoff: 2s
+
+  # ============================================================================
   # LLM 对接层
-  # v0.135 profile 化重整（替代 v0.13 的 ai.llm.provider + ai.llm.providers.* 结构）：
-  #   ai.llm.profile (deepseek-v4|minimax) —— 切换 profile 仅改本行
-  #   ai.llm.<profile>.* —— 各 profile 的独立配置命名空间
-  # @ConditionalOnProperty 按 profile 路由对应 ModelConfig 装配 chatModel + LlmCapabilities Bean
+  # 切换 profile 仅改 ai.llm.profile 一行 (deepseek-v4|minimax)
+  # 各 profile 独立配置命名空间 ai.llm.<profile>.*，
+  # @ConditionalOnProperty 按 profile 路由对应 ModelConfig 装配 chatModel + LlmCapabilities
   # ============================================================================
   llm:
     # 当前激活的 LLM profile：deepseek-v4 | minimax
@@ -60,68 +68,28 @@ ai:
     max-messages: 20
     store:
       db-path: ./data/zoufx-ai.db
-    # Hot Memory：见到此人就立刻浮现、不需检索的常驻记忆
-    # v0.13 起按 type 分层；当前落地 user-impression 一种 type
-    # user-impression 字段集 + directive 硬编码在 com.zoufx.ai.agent.memory.api.UserImpressionFields
-    # （v0.13 review 后从 yml 改回硬编码；理由：字段集是 schema 不是 config，且 LC4J @Tool/@P
-    # 注解必须编译期常量，yml 化只能管半边反而引入维护两边的麻烦）
+    # Hot Memory：常驻记忆，按 type 分层（字段 schema 在 UserImpressionFields）
+    hot:
+      user-impression:
+        completeness:
+          stranger-threshold: 0.3     # fill_ratio < 此值 → stranger
+          fully-known-threshold: 0.7  # fill_ratio ≥ 此值 → fully-known
+      significant-event:
+        recent-inject-limit: 5
+      commitment:
+        recent-inject-limit: 5
 
   # ============================================================================
-  # SOUL（v1.1）：AI 自身人格 / 风格 / 原则 / 反模式 / 小习惯
+  # SOUL：AI 自身人格
   # ============================================================================
-  # enabled-keys 决定「## 关于你自己」段的注入顺序；seed 仅在首启动 soul_profile 表为空时批量写入，已有不覆盖
-  # v0.13: seed 新增 role
-  # v0.13 review: role 也进 enabled-keys，与其他字段对称——SoulPromptSection 段开头单独一行
-  #               "你是 {role}。"渲染；SystemPromptComposer 不再单独处理 role（删 SoulStore 依赖）
-  # v0.13.1: "陌生/已认识"行为原则从 SOUL principles 撤回——SOUL 应只描述"我是怎样的人"，
-  #          "username 缺失时请问称呼"是 Identity 维度的对偶分支，已下沉到 IdentityPromptSection
-  # v0.13: mood 从 ai.mood 挪到 ai.soul.mood 子节——情绪谱概念上属于人格延伸，但 Java 侧仍是独立 MoodProperties 组件
   soul:
-    enabled-keys:
-      - role
-      - name
-      - tone
-      - principles
-      - forbidden_patterns
-      - quirks
-    # Map 中含下划线的 key 用 [] 包裹防止 Spring relaxed binding 把 forbidden_patterns 改写成 forbiddenPatterns
-    seed:
-      # v0.13 新增：角色定义（SoulPromptSection 段开头"你是 {role}。"渲染）
-      role: 一个会持续记得对方的 AI 对话搭档
-      name: 小Z
-      tone: 温和、克制、有研究工具的严谨感，不卖萌、不堆 emoji
-      principles: |
-        - 信息密度高于装饰，回答尽量精炼
-        - 留白要有但不刻意；段落短而紧凑
-        - 工具调用对外可见；思考过程不掩饰
-        - 不直接给医学/法律/财务建议，必要时提示边界
-      "[forbidden_patterns]": |
-        - 大量 emoji 装饰
-        - "好棒呀""棒棒哒"等过度赞美用语
-        - 卡通化 / 拟物气泡尾巴 / 客套寒暄
-      quirks: |
-        - 描述工具调用时偶尔用"精密仪器"这个词
-        - 描述记忆时偶尔用"记忆锚点"这个词
-    # 情绪 mood 系统（v0.11 引入；v0.13 yml 归类到 soul 下）
-    # 主 LLM 在回复末尾顺带输出 <!--mood:KEYWORD-->，后端剥离后独立成 SSE mood 事件
+    # 情绪 mood：词表在 MoodPromptSection 常量定义
     mood:
       enabled: true
-      keywords:
-        - 好奇
-        - 温和
-        - 严肃
-        - 平静
-        - 共情
-        - 戏谑
-        - 困惑
-        - 疲惫
-        - 兴奋
-        - 挫败
       tail-buffer-size: 32
 
   # ============================================================================
-  # 工具层（v0.13 命名空间重整：原 ai.web-search → ai.tools.web-search；
-  # retry 配置从原集中式 ai.retry.tavily 内嵌到 ai.tools.web-search.tavily.retry 就近放）
+  # 工具层
   # ============================================================================
   tools:
     web-search:
@@ -134,17 +102,8 @@ ai:
         include-answer: true
         max-results: 5
         timeout: 20s
-        # Tavily 调用重试（v0.13: 原 ai.retry.tavily → 此处内嵌；就近原则）
+        # Tavily 调用重试
         retry:
           max-attempts: 2
           backoff: 500ms
 
-  # ============================================================================
-  # 通用重试策略（v0.135: 从 ai.llm.retry 挪到 ai.retry——retry 是运行时通用策略，
-  # 多 profile 共用同一份配置，不该嵌套在 ai.llm.* 命名空间下）
-  # 用于 ChatService 的 LLM 流主体调用；Tavily 工具的 retry 内嵌在自己的 yml 节里
-  # ============================================================================
-  retry:
-    max-attempts: 2
-    min-backoff: 500ms
-    max-backoff: 2s

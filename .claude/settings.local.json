@@ -74,7 +74,10 @@
       "Bash(Get-ChildItem e:\\\\ZoufxDemo\\\\ZoufxAIAgent-Web\\\\package.json -ErrorAction SilentlyContinue)",
       "Bash(Select-Object FullName)",
       "Bash(ls ~/.m2/repository/dev/langchain4j/langchain4j-anthropic/ 2>/dev/null)",
-      "Read(//c/Users/Administrator/.m2/repository/dev/langchain4j/langchain4j-anthropic/**)"
+      "Read(//c/Users/Administrator/.m2/repository/dev/langchain4j/langchain4j-anthropic/**)",
+      "Bash(mvn -DskipTests clean compile)",
+      "Bash(pnpm exec *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

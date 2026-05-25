@@ -15,10 +15,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
- * 自写的网络检索工具——相较官方 WebSearchTool 多了 maxResults 控制和日志钩子。
- * 方法名 search_web（snake_case）与 Anthropic 官方约定一致，提升模型调用触发率。
- *
- * 实现 ToolPromptContributor：把"何时调用 search_web"的规则从 AssistantConfig 下沉到工具自身。
+ * 网络检索工具——方法名 search_web（snake_case）与 Anthropic 官方约定一致。
  */
 @Slf4j
 public class TavilySearchTool implements ToolPrompt {

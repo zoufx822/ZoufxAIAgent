@@ -17,11 +17,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 冷内存搜索工具：让 LLM 在"当前对话窗口里看不到、但对方暗示之前说过"时
- * 主动调用，到冷内存（cold_memory）里 FTS5 检索原文。
- *
- * 线程：LC4J 在工具线程上同步调用 @Tool 方法（与 WebFlux event loop 隔离），
- * 故 {@code .block()} 桥接反应式 {@link ColdMemoryStore#search} 是合规的。
+ * 冷内存检索工具——当对方暗示之前说过某事而当前窗口里没有时，FTS5 检索 cold_memory 原文。
  */
 @Slf4j
 @Component

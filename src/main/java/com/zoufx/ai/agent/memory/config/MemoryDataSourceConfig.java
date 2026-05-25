@@ -2,7 +2,7 @@ package com.zoufx.ai.agent.memory.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import com.zoufx.ai.agent.memory.property.MemoryStoreProperties;
+import com.zoufx.ai.agent.memory.property.MemoryProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -33,24 +33,25 @@ import java.nio.file.Paths;
 public class MemoryDataSourceConfig {
 
     @Bean("memoryDataSource")
-    public DataSource memoryDataSource(MemoryStoreProperties props) throws IOException {
+    public DataSource memoryDataSource(MemoryProperties props) throws IOException {
         // 确保 SQLite 文件父目录存在
-        Path path = Paths.get(props.getDbPath());
+        Path path = Paths.get(props.getStore().getDbPath());
         Path parent = path.toAbsolutePath().getParent();
         if (parent != null && !Files.exists(parent)) {
             Files.createDirectories(parent);
         }
 
         HikariConfig cfg = new HikariConfig();
-        cfg.setJdbcUrl("jdbc:sqlite:" + props.getDbPath());
+        String dbPath = props.getStore().getDbPath();
+        cfg.setJdbcUrl("jdbc:sqlite:" + dbPath);
         // SQLite 单写并发限制，保守值；WAL 模式下读可并发
         cfg.setMaximumPoolSize(5);
         cfg.setMinimumIdle(1);
         cfg.setPoolName("memory-sqlite-pool");
-        // 每个新连接初始化时启用 WAL（替代之前的 @PostConstruct PRAGMA）
+        // 每个新连接初始化时启用 WAL
         cfg.setConnectionInitSql("PRAGMA journal_mode=WAL");
 
-        log.info("memoryDataSource initialized: {} (HikariCP max=5)", props.getDbPath());
+        log.info("memoryDataSource initialized: {} (HikariCP max=5)", dbPath);
         return new HikariDataSource(cfg);
     }
 

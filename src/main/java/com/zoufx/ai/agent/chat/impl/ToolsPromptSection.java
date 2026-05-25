@@ -10,18 +10,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * 「## 可用工具」段（v0.13 从 SystemPromptComposer.renderTools 抽出）。
- *
- * <p>聚合所有 {@link ToolPrompt} Bean 渲染。Spring 自动收集——新增工具实现 ToolPrompt
- * 即自动出现在 prompt 中，无需改本类。
- *
- * <p>v0.13 调整：==移除 {@code {today}} 占位符替换机制==——LLM 已通过系统提示词顶部
- * 「当前日期」获得日期，工具 prompt 内无需再做 Java 层字符串替换。本 Section 退化为
- * 单纯字符串拼接，无任何运行时计算。
- *
- * <p>归属：跨工具模块聚合段，归 chat 编排层。
- *
- * <p>注入顺序：order=30。
+ * 「## 可用工具」段（order=30）——聚合所有 {@link ToolPrompt} Bean 的 section 标题
+ * 和 promptInstructions 正文。新增工具只需实现 {@link ToolPrompt}，Spring 自动收集到本段。
  */
 @Component
 @RequiredArgsConstructor

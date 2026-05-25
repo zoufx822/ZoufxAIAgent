@@ -4,6 +4,8 @@
 
 Spring Boot 4.0.6 + LangChain4J 1.13.1，支持 `deepseek-v4` / `minimax` 双 LLM profile 切换：DeepSeek 走 OpenAI 兼容协议，MiniMax 走 Anthropic 兼容协议。带会话记忆的流式聊天与思考模式。
 
+Hot Memory 含三种 type（v0.14）：`user-impression`（用户画像，UPSERT）/ `significant-event`（重要经历，append-only）/ `commitment`（双方承诺，append-only）。情绪谱 6 词：平静 / 兴奋 / 难过 / 愤怒 / 好奇 / 困惑。
+
 ## 架构
 
 **后端：** Spring WebFlux + Reactor Netty（已移除 `spring-boot-starter-web`，对齐 LangChain4J 官方姿势）。HTTP 入口集中在 `ChatController`：
@@ -38,6 +40,14 @@ Spring Boot 4.0.6 + LangChain4J 1.13.1，支持 `deepseek-v4` / `minimax` 双 LL
 ## 已知瓶颈
 
 唯一阻塞点：`@Tool` 方法（`TavilySearchTool.search_web`）+ Tavily 同步 HTTP client。LC4J 1.x 的 `@Tool` 不支持 `Mono`/`Future` 返回值，是框架边界。最坏 Tavily 全失败时单次工具调用阻塞约 60s（20s × 3 次重试 + backoff）。低并发场景可接受，不修。
+
+## 注释原则
+
+- **写设计意图，不写版本变迁**：说明当前为什么这样设计（约束、取舍），删掉"v0.12 是 X，v0.13 改为 Y"等历史叙述
+- **两行说清类/方法的职责**，删掉"归属 xx 包"、"与 xx 对偶"等可从代码结构直接看出的说明
+- **保留**：非显而易见的约束（线程契约、编译期常量限制、fail-fast 不变量）、跨版本遗留问题（如 LC4J 未提供的接口）、seed 语义（已有不覆盖）
+- **删除**：版本号标注（`v0.xx`）、设计文档引用（`详见 xxx.md`）、选型论证（"为何不用枚举"但代码已自解释）、迁移路径（"从 X 迁到 Y"）
+- yml 配置同理——大段 prompt 文案默认值进 Java `@ConfigurationProperties` 字段初始化，yml 只留阈值/开关/环境变量
 
 ## 工作原则
 

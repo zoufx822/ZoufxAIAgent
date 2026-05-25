@@ -3,29 +3,23 @@ package com.zoufx.ai.agent.soul.property;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
 /**
- * SOUL（AI 自身人格）配置（v0.11）。
+ * SOUL 配置（prefix=ai.soul）。
  *
- * <p>双重作用：
- * <ul>
- *   <li>{@link #enabledKeys}：SystemPromptComposer 按此顺序注入 SOUL 片段；管理 API 也以此为白名单</li>
- *   <li>{@link #seed}：首启动检测 soul_profile 表为空时批量 INSERT；
- *       ==后续不覆盖已有==——想强制覆盖走 PUT /admin/soul/{key} 或先 DELETE 表</li>
- * </ul>
- *
- * <p>seed 在 yml 用 multi-line 字符串，保留缩进 / 项目符号格式注入 prompt。
+ * <p>seed 默认值在 {@code SqliteSoulStore.DEFAULT_SEED}，词表在 {@code MoodPromptSection} 常量。
+ * 本类仅承载 yml 可覆盖的运行参数。
  */
 @Data
 @ConfigurationProperties(prefix = "ai.soul")
 public class SoulProperties {
 
-    /** 启用的 SOUL key 顺序（决定 system prompt 注入顺序与管理 API 白名单）。 */
-    private List<String> enabledKeys = List.of();
+    private Mood mood = new Mood();
 
-    /** 首启动 seed：当 soul_profile 表为空时批量 INSERT；已有则跳过。 */
-    private Map<String, String> seed = new LinkedHashMap<>();
+    @Data
+    public static class Mood {
+        /** 总开关。false 时不注入 mood 指令、不剥离、不发 SSE 事件。 */
+        private boolean enabled = true;
+        /** content 流尾部扫描窗口长度（字符），需 ≥ mood 注释总长。 */
+        private int tailBufferSize = 32;
+    }
 }
