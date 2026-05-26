@@ -79,7 +79,7 @@
 ==状态控制工具==：
 - **全新 userId**：浏览器 `browser_evaluate('() => localStorage.clear()')` + `browser_navigate` 刷新
 - **指定 hot 字段**：调 Memory Controller API（如有）/ 手工 `sqlite3 ./data/zoufx-ai.db "INSERT INTO hot_memory ..."`
-- **清空 chat memory**：调 Memory Controller delete / SQL `DELETE FROM chat_memory WHERE user_id=...`
+- **清空 anchor memory**：调 Memory Controller delete / SQL `DELETE FROM anchor_memory WHERE user_id=...`
 
 每条 ❌/⚠️ 必须能复现，==前置状态要写到能让人精确复现的程度==。
 

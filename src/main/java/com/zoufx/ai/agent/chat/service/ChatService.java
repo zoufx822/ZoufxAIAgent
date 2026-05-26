@@ -4,7 +4,7 @@ import com.zoufx.ai.agent.chat.api.ChatAssistant;
 import com.zoufx.ai.agent.chat.api.LlmCapabilities;
 import com.zoufx.ai.agent.soul.property.SoulProperties;
 import com.zoufx.ai.agent.chat.property.ChatProperties;
-import com.zoufx.ai.agent.memory.api.MemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import com.zoufx.ai.agent.chat.support.MoodEventProcessor;
@@ -52,8 +52,8 @@ public class ChatService {
 
     private final ChatAssistant chatAssistant;
     private final LlmCapabilities llmCapabilities;
-    private final MemoryStore memoryStore;
-    private final ColdMemoryStore memoryStream;
+    private final AnchorMemoryStore anchorMemoryStore;
+    private final ColdMemoryStore coldMemoryStore;
     private final ChatProperties chatProperties;
     private final SoulProperties soulProperties;
     private final List<ToolPrompt> tools;
@@ -92,13 +92,13 @@ public class ChatService {
     /**
      * Hook：流启动前——
      * <ol>
-     *   <li>持久化清理 chat_memory 里的孤儿 tool 消息（防止上一次 stop 留下半成品消息序列让 LLM 校验失败）</li>
+     *   <li>持久化清理 anchor_memory 里的孤儿 tool 消息（防止上一次 stop 留下半成品消息序列让 LLM 校验失败）</li>
      *   <li>把 user prompt 写入 Memory Stream（Cold Archive）</li>
      * </ol>
      * 两步都失败仅记日志、不阻断主流——清理/写流失败不应影响主对话（v0.1 风险表 #10）。
      */
     private Mono<Void> beforeStream(String userId, String prompt) {
-        Mono<Void> cleanup = memoryStore.cleanupOrphans(userId)
+        Mono<Void> cleanup = anchorMemoryStore.cleanupOrphans(userId)
                 .doOnNext(changed -> {
                     if (Boolean.TRUE.equals(changed)) {
                         log.info("Pre-stream sanitize fired [userId={}]", userId);
@@ -109,7 +109,7 @@ public class ChatService {
                     return Mono.empty();
                 })
                 .then();
-        Mono<Void> appendUser = memoryStream.append(userId, "user", prompt, null)
+        Mono<Void> appendUser = coldMemoryStore.append(userId, "user", prompt, null)
                 .onErrorResume(err -> {
                     log.warn("Failed to append user message to cold_memory [userId={}]: {}",
                             userId, err.toString());
@@ -201,7 +201,7 @@ public class ChatService {
      */
     private void onStreamComplete(String userId, StringBuilder buffer) {
         if (buffer.length() == 0) return;
-        memoryStream.append(userId, "assistant", buffer.toString(), null)
+        coldMemoryStore.append(userId, "assistant", buffer.toString(), null)
                 .onErrorResume(err -> {
                     log.warn("Failed to append assistant message to cold_memory [userId={}]: {}",
                             userId, err.toString());

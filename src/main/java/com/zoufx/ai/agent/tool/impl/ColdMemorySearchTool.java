@@ -30,7 +30,7 @@ public class ColdMemorySearchTool implements ToolPrompt {
     private static final DateTimeFormatter TIME_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.CHINA).withZone(ZoneId.systemDefault());
 
-    private final ColdMemoryStore memoryStream;
+    private final ColdMemoryStore coldMemoryStore;
 
     @Override
     public String section() {
@@ -65,7 +65,7 @@ public class ColdMemorySearchTool implements ToolPrompt {
         int effectiveLimit = limit > 0 ? Math.min(limit, HARD_MAX_LIMIT) : DEFAULT_LIMIT;
 
         log.info("🔎 search_cold_memory [userId={}] keyword='{}' limit={}", userId, keyword, effectiveLimit);
-        List<ColdMemoryEntry> hits = memoryStream.search(userId, keyword, effectiveLimit).block();
+        List<ColdMemoryEntry> hits = coldMemoryStore.search(userId, keyword, effectiveLimit).block();
         if (hits == null || hits.isEmpty()) {
             return "经历流里没找到与「" + keyword + "」相关的内容。";
         }

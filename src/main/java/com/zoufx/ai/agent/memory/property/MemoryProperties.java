@@ -12,7 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "ai.memory")
 public class MemoryProperties {
 
-    /** ChatMemory 窗口最大消息数 */
+    /** 对话窗口最大消息数 */
     private int maxMessages = 20;
 
     private Store store = new Store();

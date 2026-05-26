@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * 会话记忆装配。
- * ChatMemoryStore 实现由 {@link com.zoufx.ai.agent.memory.SqliteChatMemoryStore} 提供（@Component 自动注入），
+ * ChatMemoryStore 实现由 {@link com.zoufx.ai.agent.memory.impl.SqliteAnchorMemoryStore} 提供（@Component 自动注入），
  * v0.01 起切到 SQLite 持久化；未来切 Redis / Postgres 只需替换该 Bean。
  */
 @Configuration

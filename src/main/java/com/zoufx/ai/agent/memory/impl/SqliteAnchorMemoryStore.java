@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.memory.impl;
 
-import com.zoufx.ai.agent.memory.api.MemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ChatMessageDeserializer;
@@ -25,24 +25,18 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * SQLite 实现的 ChatMemoryStore + MemoryStoreContract（双接口共用一套数据通路）。
- *
- * 设计要点：
- * - 单文件 SQLite + WAL 模式（WAL PRAGMA 由 HikariCP connectionInitSql 注入，见 MemoryDataSourceConfig）
- * - LC4J {@link ChatMemoryStore} 接口在框架线程同步调用：直接走私有 *Blocking 方法
- * - 业务 {@link MemoryStore} 接口反应式签名：用 {@code Mono.fromCallable(...).subscribeOn(boundedElastic())} 包装相同的 *Blocking 方法
- * - {@code updateMessages} 语义为"全量替换"——LC4J 每次都传完整 list，所以事务里 DELETE + 批量 INSERT
- * - 序列化用 LC4J 自带的 {@link ChatMessageSerializer} / {@link ChatMessageDeserializer}，覆盖 ChatMessage 的所有子类型
+ * SQLite 实现，双接口共用一套数据通路：
+ * LC4J {@link ChatMemoryStore} + 业务 {@link AnchorMemoryStore}。
  */
 @Slf4j
 @Component
-public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
+public class SqliteAnchorMemoryStore implements ChatMemoryStore, AnchorMemoryStore {
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
 
-    public SqliteChatMemoryStore(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc,
-                                 @Qualifier("memoryTxTemplate") TransactionTemplate tx) {
+    public SqliteAnchorMemoryStore(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc,
+                                  @Qualifier("memoryTxTemplate") TransactionTemplate tx) {
         this.jdbc = jdbc;
         this.tx = tx;
     }
@@ -50,7 +44,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
     @PostConstruct
     public void init() {
         jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS chat_memory (
+                CREATE TABLE IF NOT EXISTS anchor_memory (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id     TEXT    NOT NULL,
                     role        TEXT    NOT NULL,
@@ -58,9 +52,9 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
                     created_at  INTEGER NOT NULL
                 )
                 """);
-        // v0.01 阶段每个 userId 数据量小，单列索引足够；ORDER BY id 走 PK，create_at 暂不需要联合索引
-        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_user ON chat_memory(user_id)");
-        log.info("SqliteChatMemoryStore schema ready (chat_memory)");
+        // 单列索引足够：每个 userId 数据量小，ORDER BY id 走 PK
+        jdbc.execute("CREATE INDEX IF NOT EXISTS idx_anchor_memory_user ON anchor_memory(user_id)");
+        log.info("SqliteAnchorMemoryStore schema ready (anchor_memory)");
     }
 
     // ====== LC4J ChatMemoryStore（同步，框架线程调用）======
@@ -80,7 +74,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
         deleteByUserIdBlocking(memoryId.toString());
     }
 
-    // ====== 业务 MemoryStore（反应式，自动 boundedElastic 调度）======
+    // ====== 业务 AnchorMemoryStore（反应式，自动 boundedElastic 调度）======
 
     @Override
     public Mono<List<ChatMessage>> loadByUserId(String userId) {
@@ -116,7 +110,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
         // 反而把 LC4J 自己的正常工作流弄坏。
         // 改为在每次请求入口（ChatService.beforeStream）显式调 cleanupOrphans() 持久化一次。
         return jdbc.query(
-                "SELECT content FROM chat_memory WHERE user_id = ? ORDER BY id ASC",
+                "SELECT content FROM anchor_memory WHERE user_id = ? ORDER BY id ASC",
                 (rs, i) -> ChatMessageDeserializer.messageFromJson(rs.getString("content")),
                 userId);
     }
@@ -177,7 +171,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
             cleaned.add(m);
         }
         if (droppedAi > 0 || droppedTool > 0) {
-            log.warn("Sanitized chat_memory [userId={}] dropped {} orphan AiMessage(s) + {} orphan ToolExecutionResultMessage(s)",
+            log.warn("Sanitized anchor_memory [userId={}] dropped {} orphan AiMessage(s) + {} orphan ToolExecutionResultMessage(s)",
                     userId, droppedAi, droppedTool);
         }
         return cleaned;
@@ -187,10 +181,10 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
         // 同批写入按毫秒+偏移单调递增，避免 v0.1 引入 Memory Stream 时所有 created_at 撞车
         long base = System.currentTimeMillis();
         tx.executeWithoutResult(status -> {
-            jdbc.update("DELETE FROM chat_memory WHERE user_id = ?", userId);
+            jdbc.update("DELETE FROM anchor_memory WHERE user_id = ?", userId);
             if (messages.isEmpty()) return;
             jdbc.batchUpdate(
-                    "INSERT INTO chat_memory (user_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO anchor_memory (user_id, role, content, created_at) VALUES (?, ?, ?, ?)",
                     new BatchPreparedStatementSetter() {
                         @Override
                         public void setValues(PreparedStatement ps, int i) throws SQLException {
@@ -210,6 +204,6 @@ public class SqliteChatMemoryStore implements ChatMemoryStore, MemoryStore {
     }
 
     private void deleteByUserIdBlocking(String userId) {
-        jdbc.update("DELETE FROM chat_memory WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM anchor_memory WHERE user_id = ?", userId);
     }
 }
