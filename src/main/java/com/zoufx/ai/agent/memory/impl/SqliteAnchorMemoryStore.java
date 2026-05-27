@@ -44,6 +44,7 @@ public class SqliteAnchorMemoryStore implements AnchorMemoryStore {
                     user_id        TEXT    NOT NULL,
                     title          TEXT,
                     summary        TEXT,
+                    last_mood      TEXT,
                     created_at     INTEGER NOT NULL,
                     last_active_at INTEGER NOT NULL
                 )
@@ -81,7 +82,7 @@ public class SqliteAnchorMemoryStore implements AnchorMemoryStore {
     @Override
     public List<AnchorMemoryEntry> listOtherAnchorsSync(String userId, String excludeAnchorId) {
         return jdbc.query("""
-                SELECT id, user_id, title, summary, created_at, last_active_at
+                SELECT id, user_id, title, summary, last_mood, created_at, last_active_at
                 FROM anchor_memory
                 WHERE user_id = ? AND id != ?
                 ORDER BY last_active_at DESC
@@ -91,6 +92,7 @@ public class SqliteAnchorMemoryStore implements AnchorMemoryStore {
                         rs.getString("user_id"),
                         rs.getString("title"),
                         rs.getString("summary"),
+                        rs.getString("last_mood"),
                         rs.getLong("created_at"),
                         rs.getLong("last_active_at")),
                 userId, excludeAnchorId);
@@ -111,8 +113,8 @@ public class SqliteAnchorMemoryStore implements AnchorMemoryStore {
     }
 
     @Override
-    public Mono<Void> touch(String anchorId) {
-        return Mono.<Void>fromRunnable(() -> touchBlocking(anchorId))
+    public Mono<Void> touch(String anchorId, @Nullable String lastMood) {
+        return Mono.<Void>fromRunnable(() -> touchBlocking(anchorId, lastMood))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
@@ -160,15 +162,15 @@ public class SqliteAnchorMemoryStore implements AnchorMemoryStore {
         String anchorId = UUID.randomUUID().toString();
         long now = System.currentTimeMillis();
         jdbc.update("""
-                INSERT INTO anchor_memory (id, user_id, title, summary, created_at, last_active_at)
-                VALUES (?, ?, ?, NULL, ?, ?)
+                INSERT INTO anchor_memory (id, user_id, title, summary, last_mood, created_at, last_active_at)
+                VALUES (?, ?, ?, NULL, NULL, ?, ?)
                 """, anchorId, userId, title, now, now);
-        return new AnchorMemoryEntry(anchorId, userId, title, null, now, now);
+        return new AnchorMemoryEntry(anchorId, userId, title, null, null, now, now);
     }
 
     private List<AnchorMemoryEntry> listByUserBlocking(String userId) {
         return jdbc.query("""
-                SELECT id, user_id, title, summary, created_at, last_active_at
+                SELECT id, user_id, title, summary, last_mood, created_at, last_active_at
                 FROM anchor_memory
                 WHERE user_id = ?
                 ORDER BY last_active_at DESC
@@ -178,14 +180,16 @@ public class SqliteAnchorMemoryStore implements AnchorMemoryStore {
                         rs.getString("user_id"),
                         rs.getString("title"),
                         rs.getString("summary"),
+                        rs.getString("last_mood"),
                         rs.getLong("created_at"),
                         rs.getLong("last_active_at")),
                 userId);
     }
 
-    private void touchBlocking(String anchorId) {
+    private void touchBlocking(String anchorId, @Nullable String lastMood) {
         // 回访锚点：last_active_at 推到 now + summary 置 NULL（旧摘要作废，下次切走再压）
-        jdbc.update("UPDATE anchor_memory SET last_active_at = ?, summary = NULL WHERE id = ?",
-                System.currentTimeMillis(), anchorId);
+        // last_mood 走 COALESCE：本轮无 mood 事件时保留旧值，不被 null 覆盖
+        jdbc.update("UPDATE anchor_memory SET last_active_at = ?, summary = NULL, last_mood = COALESCE(?, last_mood) WHERE id = ?",
+                System.currentTimeMillis(), lastMood, anchorId);
     }
 }

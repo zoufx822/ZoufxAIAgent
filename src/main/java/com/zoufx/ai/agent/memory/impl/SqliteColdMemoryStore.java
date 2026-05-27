@@ -2,6 +2,7 @@ package com.zoufx.ai.agent.memory.impl;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -53,6 +54,7 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
                     role       TEXT    NOT NULL,
                     content    TEXT    NOT NULL,
                     metadata   TEXT,
+                    mood       TEXT,
                     created_at INTEGER NOT NULL
                 )
                 """);
@@ -78,8 +80,8 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
     }
 
     @Override
-    public Mono<Void> append(String userId, String role, String content, String metadataJson) {
-        return Mono.<Void>fromRunnable(() -> appendBlocking(userId, role, content, metadataJson))
+    public Mono<Void> append(String userId, String role, String content, String metadataJson, @Nullable String mood) {
+        return Mono.<Void>fromRunnable(() -> appendBlocking(userId, role, content, metadataJson, mood))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
@@ -97,13 +99,13 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
 
     // ====== 私有同步实现 ======
 
-    private void appendBlocking(String userId, String role, String content, String metadataJson) {
+    private void appendBlocking(String userId, String role, String content, String metadataJson, @Nullable String mood) {
         String tokenized = codepointSplit(content);
         // 同事务保证 last_insert_rowid 与刚 INSERT 的主表行对齐，且失败时两条都回滚
         tx.executeWithoutResult(status -> {
             jdbc.update(
-                    "INSERT INTO cold_memory (user_id, role, content, metadata, created_at) VALUES (?, ?, ?, ?, ?)",
-                    userId, role, content, metadataJson, System.currentTimeMillis());
+                    "INSERT INTO cold_memory (user_id, role, content, metadata, mood, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    userId, role, content, metadataJson, mood, System.currentTimeMillis());
             jdbc.update(
                     "INSERT INTO cold_memory_fts (rowid, content) SELECT last_insert_rowid(), ?",
                     tokenized);
@@ -121,7 +123,7 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
         String matchExpr = buildFtsMatchExpression(keyword);
         if (matchExpr == null) return List.of();
         return jdbc.query("""
-                        SELECT ms.id, ms.role, ms.content, ms.created_at
+                        SELECT ms.id, ms.role, ms.content, ms.mood, ms.created_at
                         FROM cold_memory_fts
                         JOIN cold_memory ms ON cold_memory_fts.rowid = ms.id
                         WHERE cold_memory_fts MATCH ? AND ms.user_id = ?
@@ -132,6 +134,7 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
                         rs.getLong("id"),
                         rs.getString("role"),
                         rs.getString("content"),
+                        rs.getString("mood"),
                         rs.getLong("created_at")),
                 matchExpr, userId, safeLimit);
     }
@@ -158,11 +161,12 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
     private List<ColdMemoryEntry> loadRecentBlocking(String userId, int limit) {
         int safeLimit = Math.min(Math.max(limit, 1), SEARCH_LIMIT_HARD_MAX);
         return jdbc.query(
-                "SELECT id, role, content, created_at FROM cold_memory WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                "SELECT id, role, content, mood, created_at FROM cold_memory WHERE user_id = ? ORDER BY id DESC LIMIT ?",
                 (rs, i) -> new ColdMemoryEntry(
                         rs.getLong("id"),
                         rs.getString("role"),
                         rs.getString("content"),
+                        rs.getString("mood"),
                         rs.getLong("created_at")),
                 userId, safeLimit);
     }

@@ -50,10 +50,11 @@ public interface AnchorMemoryStore {
     Mono<List<AnchorMemoryEntry>> listByUser(String userId);
 
     /**
-     * 标记锚点为活跃——更新 last_active_at = now，同时把 summary 置 NULL（回访场景，旧摘要作废）。
+     * 标记锚点为活跃——更新 last_active_at = now，同时把 summary 置 NULL（回访场景，旧摘要作废），
+     * 并把本轮 AI 最后一次 mood 写入 last_mood（COALESCE 语义：null 不覆盖旧值，保留"上次的情绪"）。
      * 由 ChatService.onStreamComplete 调用。
      */
-    Mono<Void> touch(String anchorId);
+    Mono<Void> touch(String anchorId, @Nullable String lastMood);
 
     /**
      * CAS 写入压缩摘要——仅当 last_active_at 与快照值一致时才写入。

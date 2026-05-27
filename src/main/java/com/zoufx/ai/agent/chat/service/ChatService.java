@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 聊天编排服务。一个类里能看见完整的"对话生命周期"：
@@ -102,9 +103,11 @@ public class ChatService {
         // 流式 Flux 在单个 subscriber 上 onNext 串行，StringBuilder 线程安全足够；
         // retry 只在首次 emit 前生效，触发时此 buffer 仍是空，不会与重试残留串味
         StringBuilder assistantBuffer = new StringBuilder();
+        // 本轮最后一次 mood，由 MoodEventProcessor.flush() 时回填，onStreamComplete 读取落库
+        AtomicReference<String> lastMood = new AtomicReference<>();
 
         return beforeStream(anchorId, userId, prompt)
-                .thenMany(buildStream(chatAssistant, anchorId, userId, prompt, hasEmitted, assistantBuffer));
+                .thenMany(buildStream(chatAssistant, anchorId, userId, prompt, hasEmitted, assistantBuffer, lastMood));
     }
 
     /**
@@ -137,7 +140,7 @@ public class ChatService {
                     return Mono.empty();
                 })
                 .then();
-        Mono<Void> appendUser = coldMemoryStore.append(userId, "user", prompt, null)
+        Mono<Void> appendUser = coldMemoryStore.append(userId, "user", prompt, null, null)
                 .onErrorResume(err -> {
                     log.warn("Failed to append user message to cold_memory [userId={}]: {}",
                             userId, err.toString());
@@ -150,8 +153,9 @@ public class ChatService {
      * LLM 流主体：在最外层 {@code Flux.create} 里启动 LC4J TokenStream，叠加重试 / 收集 / 错误兜底 / 完成钩子。
      */
     private Flux<ChatEvent> buildStream(ChatAssistant assistant, String anchorId, String userId, String prompt,
-                                        AtomicBoolean hasEmitted, StringBuilder assistantBuffer) {
-        return Flux.<ChatEvent>create(sink -> startTokenStream(sink, assistant, anchorId, userId, prompt, hasEmitted))
+                                        AtomicBoolean hasEmitted, StringBuilder assistantBuffer,
+                                        AtomicReference<String> lastMood) {
+        return Flux.<ChatEvent>create(sink -> startTokenStream(sink, assistant, anchorId, userId, prompt, hasEmitted, lastMood))
                 .retryWhen(buildRetrySpec(hasEmitted))
                 .doOnNext(event -> {
                     if ("content".equals(event.type())) {
@@ -163,7 +167,7 @@ public class ChatService {
                     String msg = err.getMessage() != null ? err.getMessage() : "AI 服务异常，请稍后重试";
                     return Flux.just(new ChatEvent("error", msg));
                 })
-                .doOnComplete(() -> onStreamComplete(anchorId, userId, prompt, assistantBuffer))
+                .doOnComplete(() -> onStreamComplete(anchorId, userId, prompt, assistantBuffer, lastMood.get()))
                 .doOnCancel(() -> log.info("Stream cancelled [anchorId={}, userId={}]", anchorId, userId));
     }
 
@@ -175,7 +179,8 @@ public class ChatService {
      * LC4J 的回调跑在框架自己的线程上，与 WebFlux event loop 隔离。
      */
     private void startTokenStream(FluxSink<ChatEvent> sink, ChatAssistant assistant,
-                                  String anchorId, String userId, String prompt, AtomicBoolean hasEmitted) {
+                                  String anchorId, String userId, String prompt, AtomicBoolean hasEmitted,
+                                  AtomicReference<String> lastMood) {
         // mood 启用时用 MoodEventProcessor 包装 content 输出——剥离 <!--mood:KEYWORD-->，独立发 mood 事件。
         // 一条请求一个实例：内部维护 tail buffer + 命中状态，请求结束 flush() 兜底。
         final MoodEventProcessor moodStripper = soulProperties.getMood().isEnabled()
@@ -217,7 +222,12 @@ public class ChatService {
                 .onError(sink::error)
                 .onCompleteResponse(r -> {
                     log.info("Stream completed [anchorId={}]", anchorId);
-                    if (moodStripper != null) moodStripper.flush();
+                    if (moodStripper != null) {
+                        moodStripper.flush();
+                        // moodStripper 在 startTokenStream 局部作用域，必须在此处把 mood 落到外部 ref
+                        // 供 doOnComplete 的 onStreamComplete 持久化到 anchor.last_mood / cold_memory.mood
+                        lastMood.set(moodStripper.getLastMood());
+                    }
                     sink.complete();
                 })
                 .start();
@@ -232,8 +242,9 @@ public class ChatService {
      * </ol>
      * 全部异步、失败仅记日志，不重抛——副作用失败不应影响已经返回给用户的对话内容。
      */
-    private void onStreamComplete(String anchorId, String userId, String prompt, StringBuilder buffer) {
-        anchorMemoryStore.touch(anchorId)
+    private void onStreamComplete(String anchorId, String userId, String prompt, StringBuilder buffer,
+                                  @Nullable String lastMood) {
+        anchorMemoryStore.touch(anchorId, lastMood)
                 .onErrorResume(err -> {
                     log.warn("Failed to touch anchor [anchorId={}]: {}", anchorId, err.toString());
                     return Mono.empty();
@@ -251,7 +262,7 @@ public class ChatService {
         }
 
         if (buffer.length() > 0) {
-            coldMemoryStore.append(userId, "assistant", buffer.toString(), null)
+            coldMemoryStore.append(userId, "assistant", buffer.toString(), null, lastMood)
                     .onErrorResume(err -> {
                         log.warn("Failed to append assistant message to cold_memory [userId={}]: {}",
                                 userId, err.toString());

@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.memory.api;
 
+import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Mono;
 import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
 
@@ -29,8 +30,9 @@ public interface ColdMemoryStore {
      *
      * @param role         'user' / 'assistant' / 'tool'（v0.1 暂不写）/ 'reflection'（v0.3 预留）
      * @param metadataJson JSON 字符串，v0.1 留空；v0.2 写入 importance/tags/embedding_id
+     * @param mood         AI 回复时的情绪关键词（6 词表），仅 assistant 消息有值；user 消息传 null
      */
-    Mono<Void> append(String userId, String role, String content, String metadataJson);
+    Mono<Void> append(String userId, String role, String content, String metadataJson, @Nullable String mood);
 
     /**
      * FTS5 全文检索经历流。必须带 userId 过滤防跨用户泄露。

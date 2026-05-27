@@ -2,6 +2,7 @@ package com.zoufx.ai.agent.chat.support;
 
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.FluxSink;
 
 import java.util.regex.Matcher;
@@ -29,6 +30,8 @@ public class MoodEventProcessor {
     private final FluxSink<ChatEvent> sink;
     private final String userId;
     private final StringBuilder buffer = new StringBuilder();
+    /** 本轮最后一次命中的 mood 关键词；流末由 ChatService 取出落库到 anchor.last_mood / cold_memory.mood。 */
+    @Nullable private String lastMood;
 
     public MoodEventProcessor(int tailSize, FluxSink<ChatEvent> sink, String userId) {
         this.tailSize = tailSize;
@@ -69,8 +72,15 @@ public class MoodEventProcessor {
             }
             buffer.delete(0, m.end());
             sink.next(new ChatEvent("mood", moodPayload(mood)));
+            lastMood = mood;
             log.info("Mood stripped [userId={}] mood={}", userId, mood);
         }
+    }
+
+    /** 本轮最后一次 mood，无则 null。一轮 LLM 多次 mood 标记时以最后一次为准（与前端 setMood 语义一致）。 */
+    @Nullable
+    public String getLastMood() {
+        return lastMood;
     }
 
     /** 流式途中：总是保留尾部 tailSize 字符，防止跨 chunk 切碎下一个可能的标记。 */
