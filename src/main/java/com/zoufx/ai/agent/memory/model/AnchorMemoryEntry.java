@@ -1,0 +1,21 @@
+package com.zoufx.ai.agent.memory.model;
+
+import org.jspecify.annotations.Nullable;
+
+/**
+ * 锚点元数据——一次对话窗口的归属信息。
+ *
+ * <p>{@code summary} 在锚点活跃时为 null（用户正在用，不压缩）；切走该锚点的瞬间由
+ * {@code AnchorService} 异步生成并写入。回访锚点时被置回 null，等下次切走再压。
+ *
+ * <p>{@code title} 创建时可为 null，{@code ChatService.onStreamComplete} 用首条 user 消息
+ * 截取自动 backfill；前端 PATCH /ai/anchor/{id}/title 也可无条件覆盖。
+ */
+public record AnchorMemoryEntry(
+        String id,
+        String userId,
+        @Nullable String title,
+        @Nullable String summary,
+        long createdAt,
+        long lastActiveAt) {
+}

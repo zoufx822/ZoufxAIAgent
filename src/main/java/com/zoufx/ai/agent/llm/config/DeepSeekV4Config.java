@@ -2,7 +2,9 @@ package com.zoufx.ai.agent.llm.config;
 
 import com.zoufx.ai.agent.chat.api.LlmCapabilities;
 import com.zoufx.ai.agent.llm.property.DeepSeekV4Properties;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +52,21 @@ public class DeepSeekV4Config {
                 // 测试期开启完整请求/响应日志，便于观察发给 LLM 的真实 JSON
                 .logRequests(true)
                 .logResponses(true)
+                .build();
+    }
+
+    /**
+     * 同步 ChatModel——供 AnchorService 做一次性摘要压缩。不参与流式聊天主路。
+     * 摘要场景无需 thinking 多轮回传，故略去 returnThinking/sendThinking。
+     */
+    @Bean
+    public ChatModel chatModelSync() {
+        return OpenAiChatModel.builder()
+                .apiKey(props.getApiKey())
+                .baseUrl(props.getBaseUrl())
+                .modelName(props.getChat().getModel())
+                .maxTokens(props.getChat().getMaxTokens())
+                .timeout(props.getTimeout())
                 .build();
     }
 

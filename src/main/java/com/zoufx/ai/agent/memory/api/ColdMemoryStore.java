@@ -8,8 +8,8 @@ import java.util.List;
 /**
  * 冷内存（Cold Archive）业务接口——经历流存储。
  *
- * 与 {@link AnchorMemoryStore}（工作记忆，LC4J ChatMemoryStore 载体）并行：
- * - {@link AnchorMemoryStore}：滑窗 20 条，全量替换语义
+ * 与 {@link ChatMemoryStore}（工作记忆，继承 LC4J ChatMemoryStore）并行：
+ * - {@link ChatMemoryStore}：滑窗 20 条，全量替换语义
  * - {@link ColdMemoryStore}：所有用户/AI 消息按时间序==只追加==，无上限
  *
  * 写入路径为 Controller-driven Append（不在 LC4J Hook 里做，避免与 LC4J 全量替换语义冲突）：

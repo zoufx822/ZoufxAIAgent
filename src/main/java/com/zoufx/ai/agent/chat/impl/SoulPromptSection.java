@@ -28,7 +28,7 @@ public class SoulPromptSection implements PromptSection {
 
     @Override
     @Nullable
-    public String render(@Nullable String memoryId) {
+    public String render(@Nullable String userId, @Nullable String anchorId) {
         Map<String, String> snap = soulStore.snapshot();
         if (snap.isEmpty()) return null;
 

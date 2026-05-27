@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.tool.impl;
 
+import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
@@ -25,6 +26,7 @@ import java.util.UUID;
 public class CommitmentRecordTool implements ToolPrompt {
 
     private final HotMemoryStore hotMemoryStore;
+    private final AnchorMemoryStore anchorMemoryStore;
 
     @Override
     public String section() {
@@ -65,12 +67,17 @@ public class CommitmentRecordTool implements ToolPrompt {
             + "AI 答应对方、对方答应 AI、双方共同约定，三类承诺都进本工具。"
             + "description 必须以「我（AI）答应{对方称呼}：」/「{对方称呼}答应我：」/「我们约定：」三种前缀之一开头。")
     public String record_commitment(
-            @ToolMemoryId String userId,
+            @ToolMemoryId String memoryId,
             @P("承诺的完整描述，必须带前缀。"
                     + "例：\"我（AI）答应{对方称呼}：本周帮其梳理 React 学习路径\" / "
                     + "\"{对方称呼}答应我：本周内 review 完代码\" / "
                     + "\"我们约定：一起读 SICP\"。"
                     + "{对方称呼} 占位用已知 username；未知时用「对方」。") String description) {
+        String userId = anchorMemoryStore.findUserId(memoryId);
+        if (userId == null) {
+            log.error("record_commitment: unknown memoryId={}", memoryId);
+            return "record_commitment 调用失败：未识别的对话上下文";
+        }
         if (description == null || description.isBlank()) {
             return "record_commitment 调用失败：description 不能为空";
         }

@@ -77,7 +77,8 @@
       "Read(//c/Users/Administrator/.m2/repository/dev/langchain4j/langchain4j-anthropic/**)",
       "Bash(mvn -DskipTests clean compile)",
       "Bash(pnpm exec *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(./mvnw compile *)"
     ]
   }
 }

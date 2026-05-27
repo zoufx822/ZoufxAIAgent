@@ -29,7 +29,7 @@ public class SignificantEventSection implements PromptSection {
 
     @Override
     @Nullable
-    public String render(@Nullable String userId) {
+    public String render(@Nullable String userId, @Nullable String anchorId) {
         if (userId == null) return null;
         int limit = properties.getHot().getSignificantEvent().getRecentInjectLimit();
         if (limit <= 0) return null;

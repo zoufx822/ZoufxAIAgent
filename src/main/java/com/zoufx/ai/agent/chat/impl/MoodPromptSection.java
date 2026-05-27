@@ -29,7 +29,7 @@ public class MoodPromptSection implements PromptSection {
 
     @Override
     @Nullable
-    public String render(@Nullable String memoryId) {
+    public String render(@Nullable String userId, @Nullable String anchorId) {
         if (!soulProperties.getMood().isEnabled()) return null;
 
         return "## 情绪标记\n\n"

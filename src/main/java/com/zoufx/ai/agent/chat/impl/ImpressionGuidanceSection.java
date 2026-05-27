@@ -64,7 +64,7 @@ public class ImpressionGuidanceSection implements PromptSection {
 
     @Override
     @Nullable
-    public String render(@Nullable String userId) {
+    public String render(@Nullable String userId, @Nullable String anchorId) {
         if (userId == null) return null;
         Map<String, String> snap = hotMemoryStore.snapshot(userId, HotMemoryType.USER_IMPRESSION);
 

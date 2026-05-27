@@ -30,7 +30,7 @@ public class CommitmentSection implements PromptSection {
 
     @Override
     @Nullable
-    public String render(@Nullable String userId) {
+    public String render(@Nullable String userId, @Nullable String anchorId) {
         if (userId == null) return null;
         int limit = properties.getHot().getCommitment().getRecentInjectLimit();
         if (limit <= 0) return null;

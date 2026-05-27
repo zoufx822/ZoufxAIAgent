@@ -2,7 +2,9 @@ package com.zoufx.ai.agent.llm.config;
 
 import com.zoufx.ai.agent.chat.api.LlmCapabilities;
 import com.zoufx.ai.agent.llm.property.MinimaxProperties;
+import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
+import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +55,27 @@ public class MinimaxConfig {
                 .sendThinking(true)
                 .logRequests(true)
                 .logResponses(true)
+                .build();
+    }
+
+    /**
+     * 同步 ChatModel——供 AnchorService 做一次性摘要压缩。不参与流式聊天主路。
+     * 与 streaming 版本一致 builder 期固定开启 thinking，避免协议层 reasoning_content 回传报错。
+     */
+    @Bean
+    public ChatModel chatModelSync() {
+        MinimaxProperties.Thinking thinking = props.getThinking();
+        return AnthropicChatModel.builder()
+                .apiKey(props.getApiKey())
+                .baseUrl(props.getBaseUrl())
+                .version(props.getVersion())
+                .modelName(props.getChat().getModel())
+                .maxTokens(props.getChat().getMaxTokens())
+                .timeout(props.getTimeout())
+                .thinkingType(thinking.getType())
+                .thinkingBudgetTokens(thinking.getBudgetTokens())
+                .returnThinking(true)
+                .sendThinking(true)
                 .build();
     }
 

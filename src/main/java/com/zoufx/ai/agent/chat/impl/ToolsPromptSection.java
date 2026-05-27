@@ -26,7 +26,7 @@ public class ToolsPromptSection implements PromptSection {
 
     @Override
     @Nullable
-    public String render(@Nullable String memoryId) {
+    public String render(@Nullable String userId, @Nullable String anchorId) {
         if (tools.isEmpty()) return null;
         String body = tools.stream()
                 .map(t -> "### " + t.section() + "\n" + t.promptInstructions())

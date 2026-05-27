@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.tool.impl;
 
+import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
@@ -25,6 +26,7 @@ import java.util.UUID;
 public class SignificantEventRecordTool implements ToolPrompt {
 
     private final HotMemoryStore hotMemoryStore;
+    private final AnchorMemoryStore anchorMemoryStore;
 
     @Override
     public String section() {
@@ -55,9 +57,14 @@ public class SignificantEventRecordTool implements ToolPrompt {
     @Tool("重要经历记录：识别到对方的情绪显著人生事件 / 长期处境 / 第一次提到的带时间标记的具体经历时调用，"
             + "写入长期记忆。叙事性 append-only —— 每次调用产生一条独立记录。")
     public String record_significant_event(
-            @ToolMemoryId String userId,
+            @ToolMemoryId String memoryId,
             @P("事件的完整叙事描述。例：\"去年父亲去世\"、\"正在备考研究生\"、\"刚结束一段七年的感情\"。"
                     + "不要只写关键词；不要包含时间戳（系统自动记录）。") String description) {
+        String userId = anchorMemoryStore.findUserId(memoryId);
+        if (userId == null) {
+            log.error("record_significant_event: unknown memoryId={}", memoryId);
+            return "record_significant_event 调用失败：未识别的对话上下文";
+        }
         if (description == null || description.isBlank()) {
             return "record_significant_event 调用失败：description 不能为空";
         }

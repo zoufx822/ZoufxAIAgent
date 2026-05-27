@@ -1,6 +1,7 @@
 package com.zoufx.ai.agent.chat.support;
 
 import com.zoufx.ai.agent.chat.api.PromptSection;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
@@ -34,29 +35,32 @@ public class SystemPromptComposer {
             DateTimeFormatter.ofPattern("yyyy 年 M 月 d 日", Locale.CHINA);
 
     private final List<PromptSection> sections;
+    private final AnchorMemoryStore anchorMemoryStore;
 
-    public SystemPromptComposer(List<PromptSection> sections) {
+    public SystemPromptComposer(List<PromptSection> sections, AnchorMemoryStore anchorMemoryStore) {
         this.sections = sections.stream()
                 .sorted(Comparator.comparingInt(PromptSection::order))
                 .toList();
+        this.anchorMemoryStore = anchorMemoryStore;
     }
 
     public Function<Object, String> asProvider() {
-        return memoryId -> compose(memoryId == null ? null : memoryId.toString());
+        return anchorId -> compose(anchorId == null ? null : anchorId.toString());
     }
 
-    public String compose(@Nullable String memoryId) {
-        StringBuilder sb = new StringBuilder();
+    public String compose(@Nullable String anchorId) {
+        String userId = anchorId != null ? anchorMemoryStore.findUserId(anchorId) : null;
 
+        StringBuilder sb = new StringBuilder();
         sb.append("当前日期：").append(LocalDate.now().format(DATE_FMT)).append("\n\n");
 
         for (PromptSection sec : sections) {
             String rendered;
             try {
-                rendered = sec.render(memoryId);
+                rendered = sec.render(userId, anchorId);
             } catch (Exception e) {
-                log.error("PromptSection {} render failed, section skipped (memoryId={})",
-                        sec.getClass().getSimpleName(), memoryId, e);
+                log.error("PromptSection {} render failed, section skipped (anchorId={})",
+                        sec.getClass().getSimpleName(), anchorId, e);
                 continue;
             }
             if (rendered == null || rendered.isBlank()) continue;

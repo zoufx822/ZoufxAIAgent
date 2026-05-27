@@ -1,17 +1,18 @@
 package com.zoufx.ai.agent.memory.config;
 
 import com.zoufx.ai.agent.memory.property.MemoryProperties;
+import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
 import dev.langchain4j.memory.chat.ChatMemoryProvider;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
-import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
  * 会话记忆装配。
- * ChatMemoryStore 实现由 {@link com.zoufx.ai.agent.memory.impl.SqliteAnchorMemoryStore} 提供（@Component 自动注入），
- * v0.01 起切到 SQLite 持久化；未来切 Redis / Postgres 只需替换该 Bean。
+ * ChatMemoryStore 实现由 {@link com.zoufx.ai.agent.memory.impl.SqliteChatMemoryStore} 提供（@Component 自动注入），
+ * 本地接口继承 LC4J 的 ChatMemoryStore，可直接作为 MessageWindowChatMemory.builder().chatMemoryStore() 入参。
+ * 未来切 Redis / Postgres 只需替换该 Bean。
  */
 @Configuration
 @RequiredArgsConstructor

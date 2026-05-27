@@ -17,7 +17,7 @@ import java.util.List;
  * 冷内存（ColdMemoryStore）的 SQLite + FTS5 实现。
  *
  * 设计要点：
- * - 与 SqliteAnchorMemoryStore 共用 memoryDataSource / memoryJdbcTemplate（HikariCP + WAL）
+ * - 与 SqliteChatMemoryStore 共用 memoryDataSource / memoryJdbcTemplate（HikariCP + WAL）
  * - 表 / 虚表 / 触发器在自身 {@code @PostConstruct} 里建——每个 store 类自管自己的 schema，避免 schema-bootstrap 全局类
  *
  * FTS5 中文分词处理：

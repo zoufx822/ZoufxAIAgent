@@ -1,32 +1,22 @@
 package com.zoufx.ai.agent.chat.model;
 
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
+import org.jspecify.annotations.Nullable;
 
 /**
  * 聊天请求 DTO。
- * userId 是后端记忆分区键（v0.01 起取代 sessionId）。前端 sidebar 的"多开聊天"概念仅作 UI 分组，不再传给后端。
  *
- * 入参校验：null / 全空白 都会被 @NotBlank 拦截，由 GlobalExceptionHandler 翻译为 HTTP 400。
+ * <p>{@code anchorId} 是 v0.145 起的后端记忆分区键（取代 v0.01-v0.14 的 userId）——
+ * 一个 anchor = 一次对话窗口；userId 由 {@code AnchorMemoryStore.findUserId(anchorId)} 反查。
+ *
+ * <p>{@code prevAnchorId} 仅在客户端发生"锚点切换"时携带（即上一条消息所在锚点 ≠ 本次 anchorId）。
+ * 后端据此 fire-and-forget 触发对前一锚点消息流的 LLM 摘要压缩，写入 anchor.summary 缓存。
+ *
+ * <p>入参校验：null / 全空白 都会被 @NotBlank 拦截，由 GlobalExceptionHandler 翻译为 HTTP 400。
  */
-@Data
-public class ChatRequest {
-
-    @NotBlank(message = "不能为空")
-    private String prompt;
-
-    @NotBlank(message = "不能为空")
-    private String userId;
-
-    /**
-     * 用户希望本轮 LLM 思考（v0.135 起语义重定义）。
-     *
-     * <p>v0.13 及之前的语义为"路由到 thinkingAssistant 还是 nonThinkingAssistant"（实现细节泄漏）；
-     * v0.135 合并双 Assistant 后，本字段重定义为==用户意图==：true 表示希望本轮模型深思考。
-     *
-     * <p>当前激活 profile 的 capability（{@code GET /ai/capabilities}）决定本字段是否生效：
-     * {@code thinkingToggle=false} 时被后端 {@code ChatService} 静默忽略 + warn log，不报 400。
-     * 前端可按 capability 决定是否在请求体携带本字段。
-     */
-    private boolean thinking = false;
+public record ChatRequest(
+        @NotBlank(message = "不能为空") String prompt,
+        @NotBlank(message = "不能为空") String anchorId,
+        @Nullable String prevAnchorId,
+        boolean thinking) {
 }

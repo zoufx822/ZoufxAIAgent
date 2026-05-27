@@ -1,33 +1,82 @@
 package com.zoufx.ai.agent.memory.api;
 
-import dev.langchain4j.data.message.ChatMessage;
+import com.zoufx.ai.agent.memory.model.AnchorMemoryEntry;
+import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
 
 /**
- * 锚点存储业务接口（反应式）——管理 anchor_memory 表，按 anchorId 隔离对话消息。
+ * 锚点记忆业务接口——管理 anchor_memory 表，承载 anchorId ↔ userId 关联 + title / summary 缓存。
  *
- * <p>与 LC4J {@link dev.langchain4j.store.memory.chat.ChatMemoryStore}（技术接口）分工：
- * ChatMemoryStore 由框架按 Object memoryId 调，本接口面向业务按 String userId/anchorId 调。
- * 实现类 {@code SqliteAnchorMemoryStore} 双接口共用一套 JDBC 通路。
- *
- * <p>所有方法返回 Mono，阻塞 JDBC 在 boundedElastic 调度。
+ * <p><b>读/写签名分裂原因</b>：
+ * <ul>
+ *   <li>{@link #findUserId} / {@link #listOtherAnchorsSync} / {@link #snapshotActiveAt} 同步——
+ *       调用方 PromptSection.render / @Tool 方法不能 .block() 也不便包 Mono</li>
+ *   <li>create / touch / updateSummaryIfUnchanged / updateTitleIfBlank 反应式——
+ *       调用方在 WebFlux Controller / ChatService 流式编排上，需要反应式串接</li>
+ * </ul>
  */
 public interface AnchorMemoryStore {
 
-    Mono<List<ChatMessage>> loadByUserId(String userId);
-
-    Mono<Void> saveByUserId(String userId, List<ChatMessage> messages);
-
-    Mono<Void> deleteByUserId(String userId);
+    /**
+     * 同步反查 userId——给 PromptSection 与 @Tool 方法使用。
+     * anchorId 不存在返回 null，调用方自行处理（一般跳过本段 / 返回工具调用失败）。
+     */
+    @Nullable String findUserId(String anchorId);
 
     /**
-     * 清理孤儿 tool 消息——AiMessage(tool_calls) 没对应 ToolExecutionResultMessage，反之亦然。
-     * <p>触发场景：用户在 LC4J 调用工具期间按下前端 stop 按钮，导致 anchor_memory 残留半成品消息序列。
-     * 由 {@link com.zoufx.ai.agent.chat.service.ChatService#beforeStream} 在每次请求入口调一次，
-     * 在 LC4J 接管 ChatMemoryStore 之前持久化清理，让 LC4J 内部 add 流程不受 sanitize 干扰。
-     * <p>返回是否真的清理了内容（仅用于日志）。
+     * 同步加载该用户的其他锚点（排除当前 anchorId），按 last_active_at desc。
+     * 供 {@code AnchorContextSection.render} 用。
      */
-    Mono<Boolean> cleanupOrphans(String userId);
+    List<AnchorMemoryEntry> listOtherAnchorsSync(String userId, String excludeAnchorId);
+
+    /**
+     * 同步读取锚点当前 last_active_at——供 {@link com.zoufx.ai.agent.chat.service.AnchorService#compress}
+     * 在压缩前快照，写回时做 CAS 防止覆盖 touch 后的活跃状态。
+     * anchorId 不存在返回 null。
+     */
+    @Nullable Long snapshotActiveAt(String anchorId);
+
+    /**
+     * 创建新锚点。anchorId 由实现侧生成（UUID），返回完整 AnchorMemoryEntry 含创建时间。
+     * title 可为 null，首次 chat 完成后由 {@link #updateTitleIfBlank} backfill。
+     */
+    Mono<AnchorMemoryEntry> create(String userId, @Nullable String title);
+
+    /**
+     * 列出该用户全部锚点，按 last_active_at desc。给前端 sidebar 用。
+     */
+    Mono<List<AnchorMemoryEntry>> listByUser(String userId);
+
+    /**
+     * 标记锚点为活跃——更新 last_active_at = now，同时把 summary 置 NULL（回访场景，旧摘要作废）。
+     * 由 ChatService.onStreamComplete 调用。
+     */
+    Mono<Void> touch(String anchorId);
+
+    /**
+     * CAS 写入压缩摘要——仅当 last_active_at 与快照值一致时才写入。
+     * 若 touch 在压缩期间推进了时间戳，CAS 不匹配 → 静默丢弃过时摘要，summary 维持 NULL（活跃状态）。
+     * 由 {@link com.zoufx.ai.agent.chat.service.AnchorService#compress} 调用。
+     */
+    Mono<Void> updateSummaryIfUnchanged(String anchorId, String summary, long snapshotAt);
+
+    /**
+     * 仅当 title 为 null / 空白时填入——避免覆盖用户手动改过的标题。
+     * 由 ChatService.onStreamComplete 用首条用户消息截取后调用。
+     */
+    Mono<Void> updateTitleIfBlank(String anchorId, String title);
+
+    /**
+     * 无条件覆盖 title——由前端 PATCH /ai/anchor/{id}/title 用户手动改名时调。
+     * 与 {@link #updateTitleIfBlank} 区分：后者只填空，本方法强写。
+     */
+    Mono<Void> updateTitle(String anchorId, String title);
+
+    /**
+     * 删除锚点元数据。注意：本方法只删 anchor_memory 表，消息流要单独调
+     * {@link ChatMemoryStore#deleteByAnchorId} 才清干净。
+     */
+    Mono<Void> delete(String anchorId);
 }

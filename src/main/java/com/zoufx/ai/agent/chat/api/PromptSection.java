@@ -25,8 +25,9 @@ public interface PromptSection {
     /**
      * 渲染本段内容。
      *
-     * @param memoryId LC4J 透传的 memoryId（本项目语义即 userId）。可能为 null（无身份上下文场景）。
+     * @param userId   当前 anchorId 对应的用户，由 {@code SystemPromptComposer} 解析一次传入，可能为 null。
+     * @param anchorId LC4J 透传的 MemoryId（记忆锚点窗口 id），可能为 null。
      * @return 段内容，已包含必要的换行；null / 空串表示本段在当前请求跳过。
      */
-    @Nullable String render(@Nullable String memoryId);
+    @Nullable String render(@Nullable String userId, @Nullable String anchorId);
 }
