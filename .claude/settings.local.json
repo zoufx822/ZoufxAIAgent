@@ -81,7 +81,16 @@
       "Bash(./mvnw compile *)",
       "Bash(git -C \"E:/ZoufxDemo/ZoufxAIAgent-Web\" diff HEAD --stat)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/ai/capabilities)",
-      "WebFetch(domain:api.anthropic.com)"
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(git -C E:/ZoufxDemo/ZoufxAIAgent log --oneline -15)",
+      "Bash(git -C E:/ZoufxDemo/ZoufxAIAgent-Web log --oneline -15)",
+      "Bash(git -C E:/ZoufxDemo/ZoufxAIAgent push)",
+      "Bash(git -C E:/ZoufxDemo/ZoufxAIAgent-Web push)",
+      "Bash(git ls-files *)",
+      "Bash(find /c/Users/Administrator/.claude -name \"*.md\" -path \"*/skills/*\" 2>/dev/null | head -20)",
+      "Read(//c/Users/Administrator/.claude/**)",
+      "Bash(find /c/Users/Administrator/.claude -type d 2>/dev/null | head -20)",
+      "Bash(sqlite3 \"e:/ZoufxDemo/ZoufxAIAgent/data/zoufx-ai.db\")"
     ]
   }
 }

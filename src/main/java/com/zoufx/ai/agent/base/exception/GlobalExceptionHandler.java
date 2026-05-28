@@ -28,13 +28,23 @@ public class GlobalExceptionHandler {
                 .map(e -> e.getField() + " " + e.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         log.warn("Validation failed: {}", message);
-        // controller 用 produces=TEXT_EVENT_STREAM_VALUE 会让 Spring 把异常响应也包成 SSE，
-        // 显式指定 JSON 让 4xx 响应保持标准 REST 语义
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of(
                         "error", "VALIDATION_FAILED",
                         "message", message,
+                        "timestamp", Instant.now().toString()
+                ));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> onIllegalArgument(IllegalArgumentException ex) {
+        log.warn("Bad argument: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "error", "VALIDATION_FAILED",
+                        "message", ex.getMessage(),
                         "timestamp", Instant.now().toString()
                 ));
     }

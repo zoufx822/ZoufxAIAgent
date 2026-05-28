@@ -129,6 +129,9 @@ public class ChatController {
     @GetMapping("/memory/hot")
     public Mono<Map<String, String>> hotMemory(@RequestParam String userId,
                                                @RequestParam String type) {
+        if (!HotMemoryType.ALL.contains(type)) {
+            return Mono.error(new IllegalArgumentException("type 无效: " + type));
+        }
         return Mono.fromCallable(() -> hotMemoryStore.snapshot(userId, type));
     }
 

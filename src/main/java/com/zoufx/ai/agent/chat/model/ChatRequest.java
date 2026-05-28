@@ -11,10 +11,16 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code prevAnchorId} 仅在客户端发生"锚点切换"时携带（即上一条消息所在锚点 ≠ 本次 anchorId）。
  * 后端据此 fire-and-forget 触发对前一锚点消息流的 LLM 摘要压缩，写入 anchor.summary 缓存。
+ *
+ * <p>{@code thinking} 用 Boolean 包装类型——原始 boolean 在 JSON 缺失时
+ * 会让 Jackson 直接抛 400 Bad Request（早于 validation），compact constructor 设默认 false 兼容旧客户端。
  */
 public record ChatRequest(
         @NotBlank(message = "不能为空") String prompt,
         @NotBlank(message = "不能为空") String anchorId,
         @Nullable String prevAnchorId,
-        boolean thinking) {
+        @Nullable Boolean thinking) {
+    public ChatRequest {
+        if (thinking == null) thinking = false;
+    }
 }
