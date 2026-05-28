@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.tool.impl;
 
+import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
 import dev.langchain4j.agent.tool.P;
@@ -31,6 +32,7 @@ public class ColdMemorySearchTool implements ToolPrompt {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.CHINA).withZone(ZoneId.systemDefault());
 
     private final ColdMemoryStore coldMemoryStore;
+    private final AnchorMemoryStore anchorMemoryStore;
 
     @Override
     public String section() {
@@ -56,9 +58,13 @@ public class ColdMemorySearchTool implements ToolPrompt {
 
     @Tool("记忆检索：从完整记忆流里按关键词检索过往消息。当对方暗示之前说过/聊过/讨论过，而当前对话窗口里看不到时使用。返回带时间戳、角色、内容的结果列表。")
     public String search_cold_memory(
-            @ToolMemoryId String userId,
+            @ToolMemoryId String memoryId,
             @P("搜索关键词（短词或短语，不要用整句话）") String keyword,
             @P("返回条数，默认 5，最大 20") int limit) {
+        String userId = anchorMemoryStore.findUserId(memoryId);
+        if (userId == null) {
+            return "search_cold_memory 调用失败：未识别的对话上下文";
+        }
         if (keyword == null || keyword.isBlank()) {
             return "search_cold_memory 调用失败：keyword 不能为空";
         }

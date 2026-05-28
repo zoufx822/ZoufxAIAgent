@@ -6,9 +6,7 @@ import com.zoufx.ai.agent.chat.model.AnchorCreateRequest;
 import com.zoufx.ai.agent.chat.model.AnchorTitleUpdateRequest;
 import com.zoufx.ai.agent.chat.model.ChatRequest;
 import com.zoufx.ai.agent.chat.service.ChatService;
-import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.UserMessage;
+import com.zoufx.ai.agent.chat.support.ChatMessageHelper;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
@@ -89,7 +87,9 @@ public class ChatController {
     @GetMapping("/anchors/{anchorId}/messages")
     public Mono<List<Map<String, String>>> messages(@PathVariable String anchorId) {
         return chatMemoryStore.loadByAnchorId(anchorId)
-                .map(list -> list.stream().map(ChatController::toMessageView).toList());
+                .map(list -> list.stream()
+                        .map(ChatMessageHelper::toMessageView)
+                        .toList());
     }
 
     /**
@@ -116,18 +116,6 @@ public class ChatController {
     public Mono<Void> renameAnchor(@PathVariable String anchorId,
             @Valid @RequestBody AnchorTitleUpdateRequest request) {
         return anchorMemoryStore.updateTitle(anchorId, request.title().trim());
-    }
-
-    private static Map<String, String> toMessageView(ChatMessage msg) {
-        String role = msg.type().name().toLowerCase();
-        String content = "";
-        if (msg instanceof UserMessage u) {
-            content = u.singleText();
-        } else if (msg instanceof AiMessage a) {
-            String t = a.text();
-            if (t != null) content = t;
-        }
-        return Map.of("role", role, "content", content);
     }
 
     // ====== Memory snapshots ======

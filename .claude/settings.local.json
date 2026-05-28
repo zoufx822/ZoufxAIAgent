@@ -78,7 +78,10 @@
       "Bash(mvn -DskipTests clean compile)",
       "Bash(pnpm exec *)",
       "Bash(npx tsc *)",
-      "Bash(./mvnw compile *)"
+      "Bash(./mvnw compile *)",
+      "Bash(git -C \"E:/ZoufxDemo/ZoufxAIAgent-Web\" diff HEAD --stat)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/ai/capabilities)",
+      "WebFetch(domain:api.anthropic.com)"
     ]
   }
 }

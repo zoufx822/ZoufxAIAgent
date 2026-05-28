@@ -34,6 +34,7 @@ public class ImpressionGuidanceSection implements PromptSection {
 
     static final String STRANGER_PROMPT = """
             你对对方几乎了解不足。在本轮回复里：
+            - ==优先==：若对方本轮主动提供了任何画像信息（自报名字、职业、爱好等），立刻调 update_user_impression 写入，再继续回复——不能只口头确认而不调工具
             - 先正面回应对方主线诉求（不打断、不绕题）
             - 然后自然地引一次问对方的某个画像信息（具体问哪个由系统注入：{fieldQuestion}）
             - 如果 chat memory 显示你之前已经问过该字段且对方没正面答，或对方明确拒绝回答（"不用问""没必要"等），==别再追问==
@@ -43,6 +44,7 @@ public class ImpressionGuidanceSection implements PromptSection {
             """;
     static final String HALF_KNOWN_PROMPT = """
             你已经认识对方一段时间，但对其内在仍不够了解。在合适的时机：
+            - ==优先==：若对方本轮主动提供了任何画像信息，立刻调 update_user_impression 写入，再继续回复——不能只口头确认而不调工具
             - 自然地穿插一句追问，但不要每轮都问，每 2~3 轮一次
             - 当对方分享细节时，主动调 update_user_impression 写入推断到的字段
             - 深度话题可以尝试给意见，但要明示"基于我目前对你的了解"

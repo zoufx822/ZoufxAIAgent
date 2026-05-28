@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * SQLite 实现——只实现业务 {@link ChatMemoryStore} 接口，后者继承 LC4J
@@ -62,6 +63,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
                     anchor_id   TEXT    NOT NULL,
                     role        TEXT    NOT NULL,
                     content     TEXT    NOT NULL,
+                    mood        TEXT,
                     created_at  INTEGER NOT NULL
                 )
                 """);
@@ -190,34 +192,62 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
         return cleaned;
     }
 
+    /** 匹配 AiMessage text 末尾的 mood 标记，持久化前剥离到 mood 列。 */
+    private static final Pattern MOOD_TAG = Pattern.compile("<!--mood:([^>]+?)-->");
+
+    /**
+     * 从 AiMessage 文本末尾提取 mood 关键字，返回剥离后的干净消息。
+     * 非 AiMessage 或文本无 mood 标记时返回原消息 + mood=null。
+     */
+    private static ChatMessage stripMoodAndClean(ChatMessage msg, java.util.function.Consumer<String> moodSink) {
+        if (msg instanceof AiMessage a && a.text() != null) {
+            java.util.regex.Matcher m = MOOD_TAG.matcher(a.text());
+            if (m.find()) {
+                moodSink.accept(m.group(1).trim());
+                String clean = m.replaceAll("");
+                if (a.hasToolExecutionRequests()) {
+                    return AiMessage.from(clean, a.toolExecutionRequests());
+                }
+                return AiMessage.from(clean);
+            }
+        }
+        moodSink.accept(null);
+        return msg;
+    }
+
     private void saveByAnchorIdBlocking(String anchorId, List<ChatMessage> messages) {
-        // user_id 列保留作冗余兜底——通过 anchor 元数据表反查
         String userId = anchorMemoryStore.findUserId(anchorId);
         if (userId == null) {
             throw new IllegalStateException("Unknown anchorId: " + anchorId
                     + " — anchor row must exist before chat_memory writes");
         }
-        // 同批写入按毫秒+偏移单调递增，避免 Memory Stream 模型里所有 created_at 撞车
+        // 持久化前剥离 AiMessage 文本中的 mood 标签到独立 mood 列
+        List<String> moods = new ArrayList<>(messages.size());
+        List<ChatMessage> cleaned = new ArrayList<>(messages.size());
+        for (ChatMessage msg : messages) {
+            cleaned.add(stripMoodAndClean(msg, moods::add));
+        }
         long base = System.currentTimeMillis();
         tx.executeWithoutResult(status -> {
             jdbc.update("DELETE FROM chat_memory WHERE anchor_id = ?", anchorId);
-            if (messages.isEmpty()) return;
+            if (cleaned.isEmpty()) return;
             jdbc.batchUpdate(
-                    "INSERT INTO chat_memory (user_id, anchor_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO chat_memory (user_id, anchor_id, role, content, mood, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                     new BatchPreparedStatementSetter() {
                         @Override
                         public void setValues(PreparedStatement ps, int i) throws SQLException {
-                            ChatMessage msg = messages.get(i);
+                            ChatMessage msg = cleaned.get(i);
                             ps.setString(1, userId);
                             ps.setString(2, anchorId);
                             ps.setString(3, msg.type().name());
                             ps.setString(4, ChatMessageSerializer.messageToJson(msg));
-                            ps.setLong(5, base + i);
+                            ps.setString(5, moods.get(i));
+                            ps.setLong(6, base + i);
                         }
 
                         @Override
                         public int getBatchSize() {
-                            return messages.size();
+                            return cleaned.size();
                         }
                     });
         });

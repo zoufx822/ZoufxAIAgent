@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.tool.impl;
 
+import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields;
@@ -24,6 +25,7 @@ import org.springframework.stereotype.Component;
 public class UserImpressionUpdateTool implements ToolPrompt {
 
     private final HotMemoryStore hotMemoryStore;
+    private final AnchorMemoryStore anchorMemoryStore;
 
     @Override
     public String section() {
@@ -59,11 +61,16 @@ public class UserImpressionUpdateTool implements ToolPrompt {
     @Tool("用户印象更新：识别到对方的属性（外表与内在 —— 称呼/语言/职业/兴趣/对话风格/性格/习惯/爱好/价值观/互动期望）"
             + "时调用，写入长期记忆。包括对方明确告知，也包括对话内容中明确或多次出现的相关信号。")
     public String update_user_impression(
-            @ToolMemoryId String userId,
+            @ToolMemoryId String memoryId,
             // 白名单字面通过 UserImpressionFields.WHITELIST_LITERAL 编译期拼接——
             // 加字段时只改 UserImpressionFields 一处，本注解自动跟随
             @P("属性字段名。必须从白名单选：" + UserImpressionFields.WHITELIST_LITERAL) String key,
             @P("属性值。只传事实本身，不带「我是」「我叫」「我在」等前缀") String value) {
+        String userId = anchorMemoryStore.findUserId(memoryId);
+        if (userId == null) {
+            log.error("update_user_impression: unknown memoryId={}", memoryId);
+            return "update_user_impression 调用失败：未识别的对话上下文";
+        }
         if (key == null || key.isBlank()) {
             return "update_user_impression 调用失败：key 不能为空";
         }
