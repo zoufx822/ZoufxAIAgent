@@ -106,7 +106,7 @@ public class ChatService {
         // 本轮最后一次 mood，由 MoodEventProcessor.flush() 时回填，onStreamComplete 读取落库
         AtomicReference<String> lastMood = new AtomicReference<>();
 
-        return beforeStream(anchorId, userId, prompt)
+        return beforeStream(userId, prompt)
                 .thenMany(buildStream(chatAssistant, anchorId, userId, prompt, hasEmitted, assistantBuffer, lastMood));
     }
 
@@ -121,32 +121,16 @@ public class ChatService {
     }
 
     /**
-     * Hook：流启动前——
-     * <ol>
-     *   <li>持久化清理 chat_memory 里的孤儿 tool 消息（防止上一次 stop 留下半成品消息序列让 LLM 校验失败）</li>
-     *   <li>把 user prompt 写入 Cold Memory（按 userId 分区，跨锚点共享）</li>
-     * </ol>
-     * 两步都失败仅记日志、不阻断主流——清理/写流失败不应影响主对话。
+     * Hook：流启动前——把 user prompt 写入 Cold Memory（按 userId 分区，跨锚点共享）。
+     * 失败仅记日志、不阻断主流。
      */
-    private Mono<Void> beforeStream(String anchorId, String userId, String prompt) {
-        Mono<Void> cleanup = chatMemoryStore.cleanupOrphans(anchorId)
-                .doOnNext(changed -> {
-                    if (Boolean.TRUE.equals(changed)) {
-                        log.info("Pre-stream sanitize fired [anchorId={}]", anchorId);
-                    }
-                })
-                .onErrorResume(err -> {
-                    log.warn("Pre-stream sanitize failed [anchorId={}]: {}", anchorId, err.toString());
-                    return Mono.empty();
-                })
-                .then();
-        Mono<Void> appendUser = coldMemoryStore.append(userId, "user", prompt, null, null)
+    private Mono<Void> beforeStream(String userId, String prompt) {
+        return coldMemoryStore.append(userId, "user", prompt, null, null)
                 .onErrorResume(err -> {
                     log.warn("Failed to append user message to cold_memory [userId={}]: {}",
                             userId, err.toString());
                     return Mono.empty();
                 });
-        return cleanup.then(appendUser);
     }
 
     /**
@@ -168,7 +152,15 @@ public class ChatService {
                     return Flux.just(new ChatEvent("error", msg));
                 })
                 .doOnComplete(() -> onStreamComplete(anchorId, userId, prompt, assistantBuffer, lastMood.get()))
-                .doOnCancel(() -> log.info("Stream cancelled [anchorId={}, userId={}]", anchorId, userId));
+                .doOnCancel(() -> {
+                    log.info("Stream cancelled [anchorId={}, userId={}]", anchorId, userId);
+                    chatMemoryStore.cleanupOrphans(anchorId)
+                            .onErrorResume(err -> {
+                                log.warn("Post-cancel sanitize failed [anchorId={}]: {}", anchorId, err.toString());
+                                return Mono.empty();
+                            })
+                            .subscribe();
+                });
     }
 
     /**

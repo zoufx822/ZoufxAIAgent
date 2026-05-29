@@ -25,10 +25,8 @@ public interface ChatMemoryStore extends dev.langchain4j.store.memory.chat.ChatM
 
     /**
      * 清理孤儿 tool 消息——AiMessage(tool_calls) 没对应 ToolExecutionResultMessage，反之亦然。
-     * <p>触发场景：用户在 LC4J 调用工具期间按下前端 stop 按钮，导致 chat_memory 残留半成品消息序列。
-     * 由 {@link com.zoufx.ai.agent.chat.service.ChatService#beforeStream} 在每次请求入口调一次，
-     * 在 LC4J 接管前持久化清理，让 LC4J 内部 add 流程不受 sanitize 干扰。
-     * <p>返回是否真的清理了内容（仅用于日志）。
+     * <p>触发场景：用户 stop 中断流，LC4J 工具调用写到一半，chat_memory 残留半成品消息序列。
+     * 在流取消（doOnCancel）时 fire-and-forget 调用，下次 LC4J 接管前历史已自愈。
      */
-    Mono<Boolean> cleanupOrphans(String anchorId);
+    Mono<Void> cleanupOrphans(String anchorId);
 }

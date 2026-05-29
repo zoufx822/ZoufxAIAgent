@@ -110,36 +110,29 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
     }
 
     @Override
-    public Mono<Boolean> cleanupOrphans(String anchorId) {
-        return Mono.fromCallable(() -> cleanupOrphansBlocking(anchorId))
+    public Mono<Void> cleanupOrphans(String anchorId) {
+        return Mono.<Void>fromRunnable(() -> cleanupOrphansBlocking(anchorId))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
     // ====== 私有同步实现（被两套契约共享）======
 
     private List<ChatMessage> loadByAnchorIdBlocking(String anchorId) {
-        // ==不在此处 sanitize==：LC4J 的 MessageWindowChatMemory.add() 内部每次都会
-        // 通过 messages() → store.getMessages() 重新加载历史。
-        // 若 sanitize 放这里，会在 add(AiMessage_tool_calls) 写完 store、
-        // 紧接着 add(ToolExecutionResultMessage) 时把刚写入的 AiMessage 当孤儿丢掉，
-        // 反而把 LC4J 自己的正常工作流弄坏。
-        // 改为在每次请求入口（ChatService.beforeStream）显式调 cleanupOrphans() 持久化一次。
+        // LC4J add(AiMessage_tool_calls) 写完后会立即 add(ToolExecutionResultMessage)，
+        // 若在 load 时 sanitize，会把刚写入的 AiMessage 误判为孤儿。
+        // sanitize 仅在 stop 取消流后由 ChatService.doOnCancel fire-and-forget 调用。
         return jdbc.query(
                 "SELECT content FROM chat_memory WHERE anchor_id = ? ORDER BY id ASC",
                 (rs, i) -> ChatMessageDeserializer.messageFromJson(rs.getString("content")),
                 anchorId);
     }
 
-    /**
-     * 同步实现：load → sanitize → 仅当有变化时写回。
-     * 返回 true 表示真的清理了内容。
-     */
-    private boolean cleanupOrphansBlocking(String anchorId) {
+    private void cleanupOrphansBlocking(String anchorId) {
         List<ChatMessage> raw = loadByAnchorIdBlocking(anchorId);
         List<ChatMessage> cleaned = sanitize(anchorId, raw);
-        if (cleaned.size() == raw.size()) return false;
+        if (cleaned.size() == raw.size()) return;
         saveByAnchorIdBlocking(anchorId, cleaned);
-        return true;
+        log.info("Post-cancel sanitize fired [anchorId={}]", anchorId);
     }
 
     /**
