@@ -5,7 +5,6 @@ import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields.FieldSpec;
-import com.zoufx.ai.agent.memory.property.MemoryProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -56,8 +55,10 @@ public class ImpressionGuidanceSection implements PromptSection {
             - 仍在对话中持续观察新信号，必要时 update_user_impression 补充或修正
             """;
 
+    private static final double STRANGER_THRESHOLD = 0.3;
+    private static final double FULLY_KNOWN_THRESHOLD = 0.7;
+
     private final HotMemoryStore hotMemoryStore;
-    private final MemoryProperties properties;
 
     @Override
     public int order() {
@@ -104,9 +105,8 @@ public class ImpressionGuidanceSection implements PromptSection {
     }
 
     private String resolveMode(double fillRatio) {
-        MemoryProperties.Completeness c = properties.getHot().getUserImpression().getCompleteness();
-        if (fillRatio < c.getStrangerThreshold()) return STRANGER;
-        if (fillRatio < c.getFullyKnownThreshold()) return HALF_KNOWN;
+        if (fillRatio < STRANGER_THRESHOLD) return STRANGER;
+        if (fillRatio < FULLY_KNOWN_THRESHOLD) return HALF_KNOWN;
         return FULLY_KNOWN;
     }
 
@@ -124,7 +124,6 @@ public class ImpressionGuidanceSection implements PromptSection {
             }
         }
         throw new IllegalStateException(
-                "ImpressionGuidanceSection.buildFieldQuestion 在 stranger mode 下未找到未填字段——"
-                        + "请检查 ai.memory.hot.user-impression.completeness.stranger-threshold 配置是否异常");
+                "ImpressionGuidanceSection.buildFieldQuestion 在 stranger mode 下未找到未填字段，请检查 UserImpressionFields.FIELDS 定义");
     }
 }

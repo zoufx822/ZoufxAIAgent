@@ -4,7 +4,6 @@ import com.zoufx.ai.agent.chat.api.PromptSection;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.model.HotMemoryEntry;
-import com.zoufx.ai.agent.memory.property.MemoryProperties;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
@@ -20,8 +19,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CommitmentSection implements PromptSection {
 
+    private static final int RECENT_INJECT_LIMIT = 5;
+
     private final HotMemoryStore hotMemoryStore;
-    private final MemoryProperties properties;
 
     @Override
     public int order() {
@@ -32,7 +32,7 @@ public class CommitmentSection implements PromptSection {
     @Nullable
     public String render(@Nullable String userId, @Nullable String anchorId) {
         if (userId == null) return null;
-        int limit = properties.getHot().getCommitment().getRecentInjectLimit();
+        int limit = RECENT_INJECT_LIMIT;
         if (limit <= 0) return null;
         List<HotMemoryEntry> commitments = hotMemoryStore.recent(userId, HotMemoryType.COMMITMENT, limit);
         if (commitments.isEmpty()) return null;

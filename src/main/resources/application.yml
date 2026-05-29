@@ -12,43 +12,24 @@ spring:
     active: local
 
 ai:
-  # ============================================================================
-  # Chat 层
-  # ============================================================================
   chat:
     retry:
       max-attempts: 2
       min-backoff: 500ms
       max-backoff: 2s
 
-  # ============================================================================
-  # LLM 对接层
-  # 切换 profile 仅改 ai.llm.profile 一行 (deepseek-v4|minimax)
-  # 各 profile 独立配置命名空间 ai.llm.<profile>.*，
-  # @ConditionalOnProperty 按 profile 路由对应 ModelConfig 装配 chatModel + LlmCapabilities
-  # ============================================================================
   llm:
     # 当前激活的 LLM profile：deepseek-v4 | minimax
-    # 同时只激活一套 ModelConfig，由 @ConditionalOnProperty(name=ai.llm.profile, havingValue=...) 路由
     profile: deepseek-v4
 
-    # ---------- DeepSeek v4 profile ----------
-    # 仅在 ai.llm.profile=deepseek-v4 时被 DeepSeekV4Config 装配读取
-    # DeepSeek v4 是 hybrid 模型 always-on 自适应思考，配置层不暴露 thinking on/off
     deepseek-v4:
       base-url: https://api.deepseek.com
       api-key: ${OPENAI_API_KEY:}
       timeout: 60s
       chat:
-        # 具体模型：deepseek-v4-pro / deepseek-v4-flash（pro/flash 内部细分仅改本字段）
         model: deepseek-v4-pro
-        # 测试期保守值：单次输出 ~2K token 足够验证 Agent 行为；正式联调再上调
         max-tokens: 2048
 
-    # ---------- MiniMax profile ----------
-    # 仅在 ai.llm.profile=minimax 时被 MinimaxConfig 装配读取
-    # 走 Anthropic 兼容协议，builder 期固定开启 thinking；LC4J 1.13.1 限制无法 per-call 覆盖
-    # 详见 总设计方案.md 的"已知技术债"章节
     minimax:
       base-url: https://api.minimaxi.com/anthropic/v1
       api-key: ${ANTHROPIC_API_KEY:}
@@ -61,49 +42,25 @@ ai:
         type: enabled
         budget-tokens: 8192
 
-  # ============================================================================
-  # 记忆系统
-  # ============================================================================
   memory:
     max-messages: 20
     store:
       db-path: ./data/zoufx-ai.db
-    # Hot Memory：常驻记忆，按 type 分层（字段 schema 在 UserImpressionFields）
-    hot:
-      user-impression:
-        completeness:
-          stranger-threshold: 0.3     # fill_ratio < 此值 → stranger
-          fully-known-threshold: 0.7  # fill_ratio ≥ 此值 → fully-known
-      significant-event:
-        recent-inject-limit: 5
-      commitment:
-        recent-inject-limit: 5
-
-  # ============================================================================
-  # SOUL：AI 自身人格
-  # ============================================================================
   soul:
-    # 情绪 mood：词表在 MoodPromptSection 常量定义
     mood:
       enabled: true
       tail-buffer-size: 32
 
-  # ============================================================================
-  # 工具层
-  # ============================================================================
   tools:
     web-search:
       enabled: true
-      type: tavily             # 使用的搜索引擎类型：tavily / google / bing 等
+      type: tavily             # tavily | google | bing
       tavily:
-        # 生产环境通过环境变量 TAVILY_API_KEY 注入；空值时自动降级关闭（不阻塞启动）
         api-key: ${TAVILY_API_KEY:}
-        search-depth: basic      # basic / advanced
+        search-depth: basic    # basic | advanced
         include-answer: true
         max-results: 5
         timeout: 20s
-        # Tavily 调用重试
         retry:
           max-attempts: 2
           backoff: 500ms
-

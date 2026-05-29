@@ -48,6 +48,7 @@ Hot Memory 含三种 type（v0.14）：`user-impression`（用户画像，UPSERT
 - **保留**：非显而易见的约束（线程契约、编译期常量限制、fail-fast 不变量）、跨版本遗留问题（如 LC4J 未提供的接口）、seed 语义（已有不覆盖）
 - **删除**：版本号标注（`v0.xx`）、设计文档引用（`详见 xxx.md`）、选型论证（"为何不用枚举"但代码已自解释）、迁移路径（"从 X 迁到 Y"）
 - yml 配置同理——大段 prompt 文案默认值进 Java `@ConfigurationProperties` 字段初始化，yml 只留阈值/开关/环境变量
+- yml 与 `@ConfigurationProperties` 必须保持一一对应：yml 删掉的字段，Properties 类里同步删掉，常量内联到调用处；不在 yml 里出现的值不应出现在 Properties 类里
 
 ## 工作原则
 
