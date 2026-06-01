@@ -39,10 +39,10 @@ public interface AnchorMemoryStore {
     @Nullable Long snapshotActiveAt(String anchorId);
 
     /**
-     * 创建新锚点。anchorId 由实现侧生成（UUID），返回完整 AnchorMemoryEntry 含创建时间。
-     * title 可为 null，首次 chat 完成后由 {@link #updateTitleIfBlank} backfill。
+     * 同步创建锚点，anchorId 由调用方（前端）提供。
+     * 供 ChatService 在首次 chat 时懒创建，与 {@link #findUserId} 对称，均在 boundedElastic 线程调用。
      */
-    Mono<AnchorMemoryEntry> create(String userId, @Nullable String title);
+    void createSync(String anchorId, String userId);
 
     /**
      * 列出该用户全部锚点，按 last_active_at desc。给前端 sidebar 用。

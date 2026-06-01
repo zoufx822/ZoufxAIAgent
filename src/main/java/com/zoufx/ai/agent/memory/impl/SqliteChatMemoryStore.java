@@ -115,6 +115,12 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
+    @Override
+    public Mono<Void> removeLastOrphanUserMessage(String anchorId) {
+        return Mono.<Void>fromRunnable(() -> removeLastOrphanUserMessageBlocking(anchorId))
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
     // ====== 私有同步实现（被两套契约共享）======
 
     private List<ChatMessage> loadByAnchorIdBlocking(String anchorId) {
@@ -125,6 +131,16 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
                 "SELECT content FROM chat_memory WHERE anchor_id = ? ORDER BY id ASC",
                 (rs, i) -> ChatMessageDeserializer.messageFromJson(rs.getString("content")),
                 anchorId);
+    }
+
+    private void removeLastOrphanUserMessageBlocking(String anchorId) {
+        List<ChatMessage> msgs = loadByAnchorIdBlocking(anchorId);
+        if (msgs.isEmpty()) return;
+        ChatMessage last = msgs.get(msgs.size() - 1);
+        if (!(last instanceof dev.langchain4j.data.message.UserMessage)) return;
+        List<ChatMessage> trimmed = new ArrayList<>(msgs.subList(0, msgs.size() - 1));
+        saveByAnchorIdBlocking(anchorId, trimmed);
+        log.info("Removed orphan user message [anchorId={}]", anchorId);
     }
 
     private void cleanupOrphansBlocking(String anchorId) {

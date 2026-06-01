@@ -29,4 +29,11 @@ public interface ChatMemoryStore extends dev.langchain4j.store.memory.chat.ChatM
      * 在流取消（doOnCancel）时 fire-and-forget 调用，下次 LC4J 接管前历史已自愈。
      */
     Mono<Void> cleanupOrphans(String anchorId);
+
+    /**
+     * 移除末尾孤儿 UserMessage——LC4J 在调用 LLM 前即把用户消息写入 chat_memory；
+     * 若 LLM 因网络错误中断且无 AI 回复写入，该消息成为孤儿，导致下次请求携带重复历史。
+     * <p>在流结束但未收到任何 AI 内容时（onStreamComplete buffer 为空）fire-and-forget 调用。
+     */
+    Mono<Void> removeLastOrphanUserMessage(String anchorId);
 }

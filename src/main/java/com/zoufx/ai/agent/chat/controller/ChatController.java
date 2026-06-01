@@ -2,7 +2,6 @@ package com.zoufx.ai.agent.chat.controller;
 
 import com.zoufx.ai.agent.chat.api.LlmCapabilities;
 import com.zoufx.ai.agent.chat.model.AnchorContextView;
-import com.zoufx.ai.agent.chat.model.AnchorCreateRequest;
 import com.zoufx.ai.agent.chat.model.AnchorTitleUpdateRequest;
 import com.zoufx.ai.agent.chat.model.ChatRequest;
 import com.zoufx.ai.agent.chat.service.ChatService;
@@ -66,7 +65,7 @@ public class ChatController {
         log.info("Received prompt [anchorId={}, prevAnchorId={}, thinking={}]: {}",
                 anchorId, request.prevAnchorId(), request.thinking(), prompt);
 
-        return chatService.chat(anchorId, prompt, request.thinking(), request.prevAnchorId())
+        return chatService.chat(anchorId, prompt, request.thinking(), request.prevAnchorId(), request.userId())
                 .map(e -> ServerSentEvent.<String>builder().event(e.type()).data(e.data()).build());
     }
 
@@ -103,12 +102,6 @@ public class ChatController {
             if (userId == null) return AnchorContextView.empty();
             return AnchorContextView.from(anchorMemoryStore.listOtherAnchorsSync(userId, anchorId));
         }).subscribeOn(Schedulers.boundedElastic());
-    }
-
-    /** 创建新对话锚点。title 可空，首条 chat 完成后由 ChatService 用首条 user 消息自动 backfill。 */
-    @PostMapping("/anchors")
-    public Mono<AnchorMemoryEntry> createAnchor(@Valid @RequestBody AnchorCreateRequest request) {
-        return anchorMemoryStore.create(request.userId(), request.title());
     }
 
     /** 手动重命名锚点——无条件覆盖。 */

@@ -13,7 +13,6 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
-import java.util.UUID;
 
 /**
  * anchor_memory 元数据表的 SQLite 实现。
@@ -101,9 +100,12 @@ public class SqliteAnchorMemoryStore implements AnchorMemoryStore {
     // ====== 反应式写 ======
 
     @Override
-    public Mono<AnchorMemoryEntry> create(String userId, @Nullable String title) {
-        return Mono.fromCallable(() -> createBlocking(userId, title))
-                .subscribeOn(Schedulers.boundedElastic());
+    public void createSync(String anchorId, String userId) {
+        long now = System.currentTimeMillis();
+        jdbc.update("""
+                INSERT INTO anchor_memory (id, user_id, title, summary, last_mood, created_at, last_active_at)
+                VALUES (?, ?, NULL, NULL, NULL, ?, ?)
+                """, anchorId, userId, now, now);
     }
 
     @Override
@@ -157,16 +159,6 @@ public class SqliteAnchorMemoryStore implements AnchorMemoryStore {
     }
 
     // ====== 同步实现 ======
-
-    private AnchorMemoryEntry createBlocking(String userId, @Nullable String title) {
-        String anchorId = UUID.randomUUID().toString();
-        long now = System.currentTimeMillis();
-        jdbc.update("""
-                INSERT INTO anchor_memory (id, user_id, title, summary, last_mood, created_at, last_active_at)
-                VALUES (?, ?, ?, NULL, NULL, ?, ?)
-                """, anchorId, userId, title, now, now);
-        return new AnchorMemoryEntry(anchorId, userId, title, null, null, now, now);
-    }
 
     private List<AnchorMemoryEntry> listByUserBlocking(String userId) {
         return jdbc.query("""

@@ -19,7 +19,8 @@ public record ChatRequest(
         @NotBlank(message = "不能为空") String prompt,
         @NotBlank(message = "不能为空") String anchorId,
         @Nullable String prevAnchorId,
-        @Nullable Boolean thinking) {
+        @Nullable Boolean thinking,
+        @Nullable String userId) {
     public ChatRequest {
         if (thinking == null) thinking = false;
     }

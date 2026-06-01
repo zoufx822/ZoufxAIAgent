@@ -85,7 +85,8 @@ public class ChatService {
      *
      * <p>{@code prevAnchorId} 非空表示客户端发生锚点切换——fire-and-forget 触发对前一锚点的压缩。
      */
-    public Flux<ChatEvent> chat(String anchorId, String prompt, boolean thinking, @Nullable String prevAnchorId) {
+    public Flux<ChatEvent> chat(String anchorId, String prompt, boolean thinking,
+                               @Nullable String prevAnchorId, @Nullable String requestUserId) {
         if (thinking && !llmCapabilities.thinkingToggle()) {
             log.warn("Request asks thinking=true but profile [{}] does not support thinkingToggle; ignored",
                     llmCapabilities.profile());
@@ -94,19 +95,24 @@ public class ChatService {
         triggerCompressionIfNeeded(prevAnchorId);
 
         AtomicBoolean hasEmitted = new AtomicBoolean(false);
-        // 流式 Flux 在单个 subscriber 上 onNext 串行，StringBuilder 线程安全足够；
-        // retry 只在首次 emit 前生效，触发时此 buffer 仍是空，不会与重试残留串味
         StringBuilder assistantBuffer = new StringBuilder();
-        // 本轮最后一次 mood，由 MoodEventProcessor.flush() 时回填，onStreamComplete 读取落库
         AtomicReference<String> lastMood = new AtomicReference<>();
 
         // findUserId 是阻塞 JDBC——包进 boundedElastic 延迟到订阅时执行，绝不在 event loop 上跑。
         // 用 Optional 承载"可能为 null"，避免 Mono.fromCallable 返回 null 退化成空流、与"流本身为空"混淆。
-        return Mono.fromCallable(() -> Optional.ofNullable(anchorMemoryStore.findUserId(anchorId)))
+        return Mono.fromCallable(() -> {
+                    String found = anchorMemoryStore.findUserId(anchorId);
+                    if (found == null && requestUserId != null) {
+                        // 前端懒创建：anchor 尚未入库，用请求携带的 userId 按需建立
+                        anchorMemoryStore.createSync(anchorId, requestUserId);
+                        return Optional.of(requestUserId);
+                    }
+                    return Optional.ofNullable(found);
+                })
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMapMany(userIdOpt -> {
                     if (userIdOpt.isEmpty()) {
-                        log.error("chat: unknown anchorId={}", anchorId);
+                        log.error("chat: unknown anchorId={}, no userId provided for lazy creation", anchorId);
                         return Flux.just(new ChatEvent("error", "未识别的对话锚点（anchorId 不存在）"));
                     }
                     String userId = userIdOpt.get();
@@ -244,6 +250,16 @@ public class ChatService {
             anchorMemoryStore.updateTitleIfBlank(anchorId, autoTitle)
                     .onErrorResume(err -> {
                         log.warn("Failed to backfill anchor title [anchorId={}]: {}", anchorId, err.toString());
+                        return Mono.empty();
+                    })
+                    .subscribe();
+        }
+
+        if (buffer.length() == 0) {
+            // LLM 未产出任何内容（网络中断等），清理 LC4J 已提前写入的孤儿 UserMessage
+            chatMemoryStore.removeLastOrphanUserMessage(anchorId)
+                    .onErrorResume(err -> {
+                        log.warn("Failed to remove orphan user message [anchorId={}]: {}", anchorId, err.toString());
                         return Mono.empty();
                     })
                     .subscribe();
