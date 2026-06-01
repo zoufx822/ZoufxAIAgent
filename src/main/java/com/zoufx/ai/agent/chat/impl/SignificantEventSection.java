@@ -1,26 +1,19 @@
 package com.zoufx.ai.agent.chat.impl;
 
-import com.zoufx.ai.agent.chat.api.PromptSection;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.model.HotMemoryEntry;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-
 /**
- * 「## 你与对方共享的重要经历」段（order=22）——读 hot_memory significant-event 的
- * 最近 N 条，按更新时间倒序渲染为 bullet 列表。无条目时跳过。
+ * 「## 你与对方共享的重要经历」段（order=22）。
  */
 @Component
-@RequiredArgsConstructor
-public class SignificantEventSection implements PromptSection {
+public class SignificantEventSection extends RecentHotMemorySection {
 
-    private static final int RECENT_INJECT_LIMIT = 5;
-
-    private final HotMemoryStore hotMemoryStore;
+    public SignificantEventSection(HotMemoryStore hotMemoryStore) {
+        super(hotMemoryStore);
+    }
 
     @Override
     public int order() {
@@ -28,23 +21,17 @@ public class SignificantEventSection implements PromptSection {
     }
 
     @Override
-    @Nullable
-    public String render(@Nullable String userId, @Nullable String anchorId) {
-        if (userId == null) return null;
-        int limit = RECENT_INJECT_LIMIT;
-        if (limit <= 0) return null;
-        List<HotMemoryEntry> events = hotMemoryStore.recent(userId, HotMemoryType.SIGNIFICANT_EVENT, limit);
-        if (events.isEmpty()) return null;
+    protected String type() {
+        return HotMemoryType.SIGNIFICANT_EVENT;
+    }
 
-        long now = System.currentTimeMillis();
-        StringBuilder sb = new StringBuilder("## 你与对方共享的重要经历（最近 ")
-                .append(events.size())
-                .append(" 条，括号内为对方提到的时间）\n\n");
-        for (HotMemoryEntry e : events) {
-            sb.append("- (").append(e.relativeTimeFrom(now)).append("提到) ")
-                    .append(e.value()).append("\n");
-        }
-        sb.append("\n");
-        return sb.toString();
+    @Override
+    protected String header(int count) {
+        return "## 你与对方共享的重要经历（最近 " + count + " 条，括号内为对方提到的时间）\n\n";
+    }
+
+    @Override
+    protected String formatItem(HotMemoryEntry entry, long now) {
+        return "- (" + entry.relativeTimeFrom(now) + "提到) " + entry.value() + "\n";
     }
 }

@@ -9,7 +9,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 有状态的情绪事件处理器——从 LLM content 流里剥离 {@code <!--mood:KEYWORD-->} 标记（v0.11）。
+ * 有状态的情绪事件处理器——从 LLM content 流里剥离 {@code <!--mood:KEYWORD-->} 标记。
  *
  * <p>工作方式：维护一个 buffer，每次 {@link #accept(String)} 时追加 token，
  * 扫描是否含完整 mood 标记，命中即剥离并发独立 SSE mood 事件。
@@ -94,25 +94,6 @@ public class MoodEventProcessor {
 
     /** 构造 mood 事件 JSON payload；对 keyword 做 JSON 转义。 */
     static String moodPayload(String keyword) {
-        return "{\"keyword\":\"" + escape(keyword) + "\"}";
-    }
-
-    private static String escape(String s) {
-        if (s == null) return "";
-        StringBuilder sb = new StringBuilder();
-        for (char c : s.toCharArray()) {
-            switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> {
-                    if (c < 32) sb.append(String.format("\\u%04x", (int) c));
-                    else sb.append(c);
-                }
-            }
-        }
-        return sb.toString();
+        return "{\"keyword\":\"" + JsonStrings.escape(keyword) + "\"}";
     }
 }

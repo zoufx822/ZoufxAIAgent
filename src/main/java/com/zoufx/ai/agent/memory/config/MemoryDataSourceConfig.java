@@ -23,9 +23,7 @@ import java.nio.file.Paths;
  * 独立的 DataSource / JdbcTemplate / TransactionTemplate 三件套，
  * 给 ChatMemory（SqliteChatMemoryStore）/ ColdMemory（SqliteColdMemoryStore）/ HotMemory（SqliteHotMemoryStore）共用一套底座。
  *
- * 不使用 Spring Boot 自动配置的 spring.datasource.*：
- * - 保留业务语义命名空间 ai.memory.store.db-path
- * - 为未来 v0.3 多 DataSource 共存（如 SQLite + Postgres）留口子
+ * 不使用 Spring Boot 自动配置的 spring.datasource.*，路径由 ai.memory.db-path 配置。
  */
 @Slf4j
 @Configuration
@@ -34,14 +32,14 @@ public class MemoryDataSourceConfig {
     @Bean("memoryDataSource")
     public DataSource memoryDataSource(MemoryProperties props) throws IOException {
         // 确保 SQLite 文件父目录存在
-        Path path = Paths.get(props.getStore().getDbPath());
+        Path path = Paths.get(props.getDbPath());
         Path parent = path.toAbsolutePath().getParent();
         if (parent != null && !Files.exists(parent)) {
             Files.createDirectories(parent);
         }
 
         HikariConfig cfg = new HikariConfig();
-        String dbPath = props.getStore().getDbPath();
+        String dbPath = props.getDbPath();
         cfg.setJdbcUrl("jdbc:sqlite:" + dbPath);
         // SQLite 单写并发限制，保守值；WAL 模式下读可并发
         cfg.setMaximumPoolSize(5);

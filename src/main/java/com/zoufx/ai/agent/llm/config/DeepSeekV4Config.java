@@ -16,12 +16,8 @@ import org.springframework.context.annotation.Configuration;
 /**
  * DeepSeek v4 profile：装配 OpenAI 兼容协议下的 {@link StreamingChatModel} + {@link LlmCapabilities}。
  *
- * <p>仅在 {@code ai.llm.profile=deepseek-v4} 时激活（v0.135 起从 ai.llm.provider=openai 迁来）。
- * 配置来自 {@link DeepSeekV4Properties}。
- *
- * <p>v0.135 重构：旧 {@code OpenAiModelConfig} 装配 thinkingChatModel / nonThinkingChatModel 双 Bean
- * 是"thinking 与 non-thinking 走不同模型"假设下的设计——v4 系列 pro/flash 都是 hybrid，假设崩塌，
- * 双 Bean 退化为伪二分。本类装配单一 {@code chatModel}，thinking 行为由 v4 模型自身自适应深度决定。
+ * <p>仅在 {@code ai.llm.profile=deepseek-v4} 时激活。配置来自 {@link DeepSeekV4Properties}。
+ * 装配单一 {@code chatModel}，thinking 行为由 v4 hybrid 模型自身自适应深度决定。
  *
  * <p>returnThinking + sendThinking 一起开：DeepSeek v4（v4-pro / v4-flash）即使非 thinking 入口
  * 也会产出 reasoning_content，多轮 / tool-call 后续请求若未把上一轮的 reasoning_content 回传，

@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.tool.impl;
 
+import com.zoufx.ai.agent.base.support.DateFormats;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import com.zoufx.ai.agent.chat.support.RetryableExceptions;
 import dev.langchain4j.agent.tool.P;
@@ -10,8 +11,6 @@ import dev.langchain4j.web.search.WebSearchResults;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
@@ -19,9 +18,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class TavilySearchTool implements ToolPrompt {
-
-    private static final DateTimeFormatter DATE_FMT =
-            DateTimeFormatter.ofPattern("yyyy 年 M 月 d 日", Locale.CHINA);
 
     private final WebSearchEngine engine;
     private final int maxResults;
@@ -75,7 +71,7 @@ public class TavilySearchTool implements ToolPrompt {
         if (results == null) {
             return "网络检索暂时不可用，基于已有知识回答。";
         }
-        String today = LocalDate.now().format(DATE_FMT);
+        String today = LocalDate.now().format(DateFormats.CN_LONG_DATE);
         String header = "今日日期：" + today
                 + "\n（请核对下方结果中的日期，若与今日不符必须明确告知用户数据为何日，不得当作今日数据汇报）\n\n";
         if (results.results() == null || results.results().isEmpty()) {

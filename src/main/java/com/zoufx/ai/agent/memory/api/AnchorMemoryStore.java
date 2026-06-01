@@ -70,7 +70,7 @@ public interface AnchorMemoryStore {
     Mono<Void> updateTitleIfBlank(String anchorId, String title);
 
     /**
-     * 无条件覆盖 title——由前端 PATCH /ai/anchor/{id}/title 用户手动改名时调。
+     * 无条件覆盖 title——由前端 PATCH /ai/anchors/{anchorId}/title 用户手动改名时调。
      * 与 {@link #updateTitleIfBlank} 区分：后者只填空，本方法强写。
      */
     Mono<Void> updateTitle(String anchorId, String title);

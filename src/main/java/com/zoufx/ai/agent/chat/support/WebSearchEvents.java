@@ -49,33 +49,9 @@ public final class WebSearchEvents {
      * 用字符串拼接 + escapeJsonString 兜底确保 payload 单行安全。
      */
     public static String toolResultPayload(String tool, String chineseName, int count, String rawResult) {
-        String preview = truncate(rawResult, 200);
-        String escaped = escapeJsonString(preview);
+        String escaped = JsonStrings.escape(truncate(rawResult, 200));
         return String.format("{\"tool\":\"%s\",\"toolDisplay\":\"%s\",\"count\":%d,\"resultPreview\":\"%s\"}",
                 tool, chineseName, count, escaped);
-    }
-
-    private static String escapeJsonString(String s) {
-        if (s == null) return "";
-        StringBuilder sb = new StringBuilder();
-        for (char c : s.toCharArray()) {
-            switch (c) {
-                case '"': sb.append("\\\""); break;
-                case '\\': sb.append("\\\\"); break;
-                case '\b': sb.append("\\b"); break;
-                case '\f': sb.append("\\f"); break;
-                case '\n': sb.append("\\n"); break;
-                case '\r': sb.append("\\r"); break;
-                case '\t': sb.append("\\t"); break;
-                default:
-                    if (c < 32) {
-                        sb.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        sb.append(c);
-                    }
-            }
-        }
-        return sb.toString();
     }
 
     /**

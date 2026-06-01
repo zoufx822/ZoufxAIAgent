@@ -90,7 +90,8 @@
       "Bash(find /c/Users/Administrator/.claude -name \"*.md\" -path \"*/skills/*\" 2>/dev/null | head -20)",
       "Read(//c/Users/Administrator/.claude/**)",
       "Bash(find /c/Users/Administrator/.claude -type d 2>/dev/null | head -20)",
-      "Bash(sqlite3 \"e:/ZoufxDemo/ZoufxAIAgent/data/zoufx-ai.db\")"
+      "Bash(sqlite3 \"e:/ZoufxDemo/ZoufxAIAgent/data/zoufx-ai.db\")",
+      "Bash(curl -s http://localhost:8080/ai/capabilities)"
     ]
   }
 }

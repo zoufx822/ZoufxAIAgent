@@ -3,7 +3,6 @@ package com.zoufx.ai.agent.soul.impl;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -13,7 +12,6 @@ import reactor.core.scheduler.Schedulers;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * SOUL 的 SQLite 实现——全局单例（无 user_id 维度），schema：
@@ -91,18 +89,6 @@ public class SqliteSoulStore implements SoulStore {
             log.info("SoulStore seeded with {} new keys ({} skipped)", inserted, seed.size() - inserted);
         } else {
             log.debug("SoulStore all {} seed keys already exist, nothing inserted", seed.size());
-        }
-    }
-
-    @Override
-    public Optional<String> get(String key) {
-        try {
-            String value = jdbc.queryForObject(
-                    "SELECT value FROM soul_profile WHERE key = ?",
-                    String.class, key);
-            return Optional.ofNullable(value);
-        } catch (EmptyResultDataAccessException e) {
-            return Optional.empty();
         }
     }
 

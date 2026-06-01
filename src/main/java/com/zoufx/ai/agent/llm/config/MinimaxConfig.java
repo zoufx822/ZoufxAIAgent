@@ -16,16 +16,12 @@ import org.springframework.context.annotation.Configuration;
 /**
  * MiniMax profile：装配 Anthropic 兼容协议下的 {@link StreamingChatModel} + {@link LlmCapabilities}。
  *
- * <p>仅在 {@code ai.llm.profile=minimax} 时激活（v0.135 起从 ai.llm.provider=anthropic 迁来）。
- * 配置来自 {@link MinimaxProperties}。profile 名对齐实际产品而非协议——连的是 MiniMax 不是真 Claude。
+ * <p>仅在 {@code ai.llm.profile=minimax} 时激活。配置来自 {@link MinimaxProperties}。
+ * profile 名对齐实际产品而非协议——连的是 MiniMax 不是真 Claude。装配单一 {@code chatModel}，
+ * builder 期固定开启 thinking，由 MiniMax M1/M2 自适应思考深度。
  *
- * <p>v0.135 重构：旧 {@code AnthropicModelConfig} 装配 thinkingChatModel + nonThinkingChatModel 双 Bean，
- * 与"消灭伪二分"目标冲突。本类装配单一 {@code chatModel}，builder 期固定开启 thinking——MiniMax M1/M2
- * 自适应思考深度。
- *
- * <p>v0.135 已知限制：LC4J 1.13.1 langchain4j-anthropic 未提供 AnthropicChatRequestParameters 子类，
- * thinking 参数无法 per-call 覆盖，因此 LlmCapabilities 暂声明 thinkingToggle=false（降级方案）。
- * 详见 总设计方案.md 的"已知技术债"章节。
+ * <p>已知限制：LC4J 1.13.1 langchain4j-anthropic 未提供 AnthropicChatRequestParameters 子类，
+ * thinking 参数无法 per-call 覆盖，因此 LlmCapabilities 声明 thinkingToggle=false（降级）。
  */
 @Slf4j
 @Configuration
@@ -81,8 +77,8 @@ public class MinimaxConfig {
 
     @Bean
     public LlmCapabilities llmCapabilities() {
-        // ⚠ v0.135 降级：LC4J 1.13.1 langchain4j-anthropic 未暴露 per-call thinking 覆盖
-        // 等上游放出 AnthropicChatRequestParameters 后改回 (true, true)，架构不动
+        // LC4J 1.13.1 langchain4j-anthropic 未暴露 per-call thinking 覆盖，降级声明 false；
+        // 上游放出 AnthropicChatRequestParameters 后改回 (true, true) 即可，架构不动
         return new LlmCapabilities("minimax", false, false, false);
     }
 }

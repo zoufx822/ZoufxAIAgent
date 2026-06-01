@@ -13,10 +13,14 @@ spring:
 
 ai:
   chat:
+    load-message: 20
     retry:
       max-attempts: 2
       min-backoff: 500ms
       max-backoff: 2s
+
+  memory:
+    db-path: ./data/zoufx-ai.db
 
   llm:
     # 当前激活的 LLM profile：deepseek-v4 | minimax
@@ -41,15 +45,6 @@ ai:
       thinking:
         type: enabled
         budget-tokens: 8192
-
-  memory:
-    max-messages: 20
-    store:
-      db-path: ./data/zoufx-ai.db
-  soul:
-    mood:
-      enabled: true
-      tail-buffer-size: 32
 
   tools:
     web-search:

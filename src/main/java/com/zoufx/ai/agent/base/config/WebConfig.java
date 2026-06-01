@@ -22,13 +22,8 @@ public class WebConfig {
         config.setAllowCredentials(false);
         config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        // 同一份 config 覆盖三个对外暴露的路径前缀：
-        //   /ai/**   v0.01 起的聊天 SSE + 清记忆 API
-        //   /user/** v0.11 起的 GET 记忆 API（hot snapshot / recent stream）
-        //   /admin/** v0.11 起的 SOUL 管理 API
+        // 全部对外端点都归在 /ai/** 命名空间下
         source.registerCorsConfiguration("/ai/**", config);
-        source.registerCorsConfiguration("/user/**", config);
-        source.registerCorsConfiguration("/admin/**", config);
         return new CorsWebFilter(source);
     }
 }

@@ -2,7 +2,6 @@ package com.zoufx.ai.agent.chat.service;
 
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
 import com.zoufx.ai.agent.chat.api.LlmCapabilities;
-import com.zoufx.ai.agent.soul.property.SoulProperties;
 import com.zoufx.ai.agent.chat.property.ChatProperties;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
@@ -21,12 +20,14 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -35,14 +36,14 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <pre>
  *   chat()
- *     ├── beforeStream(...)          流前 Hook：清理孤儿 + 写 user 到 Cold Memory
+ *     ├── beforeStream(...)          流前 Hook：写 user 到 Cold Memory
  *     └── buildStream(...)           Flux.create 主体
  *           ├── startTokenStream     装配 LC4J TokenStream 6 个回调 → FluxSink
  *           ├── retryWhen            首次 emit 前重试
  *           ├── doOnNext             收集 assistant 文本
  *           ├── onErrorResume        错误兜底成 error event
  *           ├── doOnComplete         触发 onStreamComplete Hook（touch + title backfill + 写 assistant）
- *           └── doOnCancel           客户端断开日志
+ *           └── doOnCancel           客户端断开：日志 + fire-and-forget 清理孤儿消息
  * </pre>
  *
  * 入参校验由 ChatRequest 上的 Bean Validation 承担（GlobalExceptionHandler 翻译为 HTTP 400）。
@@ -62,7 +63,6 @@ public class ChatService {
     private final ColdMemoryStore coldMemoryStore;
     private final AnchorService anchorSummaryService;
     private final ChatProperties chatProperties;
-    private final SoulProperties soulProperties;
     private final List<ToolPrompt> tools;
     private final Map<String, String> toolNameMap = new HashMap<>();
 
@@ -91,12 +91,6 @@ public class ChatService {
                     llmCapabilities.profile());
         }
 
-        String userId = anchorMemoryStore.findUserId(anchorId);
-        if (userId == null) {
-            log.error("chat: unknown anchorId={}", anchorId);
-            return Flux.just(new ChatEvent("error", "未识别的对话锚点（anchorId 不存在）"));
-        }
-
         triggerCompressionIfNeeded(prevAnchorId);
 
         AtomicBoolean hasEmitted = new AtomicBoolean(false);
@@ -106,8 +100,19 @@ public class ChatService {
         // 本轮最后一次 mood，由 MoodEventProcessor.flush() 时回填，onStreamComplete 读取落库
         AtomicReference<String> lastMood = new AtomicReference<>();
 
-        return beforeStream(userId, prompt)
-                .thenMany(buildStream(chatAssistant, anchorId, userId, prompt, hasEmitted, assistantBuffer, lastMood));
+        // findUserId 是阻塞 JDBC——包进 boundedElastic 延迟到订阅时执行，绝不在 event loop 上跑。
+        // 用 Optional 承载"可能为 null"，避免 Mono.fromCallable 返回 null 退化成空流、与"流本身为空"混淆。
+        return Mono.fromCallable(() -> Optional.ofNullable(anchorMemoryStore.findUserId(anchorId)))
+                .subscribeOn(Schedulers.boundedElastic())
+                .flatMapMany(userIdOpt -> {
+                    if (userIdOpt.isEmpty()) {
+                        log.error("chat: unknown anchorId={}", anchorId);
+                        return Flux.just(new ChatEvent("error", "未识别的对话锚点（anchorId 不存在）"));
+                    }
+                    String userId = userIdOpt.get();
+                    return beforeStream(userId, prompt)
+                            .thenMany(buildStream(chatAssistant, anchorId, userId, prompt, hasEmitted, assistantBuffer, lastMood));
+                });
     }
 
     /**
@@ -173,11 +178,8 @@ public class ChatService {
     private void startTokenStream(FluxSink<ChatEvent> sink, ChatAssistant assistant,
                                   String anchorId, String userId, String prompt, AtomicBoolean hasEmitted,
                                   AtomicReference<String> lastMood) {
-        // mood 启用时用 MoodEventProcessor 包装 content 输出——剥离 <!--mood:KEYWORD-->，独立发 mood 事件。
         // 一条请求一个实例：内部维护 tail buffer + 命中状态，请求结束 flush() 兜底。
-        final MoodEventProcessor moodStripper = soulProperties.getMood().isEnabled()
-                ? new MoodEventProcessor(soulProperties.getMood().getTailBufferSize(), sink, userId)
-                : null;
+        final MoodEventProcessor moodStripper = new MoodEventProcessor(32, sink, userId);
 
         assistant.chat(anchorId, prompt)
                 .onPartialThinking(pt -> {
@@ -188,11 +190,7 @@ public class ChatService {
                 })
                 .onPartialResponse(ct -> {
                     hasEmitted.set(true);
-                    if (moodStripper != null) {
-                        moodStripper.accept(ct);
-                    } else {
-                        sink.next(new ChatEvent("content", ct));
-                    }
+                    moodStripper.accept(ct);
                 })
                 .beforeToolExecution(evt -> {
                     hasEmitted.set(true);
@@ -214,12 +212,10 @@ public class ChatService {
                 .onError(sink::error)
                 .onCompleteResponse(r -> {
                     log.info("Stream completed [anchorId={}]", anchorId);
-                    if (moodStripper != null) {
-                        moodStripper.flush();
-                        // moodStripper 在 startTokenStream 局部作用域，必须在此处把 mood 落到外部 ref
-                        // 供 doOnComplete 的 onStreamComplete 持久化到 anchor.last_mood / cold_memory.mood
-                        lastMood.set(moodStripper.getLastMood());
-                    }
+                    moodStripper.flush();
+                    // moodStripper 在 startTokenStream 局部作用域，必须在此处把 mood 落到外部 ref
+                    // 供 doOnComplete 的 onStreamComplete 持久化到 anchor.last_mood / cold_memory.mood
+                    lastMood.set(moodStripper.getLastMood());
                     sink.complete();
                 })
                 .start();

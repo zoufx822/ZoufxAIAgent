@@ -35,7 +35,7 @@ import java.util.Map;
  *   <li>{@code GET    /ai/capabilities}：LLM 能力声明</li>
  *   <li>{@code POST   /ai/anchors}：创建新对话锚点</li>
  *   <li>{@code GET    /ai/anchors?userId=X}：列出该用户全部锚点（sidebar）</li>
- *   <li>{@code GET    /ai/anchors/{anchorId}/messages}：加载锚点消息历史（≤20 条 window）</li>
+ *   <li>{@code GET    /ai/anchors/{anchorId}/messages}：加载锚点消息历史（滑动窗口，默认 20 条）</li>
  *   <li>{@code GET    /ai/anchors/{anchorId}/context}：其他锚点三层衰减视图（near/mid/far）</li>
  *   <li>{@code PATCH  /ai/anchors/{anchorId}/title}：手动重命名锚点</li>
  *   <li>{@code GET    /ai/memory/hot?userId=X&type=Y}：Hot Memory snapshot（用户级）</li>
@@ -83,7 +83,7 @@ public class ChatController {
         return anchorMemoryStore.listByUser(userId);
     }
 
-    /** 加载锚点消息历史（≤20 条 window），供前端切锚点时显示。 */
+    /** 加载锚点消息历史（滑动窗口，默认 20 条），供前端切锚点时显示。 */
     @GetMapping("/anchors/{anchorId}/messages")
     public Mono<List<Map<String, String>>> messages(@PathVariable String anchorId) {
         return chatMemoryStore.loadByAnchorId(anchorId)
@@ -132,7 +132,8 @@ public class ChatController {
         if (!HotMemoryType.ALL.contains(type)) {
             return Mono.error(new IllegalArgumentException("type 无效: " + type));
         }
-        return Mono.fromCallable(() -> hotMemoryStore.snapshot(userId, type));
+        return Mono.fromCallable(() -> hotMemoryStore.snapshot(userId, type))
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
 }

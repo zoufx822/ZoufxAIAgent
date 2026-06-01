@@ -5,7 +5,6 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Hot Memory 存储契约——见到此人就立刻浮现、不需检索的常驻记忆。
@@ -18,12 +17,6 @@ import java.util.Optional;
  * 写方法（{@link #set}）反应式——调用方是 {@code @Tool} 方法，在工具线程上可 {@code .block()} 桥接。
  */
 public interface HotMemoryStore {
-
-    /**
-     * 同步读单个 key。实现侧用 PK 单点查询，开销可忽略。
-     * 返回 {@link Optional#empty()} 表示该 (user / type / key) 未写入过。
-     */
-    Optional<String> get(String userId, String type, String key);
 
     /**
      * 同步一次性读取该 (userId, type) 下全部已写入的 key/value。

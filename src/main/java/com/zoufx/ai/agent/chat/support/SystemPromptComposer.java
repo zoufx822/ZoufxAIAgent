@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.chat.support;
 
+import com.zoufx.ai.agent.base.support.DateFormats;
 import com.zoufx.ai.agent.chat.api.PromptSection;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import lombok.extern.slf4j.Slf4j;
@@ -7,10 +8,8 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 
 /**
@@ -31,9 +30,6 @@ import java.util.function.Function;
 @Component
 public class SystemPromptComposer {
 
-    private static final DateTimeFormatter DATE_FMT =
-            DateTimeFormatter.ofPattern("yyyy 年 M 月 d 日", Locale.CHINA);
-
     private final List<PromptSection> sections;
     private final AnchorMemoryStore anchorMemoryStore;
 
@@ -52,7 +48,7 @@ public class SystemPromptComposer {
         String userId = anchorId != null ? anchorMemoryStore.findUserId(anchorId) : null;
 
         StringBuilder sb = new StringBuilder();
-        sb.append("当前日期：").append(LocalDate.now().format(DATE_FMT)).append("\n\n");
+        sb.append("当前日期：").append(LocalDate.now().format(DateFormats.CN_LONG_DATE)).append("\n\n");
 
         for (PromptSection sec : sections) {
             String rendered;

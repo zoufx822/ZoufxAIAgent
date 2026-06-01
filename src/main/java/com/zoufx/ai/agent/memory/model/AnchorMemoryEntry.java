@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
  * {@code AnchorService} 异步生成并写入。回访锚点时被置回 null，等下次切走再压。
  *
  * <p>{@code title} 创建时可为 null，{@code ChatService.onStreamComplete} 用首条 user 消息
- * 截取自动 backfill；前端 PATCH /ai/anchor/{id}/title 也可无条件覆盖。
+ * 截取自动 backfill；前端 PATCH /ai/anchors/{anchorId}/title 也可无条件覆盖。
  *
  * <p>{@code lastMood} 是本锚点最近一轮 AI 回复结束时的情绪关键词（6 词表）；
  * {@code ChatService.onStreamComplete} 从 {@code MoodEventProcessor} 取最后一次 mood 写入。

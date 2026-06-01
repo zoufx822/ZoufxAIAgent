@@ -3,7 +3,6 @@ package com.zoufx.ai.agent.memory.impl;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -14,22 +13,20 @@ import reactor.core.scheduler.Schedulers;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
- * Hot Memory 的 SQLite 实现（v0.13 加 type 列）。
+ * Hot Memory 的 SQLite 实现。
  *
  * <p>schema：
  * <pre>
  *   hot_memory(user_id, type, key, value, updated_at)  PK=(user_id, type, key)
  * </pre>
  *
- * <p>type 维度让 hot_memory 容纳多种"重要记忆"子类：user-impression / significant-event / ...
- * v0.13 仅 user-impression 被使用，schema 为未来扩展留好骨架。
+ * <p>type 维度让 hot_memory 容纳多种"重要记忆"子类：user-impression / significant-event / commitment。
  *
  * <p>- 与其他 store 共用 memoryDataSource / memoryJdbcTemplate
  * <p>- schema 在自身 @PostConstruct 里建
- * <p>- get / snapshot 同步：见 {@link HotMemoryStore} 接口文档
+ * <p>- snapshot / recent 同步：见 {@link HotMemoryStore} 接口文档
  * <p>- set 反应式：阻塞 JDBC 包到 boundedElastic
  */
 @Slf4j
@@ -55,18 +52,6 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
                 )
                 """);
         log.info("SqliteHotMemoryStore schema ready (hot_memory with type)");
-    }
-
-    @Override
-    public Optional<String> get(String userId, String type, String key) {
-        try {
-            String value = jdbc.queryForObject(
-                    "SELECT value FROM hot_memory WHERE user_id = ? AND type = ? AND key = ?",
-                    String.class, userId, type, key);
-            return Optional.ofNullable(value);
-        } catch (EmptyResultDataAccessException e) {
-            return Optional.empty();
-        }
     }
 
     @Override

@@ -12,6 +12,9 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "ai.chat")
 public class ChatProperties {
 
+    /** 发给 LLM 的对话滑动窗口最大消息数 */
+    private int loadMessage = 20;
+
     private Retry retry = new Retry();
 
     @Data

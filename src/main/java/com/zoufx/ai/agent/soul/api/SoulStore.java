@@ -3,7 +3,6 @@ package com.zoufx.ai.agent.soul.api;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * SOUL Store——AI 自身人格的全局单例存储（无 userId 维度）。
@@ -16,9 +15,6 @@ import java.util.Optional;
  * set 反应式（boundedElastic）。
  */
 public interface SoulStore {
-
-    /** 同步读单个 key。返回 {@link Optional#empty()} 表示该 key 未被 seed 也未被管理 API 写入过。 */
-    Optional<String> get(String key);
 
     /** 同步一次性读取全部已写入的 key。compose 注入用。 */
     Map<String, String> snapshot();

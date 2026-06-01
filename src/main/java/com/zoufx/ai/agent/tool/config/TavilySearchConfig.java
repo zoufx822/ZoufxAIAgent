@@ -15,9 +15,6 @@ import org.springframework.util.StringUtils;
  * 网络检索装配。
  * apiKey 为空时仍然注册 TavilySearchTool（engine=null），让工具调用链路完整，
  * 模型真正触发工具时才返回「未配置」字符串降级，避免因缺 key 启动失败。
- *
- * v0.13: @ConditionalOnProperty 跟随 prefix 迁到 ai.tools.web-search；
- * retry 从原集中式 RetryProperties.Tavily 改读 TavilySearchProperties.Retry 内嵌字段（就近）。
  */
 @Slf4j
 @Configuration

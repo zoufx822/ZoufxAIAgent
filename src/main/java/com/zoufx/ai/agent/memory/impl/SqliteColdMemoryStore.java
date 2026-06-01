@@ -91,12 +91,6 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
-    @Override
-    public Mono<List<ColdMemoryEntry>> loadRecent(String userId, int limit) {
-        return Mono.fromCallable(() -> loadRecentBlocking(userId, limit))
-                .subscribeOn(Schedulers.boundedElastic());
-    }
-
     // ====== 私有同步实现 ======
 
     private void appendBlocking(String userId, String role, String content, String metadataJson, @Nullable String mood) {
@@ -156,19 +150,6 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
             expr.append('"').append(tokenized.replace("\"", "\"\"")).append('"');
         }
         return expr.length() == 0 ? null : expr.toString();
-    }
-
-    private List<ColdMemoryEntry> loadRecentBlocking(String userId, int limit) {
-        int safeLimit = Math.min(Math.max(limit, 1), SEARCH_LIMIT_HARD_MAX);
-        return jdbc.query(
-                "SELECT id, role, content, mood, created_at FROM cold_memory WHERE user_id = ? ORDER BY id DESC LIMIT ?",
-                (rs, i) -> new ColdMemoryEntry(
-                        rs.getLong("id"),
-                        rs.getString("role"),
-                        rs.getString("content"),
-                        rs.getString("mood"),
-                        rs.getLong("created_at")),
-                userId, safeLimit);
     }
 
     /**

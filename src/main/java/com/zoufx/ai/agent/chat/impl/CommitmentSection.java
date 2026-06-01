@@ -1,27 +1,19 @@
 package com.zoufx.ai.agent.chat.impl;
 
-import com.zoufx.ai.agent.chat.api.PromptSection;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.model.HotMemoryEntry;
-import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-
 /**
- * 「## 双方做出的承诺」段（order=24）——读 hot_memory commitment 的最近 N 条，
- * 按更新时间倒序渲染为 bullet 列表。承诺方靠 value 文本前缀区分，段内不额外标注。
- * 无条目时跳过。
+ * 「## 双方做出的承诺」段（order=24）——承诺方靠 value 文本前缀区分，段内不额外标注。
  */
 @Component
-@RequiredArgsConstructor
-public class CommitmentSection implements PromptSection {
+public class CommitmentSection extends RecentHotMemorySection {
 
-    private static final int RECENT_INJECT_LIMIT = 5;
-
-    private final HotMemoryStore hotMemoryStore;
+    public CommitmentSection(HotMemoryStore hotMemoryStore) {
+        super(hotMemoryStore);
+    }
 
     @Override
     public int order() {
@@ -29,23 +21,17 @@ public class CommitmentSection implements PromptSection {
     }
 
     @Override
-    @Nullable
-    public String render(@Nullable String userId, @Nullable String anchorId) {
-        if (userId == null) return null;
-        int limit = RECENT_INJECT_LIMIT;
-        if (limit <= 0) return null;
-        List<HotMemoryEntry> commitments = hotMemoryStore.recent(userId, HotMemoryType.COMMITMENT, limit);
-        if (commitments.isEmpty()) return null;
+    protected String type() {
+        return HotMemoryType.COMMITMENT;
+    }
 
-        long now = System.currentTimeMillis();
-        StringBuilder sb = new StringBuilder("## 双方做出的承诺（最近 ")
-                .append(commitments.size())
-                .append(" 条，括号内为承诺达成时间）\n\n");
-        for (HotMemoryEntry c : commitments) {
-            sb.append("- (").append(c.relativeTimeFrom(now)).append(") ")
-                    .append(c.value()).append("\n");
-        }
-        sb.append("\n");
-        return sb.toString();
+    @Override
+    protected String header(int count) {
+        return "## 双方做出的承诺（最近 " + count + " 条，括号内为承诺达成时间）\n\n";
+    }
+
+    @Override
+    protected String formatItem(HotMemoryEntry entry, long now) {
+        return "- (" + entry.relativeTimeFrom(now) + ") " + entry.value() + "\n";
     }
 }

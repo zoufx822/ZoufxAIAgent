@@ -6,14 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 
 /**
- * Tavily 搜索引擎特定配置（v0.13 起 prefix 从 ai.web-search.tavily 迁到 ai.tools.web-search.tavily）。
- *
- * <p>v0.13 命名空间重整：
- * <ul>
- *   <li>外层 prefix 跟随 {@link WebSearchProperties} 迁到 {@code ai.tools.web-search.*} 子树</li>
- *   <li>新增 {@link Retry} 内嵌字段，承接原 {@code chat/property/RetryProperties.Tavily}——
- *       retry 配置==就近==放到被重试对象旁边，删除原跨模块的集中式 {@code ai.retry} 节</li>
- * </ul>
+ * Tavily 搜索引擎特定配置（prefix={@code ai.tools.web-search.tavily}）。
+ * retry 配置就近内嵌在被重试对象旁边。
  */
 @Data
 @ConfigurationProperties(prefix = "ai.tools.web-search.tavily")
@@ -25,7 +19,7 @@ public class TavilySearchProperties {
     private int maxResults = 5;
     private Duration timeout = Duration.ofSeconds(20);
 
-    /** 调用失败时的重试策略（v0.13 从 {@code ai.retry.tavily} 内嵌进来）。 */
+    /** 调用失败时的重试策略。 */
     private Retry retry = new Retry();
 
     @Data
