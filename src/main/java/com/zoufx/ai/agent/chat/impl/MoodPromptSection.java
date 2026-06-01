@@ -1,8 +1,6 @@
 package com.zoufx.ai.agent.chat.impl;
 
 import com.zoufx.ai.agent.chat.api.PromptSection;
-import com.zoufx.ai.agent.soul.property.SoulProperties;
-import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -13,10 +11,7 @@ import org.springframework.stereotype.Component;
  * 词表内联在 prompt 文案里（每词带语义说明），与 MoodEventProcessor 的合法集对齐。
  */
 @Component
-@RequiredArgsConstructor
 public class MoodPromptSection implements PromptSection {
-
-    private final SoulProperties soulProperties;
 
     @Override
     public int order() {
@@ -26,8 +21,6 @@ public class MoodPromptSection implements PromptSection {
     @Override
     @Nullable
     public String render(@Nullable String userId, @Nullable String anchorId) {
-        if (!soulProperties.getMood().isEnabled()) return null;
-
         return "## 情绪标记\n\n"
                 + "在你每条回复的**最末尾**，追加一个 HTML 注释标记你（AI）此刻的情绪，格式严格如下：\n"
                 + "<!--mood:KEYWORD-->\n\n"
@@ -38,7 +31,7 @@ public class MoodPromptSection implements PromptSection {
                 + "- 难过：用户在倾诉负面经历、低落情绪、挫败感时——与对方共情，不是 AI 自己倒霉\n"
                 + "- 愤怒：用户遭遇明显不公 / 被欺负 / 被伤害时——为对方义愤\n"
                 + "- 好奇：用户抛出新颖问题 / 引入陌生领域 / 引发探索冲动\n"
-                + "- 困惑：用户表达模糊 / 信息冲突 / 上下文不连贯，你需要澄清\n\n"
+                + "- 困惑：用户表达模糊 / 信息冲突 / 上下文不连贯 / 要求「再解释」「没听懂」「说清楚」时，你需要澄清\n\n"
                 + "倾向规则（重要）：\n"
                 + "- 当用户表达「难过 / 不顺心 / 失败 / 被否定」等负面情绪时，**优先选「难过」共情**，不要默认「平静」\n"
                 + "- 当用户表达「开心 / 成功 / 兴奋 / 终于」等正向高峰时，**优先选「兴奋」共鸣**\n"
