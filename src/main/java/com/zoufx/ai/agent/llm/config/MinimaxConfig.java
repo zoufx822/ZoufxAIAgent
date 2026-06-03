@@ -34,7 +34,7 @@ public class MinimaxConfig {
 
     @Bean
     public StreamingChatModel chatModel() {
-        String model = props.getChat().getModel();
+        String model = props.getChat().getCoreModel();
         MinimaxProperties.Thinking thinking = props.getThinking();
         log.info("Creating chatModel [minimax] baseUrl={} model={} thinking={}",
                 props.getBaseUrl(), model, thinking.getType());
@@ -55,17 +55,18 @@ public class MinimaxConfig {
     }
 
     /**
-     * 同步 ChatModel——供 AnchorService 做一次性摘要压缩。不参与流式聊天主路。
-     * 与 streaming 版本一致 builder 期固定开启 thinking，避免协议层 reasoning_content 回传报错。
+     * 轻量同步 ChatModel——供 AnchorService 摘要压缩 + MoodService 情绪快速分类。不参与流式聊天主路。
+     * MiniMax 无 flash 等轻量分层，此 bean 暂用与主模型同款 + builder 期开启 thinking（避免协议层
+     * reasoning_content 回传报错），故"快"是尽力而为；上游放出更轻模型或可关 thinking 后再优化。
      */
     @Bean
-    public ChatModel chatModelSync() {
+    public ChatModel chatModelFast() {
         MinimaxProperties.Thinking thinking = props.getThinking();
         return AnthropicChatModel.builder()
                 .apiKey(props.getApiKey())
                 .baseUrl(props.getBaseUrl())
                 .version(props.getVersion())
-                .modelName(props.getChat().getModel())
+                .modelName(props.getChat().getCoreModel())
                 .maxTokens(props.getChat().getMaxTokens())
                 .timeout(props.getTimeout())
                 .thinkingType(thinking.getType())

@@ -35,7 +35,7 @@ public class DeepSeekV4Config {
 
     @Bean
     public StreamingChatModel chatModel() {
-        String model = props.getChat().getModel();
+        String model = props.getChat().getCoreModel();
         log.info("Creating chatModel [deepseek-v4] baseUrl={} model={}", props.getBaseUrl(), model);
         return OpenAiStreamingChatModel.builder()
                 .apiKey(props.getApiKey())
@@ -52,15 +52,16 @@ public class DeepSeekV4Config {
     }
 
     /**
-     * 同步 ChatModel——供 AnchorService 做一次性摘要压缩。不参与流式聊天主路。
-     * 摘要场景无需 thinking 多轮回传，故略去 returnThinking/sendThinking。
+     * 轻量同步 ChatModel——供 AnchorService 摘要压缩 + MoodService 情绪快速分类。不参与流式聊天主路。
+     * 用 flash 模型（{@code fastModel}）抢延迟：情绪分类要在主流之前秒出，摘要是后台 fire-and-forget。
+     * 单次调用无需 thinking 多轮回传，故略去 returnThinking/sendThinking。
      */
     @Bean
-    public ChatModel chatModelSync() {
+    public ChatModel chatModelFast() {
         return OpenAiChatModel.builder()
                 .apiKey(props.getApiKey())
                 .baseUrl(props.getBaseUrl())
-                .modelName(props.getChat().getModel())
+                .modelName(props.getChat().getFastModel())
                 .maxTokens(props.getChat().getMaxTokens())
                 .timeout(props.getTimeout())
                 .build();

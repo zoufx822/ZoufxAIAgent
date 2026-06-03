@@ -25,8 +25,10 @@ public class DeepSeekV4Properties {
 
     @Data
     public static class Chat {
-        /** 具体模型 ID，如 deepseek-v4-pro / deepseek-v4-flash */
-        private String model;
+        /** 核心模型 ID（流式主聊天），如 deepseek-v4-pro */
+        private String coreModel;
+        /** 轻量辅助模型（摘要压缩 / 情绪快速分类）——用 flash 抢延迟，这两个场景对质量要求低、对延迟敏感 */
+        private String fastModel = "deepseek-v4-flash";
         private int maxTokens = 4096;
     }
 }

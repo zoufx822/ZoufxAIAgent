@@ -24,10 +24,12 @@ import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -62,6 +64,7 @@ public class ChatService {
     private final AnchorMemoryStore anchorMemoryStore;
     private final ColdMemoryStore coldMemoryStore;
     private final AnchorService anchorSummaryService;
+    private final MoodService moodService;
     private final ChatProperties chatProperties;
     private final List<ToolPrompt> tools;
     private final Map<String, String> toolNameMap = new HashMap<>();
@@ -96,7 +99,9 @@ public class ChatService {
 
         AtomicBoolean hasEmitted = new AtomicBoolean(false);
         StringBuilder assistantBuffer = new StringBuilder();
-        AtomicReference<String> lastMood = new AtomicReference<>();
+        // 瞬时分类情绪（并行先到）+ 正文里 LLM 自行追加的多个情绪，流末合并落库
+        AtomicReference<String> instantMood = new AtomicReference<>();
+        List<String> inlineMoods = new CopyOnWriteArrayList<>();
 
         // findUserId 是阻塞 JDBC——包进 boundedElastic 延迟到订阅时执行，绝不在 event loop 上跑。
         // 用 Optional 承载"可能为 null"，避免 Mono.fromCallable 返回 null 退化成空流、与"流本身为空"混淆。
@@ -117,7 +122,8 @@ public class ChatService {
                     }
                     String userId = userIdOpt.get();
                     return beforeStream(userId, prompt)
-                            .thenMany(buildStream(chatAssistant, anchorId, userId, prompt, hasEmitted, assistantBuffer, lastMood));
+                            .thenMany(buildStream(chatAssistant, anchorId, userId, prompt,
+                                    hasEmitted, assistantBuffer, instantMood, inlineMoods));
                 });
     }
 
@@ -149,9 +155,18 @@ public class ChatService {
      */
     private Flux<ChatEvent> buildStream(ChatAssistant assistant, String anchorId, String userId, String prompt,
                                         AtomicBoolean hasEmitted, StringBuilder assistantBuffer,
-                                        AtomicReference<String> lastMood) {
-        return Flux.<ChatEvent>create(sink -> startTokenStream(sink, assistant, anchorId, userId, prompt, hasEmitted, lastMood))
-                .retryWhen(buildRetrySpec(hasEmitted))
+                                        AtomicReference<String> instantMood, List<String> inlineMoods) {
+        // 并行支：快速分类先到的瞬时情绪事件（失败为 empty，不发）。重试只裹主流，分类不随之重跑。
+        Flux<ChatEvent> instant = moodService.classify(prompt)
+                .doOnNext(instantMood::set)
+                .map(kw -> new ChatEvent("mood", MoodEventProcessor.moodPayload(kw)))
+                .flux();
+
+        Flux<ChatEvent> main = Flux.<ChatEvent>create(sink ->
+                        startTokenStream(sink, assistant, anchorId, userId, prompt, hasEmitted, inlineMoods))
+                .retryWhen(buildRetrySpec(hasEmitted));
+
+        return Flux.merge(instant, main)
                 .doOnNext(event -> {
                     if ("content".equals(event.type())) {
                         assistantBuffer.append(event.data());
@@ -162,7 +177,7 @@ public class ChatService {
                     String msg = err.getMessage() != null ? err.getMessage() : "AI 服务异常，请稍后重试";
                     return Flux.just(new ChatEvent("error", msg));
                 })
-                .doOnComplete(() -> onStreamComplete(anchorId, userId, prompt, assistantBuffer, lastMood.get()))
+                .doOnComplete(() -> onStreamComplete(anchorId, userId, prompt, assistantBuffer, instantMood.get(), inlineMoods))
                 .doOnCancel(() -> {
                     log.info("Stream cancelled [anchorId={}, userId={}]", anchorId, userId);
                     chatMemoryStore.cleanupOrphans(anchorId)
@@ -183,7 +198,7 @@ public class ChatService {
      */
     private void startTokenStream(FluxSink<ChatEvent> sink, ChatAssistant assistant,
                                   String anchorId, String userId, String prompt, AtomicBoolean hasEmitted,
-                                  AtomicReference<String> lastMood) {
+                                  List<String> inlineMoods) {
         // 一条请求一个实例：内部维护 tail buffer + 命中状态，请求结束 flush() 兜底。
         final MoodEventProcessor moodStripper = new MoodEventProcessor(32, sink, userId);
 
@@ -219,9 +234,9 @@ public class ChatService {
                 .onCompleteResponse(r -> {
                     log.info("Stream completed [anchorId={}]", anchorId);
                     moodStripper.flush();
-                    // moodStripper 在 startTokenStream 局部作用域，必须在此处把 mood 落到外部 ref
+                    // moodStripper 在 startTokenStream 局部作用域，必须在此处把正文情绪导出到外部 list
                     // 供 doOnComplete 的 onStreamComplete 持久化到 anchor.last_mood / cold_memory.mood
-                    lastMood.set(moodStripper.getLastMood());
+                    inlineMoods.addAll(moodStripper.getMoods());
                     sink.complete();
                 })
                 .start();
@@ -237,8 +252,17 @@ public class ChatService {
      * 全部异步、失败仅记日志，不重抛——副作用失败不应影响已经返回给用户的对话内容。
      */
     private void onStreamComplete(String anchorId, String userId, String prompt, StringBuilder buffer,
-                                  @Nullable String lastMood) {
-        anchorMemoryStore.touch(anchorId, lastMood)
+                                  @Nullable String instantMood, List<String> inlineMoods) {
+        // 一轮情绪轨迹 = 瞬时分类（若有，置首）+ 正文里依次追加的情绪。
+        // anchor.last_mood 存最后一个（沉淀表情，供头像还原，单词语义）；
+        // cold_memory.mood 存整轮逗号拼接（暂塞同一字段，记录情绪轨迹，后续再优化）。
+        List<String> moods = new ArrayList<>();
+        if (instantMood != null && !instantMood.isBlank()) moods.add(instantMood);
+        moods.addAll(inlineMoods);
+        String settledMood = moods.isEmpty() ? null : moods.get(moods.size() - 1);
+        String moodTrail = moods.isEmpty() ? null : String.join(",", moods);
+
+        anchorMemoryStore.touch(anchorId, settledMood)
                 .onErrorResume(err -> {
                     log.warn("Failed to touch anchor [anchorId={}]: {}", anchorId, err.toString());
                     return Mono.empty();
@@ -266,7 +290,7 @@ public class ChatService {
         }
 
         if (buffer.length() > 0) {
-            coldMemoryStore.append(userId, "assistant", buffer.toString(), null, lastMood)
+            coldMemoryStore.append(userId, "assistant", buffer.toString(), null, moodTrail)
                     .onErrorResume(err -> {
                         log.warn("Failed to append assistant message to cold_memory [userId={}]: {}",
                                 userId, err.toString());

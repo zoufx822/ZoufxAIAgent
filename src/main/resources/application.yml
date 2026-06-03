@@ -31,7 +31,8 @@ ai:
       api-key: ${OPENAI_API_KEY:}
       timeout: 60s
       chat:
-        model: deepseek-v4-pro
+        core-model: deepseek-v4-pro
+        fast-model: deepseek-v4-flash
         max-tokens: 2048
 
     minimax:
@@ -40,7 +41,7 @@ ai:
       version: 2023-06-01
       timeout: 60s
       chat:
-        model: MiniMax-M2.5
+        core-model: MiniMax-M2.5
         max-tokens: 16384
       thinking:
         type: enabled

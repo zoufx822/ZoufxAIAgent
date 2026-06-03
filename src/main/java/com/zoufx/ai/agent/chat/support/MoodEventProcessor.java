@@ -2,9 +2,10 @@ package com.zoufx.ai.agent.chat.support;
 
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.FluxSink;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -12,9 +13,9 @@ import java.util.regex.Pattern;
  * 有状态的情绪事件处理器——从 LLM content 流里剥离 {@code <!--mood:KEYWORD-->} 标记。
  *
  * <p>工作方式：维护一个 buffer，每次 {@link #accept(String)} 时追加 token，
- * 扫描是否含完整 mood 标记，命中即剥离并发独立 SSE mood 事件。
- * 为容忍标记跨 chunk，命中前保留 buffer 末尾 {@code tailSize} 字符不 emit。
- * 命中后剩余内容直接全 emit（mood 一轮只发一次，无需再留尾）。
+ * 扫描是否含完整 mood 标记，命中即剥离并发独立 SSE mood 事件。一轮可命中多次
+ * （LLM 在情绪转折处就地追加标记，像连发表情），故 tail buffer 全程保留以兜住后续标记。
+ * 为容忍标记跨 chunk，始终保留 buffer 末尾 {@code tailSize} 字符不 emit。
  *
  * <p>一次性使用：==每条 chat 请求 new 一个实例==，complete 时调 {@link #flush()} 兜底扫描 + 清空。
  *
@@ -30,8 +31,8 @@ public class MoodEventProcessor {
     private final FluxSink<ChatEvent> sink;
     private final String userId;
     private final StringBuilder buffer = new StringBuilder();
-    /** 本轮最后一次命中的 mood 关键词；流末由 ChatService 取出落库到 anchor.last_mood / cold_memory.mood。 */
-    @Nullable private String lastMood;
+    /** 本轮 LLM 在正文里依次输出的所有 mood 关键词（可 0~N 个）；流末由 ChatService 取出落库。 */
+    private final List<String> moods = new ArrayList<>();
 
     public MoodEventProcessor(int tailSize, FluxSink<ChatEvent> sink, String userId) {
         this.tailSize = tailSize;
@@ -72,15 +73,14 @@ public class MoodEventProcessor {
             }
             buffer.delete(0, m.end());
             sink.next(new ChatEvent("mood", moodPayload(mood)));
-            lastMood = mood;
+            moods.add(mood);
             log.info("Mood stripped [userId={}] mood={}", userId, mood);
         }
     }
 
-    /** 本轮最后一次 mood，无则 null。一轮 LLM 多次 mood 标记时以最后一次为准（与前端 setMood 语义一致）。 */
-    @Nullable
-    public String getLastMood() {
-        return lastMood;
+    /** 本轮正文里依次出现的所有 mood（按出现顺序）；无则空 list。 */
+    public List<String> getMoods() {
+        return moods;
     }
 
     /** 流式途中：总是保留尾部 tailSize 字符，防止跨 chunk 切碎下一个可能的标记。 */
@@ -92,8 +92,8 @@ public class MoodEventProcessor {
         buffer.delete(0, safeLen);
     }
 
-    /** 构造 mood 事件 JSON payload；对 keyword 做 JSON 转义。 */
-    static String moodPayload(String keyword) {
+    /** 构造 mood 事件 JSON payload；对 keyword 做 JSON 转义。供瞬时分类情绪复用同一格式。 */
+    public static String moodPayload(String keyword) {
         return "{\"keyword\":\"" + JsonStrings.escape(keyword) + "\"}";
     }
 }

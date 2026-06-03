@@ -28,8 +28,8 @@ public class MinimaxProperties {
 
     @Data
     public static class Chat {
-        /** 具体模型 ID，如 MiniMax-M2.5 */
-        private String model;
+        /** 核心模型 ID（流式主聊天），如 MiniMax-M2.5 */
+        private String coreModel;
         private int maxTokens = 16384;
     }
 

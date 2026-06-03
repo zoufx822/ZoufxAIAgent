@@ -46,7 +46,7 @@ public class AnchorService {
     private final ChatMemoryStore chatMemoryStore;
     private final AnchorMemoryStore anchorMemoryStore;
 
-    public AnchorService(@Qualifier("chatModelSync") ChatModel chatModel,
+    public AnchorService(@Qualifier("chatModelFast") ChatModel chatModel,
                          ChatMemoryStore chatMemoryStore,
                          AnchorMemoryStore anchorMemoryStore) {
         this.chatModel = chatModel;
