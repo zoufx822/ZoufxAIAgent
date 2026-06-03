@@ -9,9 +9,9 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 
 /**
- * 「## 关于你自己」段（order=10）——注入 AI 自身人格 / 风格 / 原则 / 反模式 / 小习惯。
+ * 「## 关于你自己」段（order=10）——注入 AI 自身人格 / 风格 / 原则 / 反模式 / 一致性原则 / 小习惯。
  *
- * <p>渲染顺序硬编码：role → name/tone → principles → forbidden_patterns → quirks，
+ * <p>渲染顺序硬编码：role → name/tone → principles → forbidden_patterns → consistency_principles → quirks，
  * 直接从 {@code SoulStore.snapshot()} 取值，缺值字段自然跳过。与 {@code IdentityPromptSection}
  * 对偶——前者是"我是谁"，后者是"对方是谁"。
  */
@@ -46,9 +46,10 @@ public class SoulPromptSection implements PromptSection {
         } else if (tone != null && !tone.isBlank()) {
             sb.append("你的说话风格是：").append(tone).append("。\n\n");
         }
-        appendBlock(sb, snap, "principles",         "你坚持以下表达原则：");
-        appendBlock(sb, snap, "forbidden_patterns", "你**绝不**使用以下表达：");
-        appendBlock(sb, snap, "quirks",             "你有以下小习惯（自然流露即可，不要刻意）：");
+        appendBlock(sb, snap, "principles",              "你坚持以下表达原则：");
+        appendBlock(sb, snap, "forbidden_patterns",      "你**绝不**使用以下表达：");
+        appendBlock(sb, snap, "consistency_principles",  "你坚持以下**一致性原则**：");
+        appendBlock(sb, snap, "quirks",                  "你有以下小习惯（自然流露即可，不要刻意）：");
         int headerLen = "## 关于你自己\n\n".length();
         return sb.length() > headerLen ? sb.toString() : null;
     }
