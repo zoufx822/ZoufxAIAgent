@@ -54,16 +54,22 @@ public class DeepSeekV4Config {
     /**
      * 轻量同步 ChatModel——供 AnchorService 摘要压缩 + MoodService 情绪快速分类。不参与流式聊天主路。
      * 用 flash 模型（{@code fastModel}）抢延迟：情绪分类要在主流之前秒出，摘要是后台 fire-and-forget。
-     * 单次调用无需 thinking 多轮回传，故略去 returnThinking/sendThinking。
+     *
+     * <p>returnThinking=true 是必需的：DeepSeek v4 hybrid 在非 thinking 入口也会产出 reasoning_content，
+     * 不带此开关会导致同步 ChatModel 响应解析失败——MoodService 就会静默返回 empty。
+     * sendThinking=true 同理防止 API 端 reasoning_content 回传报错（虽然 fast 调用无历史，写上无害）。
      */
     @Bean
     public ChatModel chatModelFast() {
+        log.info("Creating chatModelFast [deepseek-v4] baseUrl={} model={}", props.getBaseUrl(), props.getChat().getFastModel());
         return OpenAiChatModel.builder()
                 .apiKey(props.getApiKey())
                 .baseUrl(props.getBaseUrl())
                 .modelName(props.getChat().getFastModel())
                 .maxTokens(props.getChat().getMaxTokens())
                 .timeout(props.getTimeout())
+                .returnThinking(true)
+                .sendThinking(true)
                 .build();
     }
 
