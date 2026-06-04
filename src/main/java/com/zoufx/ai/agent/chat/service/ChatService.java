@@ -156,10 +156,16 @@ public class ChatService {
     private Flux<ChatEvent> buildStream(ChatAssistant assistant, String anchorId, String userId, String prompt,
                                         AtomicBoolean hasEmitted, StringBuilder assistantBuffer,
                                         AtomicReference<String> instantMood, List<String> inlineMoods) {
-        // 并行支：快速分类先到的瞬时情绪事件（失败为 empty，不发）。重试只裹主流，分类不随之重跑。
-        Flux<ChatEvent> instant = moodService.classify(prompt)
+        // 并行支：先拉本锚点对话窗口（与主流并行、同源），据此快速分类先到的瞬时情绪事件。
+        // 整支失败（加载或分类）都吞为 empty 静默不发；重试只裹主流，分类不随之重跑。
+        Flux<ChatEvent> instant = chatMemoryStore.loadByAnchorId(anchorId)
+                .flatMap(history -> moodService.classify(prompt, history))
                 .doOnNext(instantMood::set)
                 .map(kw -> new ChatEvent("mood", MoodEventProcessor.moodPayload(kw)))
+                .onErrorResume(err -> {
+                    log.warn("Instant mood branch failed, skip [anchorId={}]: {}", anchorId, err.toString());
+                    return Mono.empty();
+                })
                 .flux();
 
         Flux<ChatEvent> main = Flux.<ChatEvent>create(sink ->
