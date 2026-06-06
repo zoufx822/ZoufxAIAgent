@@ -45,6 +45,7 @@ application-local.properties
 # SQLite 持久化数据
 /data/
 .codegraph/
+.reasonix/
 
 # Environment variables（含 API keys）
 .env

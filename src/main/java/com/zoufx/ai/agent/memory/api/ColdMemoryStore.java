@@ -30,7 +30,7 @@ public interface ColdMemoryStore {
      *
      * @param role         'user' / 'assistant'（当前写入这两类）
      * @param metadataJson JSON 字符串，当前留空（预留 importance/tags/embedding_id）
-     * @param mood         AI 回复时的情绪关键词（6 词表），仅 assistant 消息有值；user 消息传 null
+     * @param mood         AI 回复时的情绪关键词（参见 {@code Moods.ALL}），仅 assistant 消息有值；user 消息传 null
      */
     Mono<Void> append(String userId, String role, String content, String metadataJson, @Nullable String mood);
 

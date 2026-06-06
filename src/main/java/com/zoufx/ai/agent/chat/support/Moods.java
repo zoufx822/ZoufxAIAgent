@@ -6,15 +6,18 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 情绪 6 词谱的单一事实源——快速分类校验与提示词共用，与前端 eyes.tsx 的表情预设一一对应。
+ * 情绪词谱的单一事实源——快速分类校验与提示词共用，与前端 eyes.tsx 的表情预设一一对应。
  * 扩词必须同步前端预设，故集合在此收口。
  */
 public final class Moods {
 
-    /** 兜底情绪：拿不准 / 非法输出时回落到此。 */
+    /** 兜底情绪：LLM 输出非法 / 乱码时回落到此。 */
     public static final String CALM = "平静";
 
-    public static final List<String> ALL = List.of("平静", "兴奋", "难过", "愤怒", "好奇", "困惑");
+    /** 默认层级正面情绪：比平静多一分暖意，比兴奋少一分激烈；LLM 拿不准时优先选用。 */
+    public static final String JOLLY = "愉快";
+
+    public static final List<String> ALL = List.of(CALM, JOLLY, "兴奋", "难过", "愤怒", "好奇", "困惑");
 
     private static final Set<String> SET = Set.copyOf(ALL);
 

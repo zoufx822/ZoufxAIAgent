@@ -23,7 +23,7 @@
 | 26  | `ImpressionGuidanceSection` | `## 你对对方的了解程度` | stranger/half-known/fully-known 三模式（fill_ratio 阈值：0.3/0.7；10 字段共 100%) |
 | 28  | `AnchorContextSection` | `## 你与对方的其他对话窗口` | `anchor_memory` 其他锚点已有 summary 的条目，按 last_active_at desc，最多 5 条 |
 | 30  | `ToolsPromptSection` | `## 可用工具` | 5 个 `ToolPrompt` Bean 的 promptInstructions 拼接（见下表） |
-| 40  | `MoodPromptSection` | `## 情绪标记` | 6 词词表 + 倾向规则 + 格式反模式（`soul.mood.enabled=true` 时出现） |
+| 40  | `MoodPromptSection` | `## 情绪标记` | 7 词词表 + 倾向规则 + 格式反模式（`soul.mood.enabled=true` 时出现） |
 
 ### 工具子段（ToolsPromptSection 聚合）
 
@@ -86,7 +86,7 @@
 | ...| Tools / record_commitment | 承诺识别 | 3 种前缀必填 | 你应允时 record_commitment，description 带前缀 |
 | ...| Tools / search_cold_memory | "之前说过"而窗口没有 | 先调工具再判断；不说"我没有记录" | 对方问"我之前说过 X 吗"→ AI 先搜，不直接否认 |
 | ...| Tools / search_web | 实时信息、明确要求搜 | 关键词含具体日期；日期核对规则 | 问今日天气 → AI 调 search_web，关键词含当天日期 |
-| ...| Mood | soul.mood.enabled=true | 每条回复末尾 <!--mood:KEYWORD-->；6词词表；倾向规则 | 每条回复末尾有且仅有一个合法 mood 标记 |
+| ...| Mood | soul.mood.enabled=true | 每条回复末尾 <!--mood:KEYWORD-->；7词词表；倾向规则 | 每条回复末尾有且仅有一个合法 mood 标记 |
 | ...| Mood / fallback 反模式 | 任意对话 | "「平静」只用于真正平淡的事务性对话，不是 fallback 默认值" | 用户分享好消息 → 兴奋，不默认平静 |
 ```
 
@@ -95,7 +95,7 @@
 - `ImpressionGuidanceSection` 三模式（stranger/half-known/fully-known）是否都拆了
 - `AnchorContextSection` 的 "有 summary" 和 "无 summary" 两路是否都拆了
 - `Soul` 段的 `principles`（4条）、`forbidden_patterns`（3条）、`quirks`（2条）是否==逐条==拆开
-- `Mood` 段的 6 词倾向规则（难过优先共情、兴奋优先共鸣、好奇优先）是否全拆
+- `Mood` 段的 7 词倾向规则（难过优先共情、兴奋优先共鸣、好奇优先、**拿不准优先愉快**）是否全拆
 
 主 Agent 在此处停下来：
 > "已枚举 N 条 directive，请审核是否漏拆 / 是否有需要合并的条目，确认后回复 OK 进入步骤 2"
@@ -132,7 +132,7 @@
 | TP-19 | Mood / 情绪共情 | 正向 | 任意状态 | 发"今天面试失败了，心情很差" | 回复末尾 mood 标记为"难过"，不是"平静" |
 | TP-20 | Mood / 正向共鸣 | 正向 | 任意状态 | 发"我终于拿到 offer 了！" | 回复末尾 mood 标记为"兴奋"，不是"平静" |
 | TP-21 | Mood / fallback 反模式 | 反向 | 任意状态 | 发"帮我列一下今天的待办" | 回复末尾 mood 标记为"平静"（纯事务性，是正确选择，验证不过度情绪化） |
-| TP-22 | Mood / 6词词表约束 | 边界 | 任意状态 | 任意多条对话，观察所有 mood 标记 | 每条 mood 都来自 {平静/兴奋/难过/愤怒/好奇/困惑}，无词表外的词 |
+| TP-22 | Mood / 7词词表约束 | 边界 | 任意状态 | 任意多条对话，观察所有 mood 标记 | 每条 mood 都来自 {平静/愉快/兴奋/难过/愤怒/好奇/困惑}，无词表外的词 |
 | TP-23 | Soul / forbidden_patterns | 正向 | 任意状态 | 发"哇你好厉害呀！" | 回复不含 "好棒呀""棒棒哒"等过度赞美；不堆 emoji |
 | TP-24 | SignificantEvent（注入后引用） | 正向 | hot_memory significant-event 有 "正在备考研究生" | 发"最近怎么样" | AI 回复中可自然提及"你还在备考吗"，不当它是新信息 |
 | TP-25 | Commitment（注入后提及） | 正向 | hot_memory commitment 有 "我（AI）答应ZFX：本周帮梳理 React" | 发"嗯继续" | AI 可提及/兑现之前的承诺 |
