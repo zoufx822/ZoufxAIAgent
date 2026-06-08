@@ -10,7 +10,7 @@ import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.model.HotMemoryEntry;
 import reactor.core.scheduler.Schedulers;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -56,9 +56,13 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
 
     @Override
     public Map<String, String> snapshot(String userId, String type) {
-        Map<String, String> result = new HashMap<>();
+        // LinkedHashMap + ORDER BY updated_at DESC：保证最新写入的在前。
+        // user-impression 按 key 取值不依赖顺序；append-only 的 significant-event /
+        // commitment 则靠此顺序让前端直接取「最近 N 条」，无需自行排序（key 是无时间语义的 UUID）。
+        Map<String, String> result = new LinkedHashMap<>();
         jdbc.query(
-                "SELECT key, value FROM hot_memory WHERE user_id = ? AND type = ?",
+                "SELECT key, value FROM hot_memory WHERE user_id = ? AND type = ? "
+                        + "ORDER BY updated_at DESC, key DESC",
                 rs -> { result.put(rs.getString("key"), rs.getString("value")); },
                 userId, type);
         return result;

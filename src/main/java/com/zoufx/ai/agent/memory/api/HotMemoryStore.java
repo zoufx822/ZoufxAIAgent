@@ -19,8 +19,9 @@ import java.util.Map;
 public interface HotMemoryStore {
 
     /**
-     * 同步一次性读取该 (userId, type) 下全部已写入的 key/value。
-     * 供 IdentityPromptSection 等同类型 Section 使用。
+     * 同步一次性读取该 (userId, type) 下全部已写入的 key/value，按 {@code updated_at DESC} 有序
+     * （最新在前）。返回有序 Map——append-only type（significant-event / commitment）的 key 是
+     * 无时间语义的 UUID，调用方靠此顺序直接取「最近 N 条」而无需自行排序。
      */
     Map<String, String> snapshot(String userId, String type);
 

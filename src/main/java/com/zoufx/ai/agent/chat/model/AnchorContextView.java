@@ -31,6 +31,7 @@ public record AnchorContextView(
         List<AnchorSummary> near = new ArrayList<>();
         List<AnchorSummary> mid = new ArrayList<>();
         int farCount = 0;
+        List<AnchorSummary> farTitles = new ArrayList<>();
         for (int i = 0; i < others.size(); i++) {
             AnchorMemoryEntry a = others.get(i);
             if (i < NEAR_LIMIT) {
@@ -39,13 +40,21 @@ public record AnchorContextView(
                 mid.add(AnchorSummary.truncatedBody(a, MID_BODY_TRUNCATE));
             } else {
                 farCount++;
+                farTitles.add(AnchorSummary.fullBody(a));
             }
         }
-        return new AnchorContextView(near, mid, new FarTier(farCount));
+        String farSummary = farCount > 0
+                ? farTitles.stream()
+                        .map(a -> a.title() != null ? a.title() : "新对话")
+                        .limit(3)
+                        .reduce((x, y) -> x + "、" + y)
+                        .orElse("")
+                : null;
+        return new AnchorContextView(near, mid, new FarTier(farCount, farSummary));
     }
 
     public static AnchorContextView empty() {
-        return new AnchorContextView(List.of(), List.of(), new FarTier(0));
+        return new AnchorContextView(List.of(), List.of(), new FarTier(0, null));
     }
 
     public record AnchorSummary(
@@ -68,5 +77,5 @@ public record AnchorContextView(
         }
     }
 
-    public record FarTier(int count) {}
+    public record FarTier(int count, @Nullable String summary) {}
 }
