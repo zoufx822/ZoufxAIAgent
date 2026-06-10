@@ -1,9 +1,8 @@
 package com.zoufx.ai.agent.memory.api;
 
-import com.zoufx.ai.agent.memory.model.HotMemoryEntry;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -12,8 +11,8 @@ import java.util.Map;
  * <p>与 Memory Stream（Cold Archive）并行写入，不互相派生：Hot 由 LLM 通过 {@code @Tool} 主动晶化，
  * Cold 自动 append 每轮对话原文。
  *
- * <p><b>读/写签名分裂原因</b>：读方法（{@link #get}/{@link #snapshot}/{@link #recent}）同步——
- * 调用方 {@code PromptSection.render} 在 WebFlux event loop 上执行，无法 {@code .block()}；
+ * <p><b>读/写签名分裂原因</b>：读方法（{@link #snapshot}/{@link #fetchValues}）同步——
+ * 调用方在 event loop / boundedElastic 上，无法或不必 {@code .block()}；
  * 写方法（{@link #set}）反应式——调用方是 {@code @Tool} 方法，在工具线程上可 {@code .block()} 桥接。
  */
 public interface HotMemoryStore {
@@ -32,8 +31,8 @@ public interface HotMemoryStore {
     Mono<Void> set(String userId, String type, String key, String value);
 
     /**
-     * 同步读该 (userId, type) 下最近 N 条记录，按 {@code updated_at DESC} 排序。
-     * 供 significant-event / commitment 等 append-only type 的 Section 注入用。
+     * 按 key 批量取 value——召回 hydration 用（Qdrant 只存指针，hot 正文回这里取）。
+     * 同步签名：调用方 {@code RecallServiceImpl} 在 boundedElastic 上。
      */
-    List<HotMemoryEntry> recent(String userId, String type, int limit);
+    Map<String, String> fetchValues(String userId, String type, Collection<String> keys);
 }

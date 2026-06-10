@@ -7,10 +7,19 @@ import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
+import com.zoufx.ai.agent.chat.impl.RecallContextSection;
 import com.zoufx.ai.agent.chat.support.MoodEventProcessor;
+import com.zoufx.ai.agent.chat.support.RecallContextHolder;
 import com.zoufx.ai.agent.chat.support.RetryableExceptions;
 import com.zoufx.ai.agent.chat.support.WebSearchEvents;
+import com.zoufx.ai.agent.recall.api.MemoryIndexer;
+import com.zoufx.ai.agent.recall.api.RecallService;
+import com.zoufx.ai.agent.recall.model.RecallResult;
+import com.zoufx.ai.agent.recall.property.RecallProperties;
+import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
+import dev.langchain4j.data.embedding.Embedding;
+import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -67,6 +76,11 @@ public class ChatService {
     private final MoodService moodService;
     private final ChatProperties chatProperties;
     private final List<ToolPrompt> tools;
+    private final RecallService recallService;
+    private final RecallContextHolder recallContextHolder;
+    private final MemoryIndexer memoryIndexer;
+    private final EmbeddingModel embeddingModel;
+    private final RecallProperties recallProperties;
     private final Map<String, String> toolNameMap = new HashMap<>();
 
     @PostConstruct
@@ -122,7 +136,7 @@ public class ChatService {
                     }
                     String userId = userIdOpt.get();
                     return beforeStream(userId, prompt)
-                            .thenMany(buildStream(chatAssistant, anchorId, userId, prompt,
+                            .flatMapMany(coldUserId -> buildStream(chatAssistant, anchorId, userId, prompt, coldUserId,
                                     hasEmitted, assistantBuffer, instantMood, inlineMoods));
                 });
     }
@@ -141,12 +155,14 @@ public class ChatService {
      * Hook：流启动前——把 user prompt 写入 Cold Memory（按 userId 分区，跨锚点共享）。
      * 失败仅记日志、不阻断主流。
      */
-    private Mono<Void> beforeStream(String userId, String prompt) {
+    private Mono<Long> beforeStream(String userId, String prompt) {
+        // 只 append cold-user 原文，拿回新行 id（供 startTokenStream 召回后索引、复用同一 embedding）。
+        // 失败回 -1，下游据此跳过索引；不阻断主流。
         return coldMemoryStore.append(userId, "user", prompt, null, null)
                 .onErrorResume(err -> {
                     log.warn("Failed to append user message to cold_memory [userId={}]: {}",
                             userId, err.toString());
-                    return Mono.empty();
+                    return Mono.just(-1L);
                 });
     }
 
@@ -154,7 +170,7 @@ public class ChatService {
      * LLM 流主体：在最外层 {@code Flux.create} 里启动 LC4J TokenStream，叠加重试 / 收集 / 错误兜底 / 完成钩子。
      */
     private Flux<ChatEvent> buildStream(ChatAssistant assistant, String anchorId, String userId, String prompt,
-                                        AtomicBoolean hasEmitted, StringBuilder assistantBuffer,
+                                        long coldUserId, AtomicBoolean hasEmitted, StringBuilder assistantBuffer,
                                         AtomicReference<String> instantMood, List<String> inlineMoods) {
         // 并行支：先拉本锚点对话窗口（与主流并行、同源），据此快速分类先到的瞬时情绪事件。
         // 整支失败（加载或分类）都吞为 empty 静默不发；重试只裹主流，分类不随之重跑。
@@ -168,8 +184,11 @@ public class ChatService {
                 })
                 .flux();
 
+        // subscribeOn 保证首次及 retry 时 startTokenStream（含 embed + .block()）都在 boundedElastic 上执行。
+        // retryWhen 默认退避调度器是 parallel——不加此句重试时阻塞 I/O 会打到 parallel 线程。
         Flux<ChatEvent> main = Flux.<ChatEvent>create(sink ->
-                        startTokenStream(sink, assistant, anchorId, userId, prompt, hasEmitted, inlineMoods))
+                        startTokenStream(sink, assistant, anchorId, userId, prompt, coldUserId, hasEmitted, inlineMoods))
+                .subscribeOn(Schedulers.boundedElastic())
                 .retryWhen(buildRetrySpec(hasEmitted));
 
         return Flux.merge(instant, main)
@@ -186,6 +205,7 @@ public class ChatService {
                 .doOnComplete(() -> onStreamComplete(anchorId, userId, prompt, assistantBuffer, instantMood.get(), inlineMoods))
                 .doOnCancel(() -> {
                     log.info("Stream cancelled [anchorId={}, userId={}]", anchorId, userId);
+                    recallContextHolder.remove(anchorId);
                     chatMemoryStore.cleanupOrphans(anchorId)
                             .onErrorResume(err -> {
                                 log.warn("Post-cancel sanitize failed [anchorId={}]: {}", anchorId, err.toString());
@@ -203,10 +223,29 @@ public class ChatService {
      * LC4J 的回调跑在框架自己的线程上，与 WebFlux event loop 隔离。
      */
     private void startTokenStream(FluxSink<ChatEvent> sink, ChatAssistant assistant,
-                                  String anchorId, String userId, String prompt, AtomicBoolean hasEmitted,
-                                  List<String> inlineMoods) {
+                                  String anchorId, String userId, String prompt, long coldUserId,
+                                  AtomicBoolean hasEmitted, List<String> inlineMoods) {
+        // 自动关联：在 boundedElastic 上、assistant.chat() 触发 compose 之前算完召回塞 holder。
+        // 当前 user 消息 embed 一次——召回 query 与 cold-user 入库向量复用，避免双重 embedding；
+        // 先召回（此刻库里还没有当前消息向量，不会自命中）再 fire-and-forget 索引 cold-user。
+        try {
+            Embedding emb = embeddingModel.embed(prompt).content();
+            // 窗口下界：用 cold_memory 第 N 近一条的 created_at（chat_memory.created_at 每次 save 被重写、不可靠）。
+            // 排除已在工作窗口里、LLM 本就看得到的近期 cold 条目，避免召回名额浪费。
+            Long windowSince = coldMemoryStore.windowLowerBound(userId, chatProperties.getLoadMessage());
+            List<RecallResult> recalled = recallService
+                    .recallWith(userId, emb, recallProperties.getLimit(), windowSince).block();
+            recallContextHolder.set(anchorId, RecallContextSection.format(recalled));
+            if (coldUserId >= 0) {
+                memoryIndexer.indexWith(userId, MemoryVectorMeta.COLD, String.valueOf(coldUserId),
+                        prompt, "user", System.currentTimeMillis(), emb).subscribe();
+            }
+        } catch (Exception e) {
+            log.warn("Recall failed, skip auto-association [anchorId={}]: {}", anchorId, e.toString());
+        }
+
         // 一条请求一个实例：内部维护 tail buffer + 命中状态，请求结束 flush() 兜底。
-        final MoodEventProcessor moodStripper = new MoodEventProcessor(32, sink, userId);
+        final MoodEventProcessor moodStripper = new MoodEventProcessor(sink, userId);
 
         assistant.chat(anchorId, prompt)
                 .onPartialThinking(pt -> {
@@ -236,9 +275,13 @@ public class ChatService {
                     log.info("Tool call done [anchorId={}] {} ({}) count={}", anchorId, name, chineseName, count);
                     sink.next(new ChatEvent("tool_result", WebSearchEvents.toolResultPayload(name, chineseName, count, result)));
                 })
-                .onError(sink::error)
+                .onError(err -> {
+                    recallContextHolder.remove(anchorId);
+                    sink.error(err);
+                })
                 .onCompleteResponse(r -> {
                     log.info("Stream completed [anchorId={}]", anchorId);
+                    recallContextHolder.remove(anchorId);
                     moodStripper.flush();
                     // moodStripper 在 startTokenStream 局部作用域，必须在此处把正文情绪导出到外部 list
                     // 供 doOnComplete 的 onStreamComplete 持久化到 anchor.last_mood / cold_memory.mood
@@ -296,9 +339,14 @@ public class ChatService {
         }
 
         if (buffer.length() > 0) {
-            coldMemoryStore.append(userId, "assistant", buffer.toString(), null, moodTrail)
+            String assistantText = buffer.toString();
+            // append 拿回 id 后 fire-and-forget 索引 cold-assistant（off TTFT 关键路径）
+            coldMemoryStore.append(userId, "assistant", assistantText, null, moodTrail)
+                    .flatMap(id -> id < 0 ? Mono.<Void>empty()
+                            : memoryIndexer.index(userId, MemoryVectorMeta.COLD, String.valueOf(id), assistantText,
+                                    "assistant", System.currentTimeMillis()))
                     .onErrorResume(err -> {
-                        log.warn("Failed to append assistant message to cold_memory [userId={}]: {}",
+                        log.warn("Failed to append/index assistant message to cold_memory [userId={}]: {}",
                                 userId, err.toString());
                         return Mono.empty();
                     })

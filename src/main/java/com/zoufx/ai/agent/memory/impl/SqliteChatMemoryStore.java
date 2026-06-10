@@ -201,8 +201,8 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
         return cleaned;
     }
 
-    /** 匹配 AiMessage text 末尾的 mood 标记，持久化前剥离到 mood 列。 */
-    private static final Pattern MOOD_TAG = Pattern.compile("<!--mood:([^>]+?)-->");
+    /** 匹配 AiMessage text 里的专用情绪标记 ⟦mood:KEYWORD⟧，持久化前剥离到 mood 列。 */
+    private static final Pattern MOOD_TAG = Pattern.compile("⟦mood:([^⟧]+?)⟧");
 
     /**
      * 从 AiMessage 文本末尾提取 mood 关键字，返回剥离后的干净消息。

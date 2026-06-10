@@ -1,8 +1,9 @@
 package com.zoufx.ai.agent.tool.impl;
 
 import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
-import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
-import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
+import com.zoufx.ai.agent.recall.api.RecallService;
+import com.zoufx.ai.agent.recall.model.RecallResult;
+import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;
@@ -18,7 +19,8 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 冷内存检索工具——当对方暗示之前说过某事而当前窗口里没有时，FTS5 检索 cold_memory 原文。
+ * 记忆检索工具——当对方暗示之前说过某事而当前窗口里没有时，==语义召回==过往记忆（与自动召回共用
+ * RecallService）。手动深挖路径：自动召回打底，LLM 需要更多条目时主动调本工具。
  */
 @Slf4j
 @Component
@@ -31,7 +33,7 @@ public class ColdMemorySearchTool implements ToolPrompt {
     private static final DateTimeFormatter TIME_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.CHINA).withZone(ZoneId.systemDefault());
 
-    private final ColdMemoryStore coldMemoryStore;
+    private final RecallService recallService;
     private final AnchorMemoryStore anchorMemoryStore;
 
     @Override
@@ -56,7 +58,7 @@ public class ColdMemorySearchTool implements ToolPrompt {
                 """;
     }
 
-    @Tool("记忆检索：从完整记忆流里按关键词检索过往消息。当对方暗示之前说过/聊过/讨论过，而当前对话窗口里看不到时使用。返回带时间戳、角色、内容的结果列表。")
+    @Tool("记忆检索：从完整记忆流里按语义检索过往记忆。当对方暗示之前说过/聊过/讨论过，而当前对话窗口里看不到时使用。返回带时间戳、类型、内容的结果列表。")
     public String search_cold_memory(
             @ToolMemoryId String memoryId,
             @P("搜索关键词（短词或短语，不要用整句话）") String keyword,
@@ -71,18 +73,19 @@ public class ColdMemorySearchTool implements ToolPrompt {
         int effectiveLimit = limit > 0 ? Math.min(limit, HARD_MAX_LIMIT) : DEFAULT_LIMIT;
 
         log.info("🔎 search_cold_memory [userId={}] keyword='{}' limit={}", userId, keyword, effectiveLimit);
-        List<ColdMemoryEntry> hits = coldMemoryStore.search(userId, keyword, effectiveLimit).block();
+        // windowSince 传 null——LLM 显式深挖时不排除近期内容
+        List<RecallResult> hits = recallService.recall(userId, keyword, effectiveLimit, null).block();
         if (hits == null || hits.isEmpty()) {
             return "经历流里没找到与「" + keyword + "」相关的内容。";
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append("找到 ").append(hits.size()).append(" 条相关经历（按相关性排序）：\n");
+        sb.append("找到 ").append(hits.size()).append(" 条相关记忆（按相关性排序）：\n");
         int idx = 1;
-        for (ColdMemoryEntry e : hits) {
-            String time = TIME_FMT.format(Instant.ofEpochMilli(e.createdAt()));
-            sb.append(idx++).append(". [").append(e.role()).append(" · ").append(time).append("] ")
-                    .append(e.content().replace("\n", " ")).append("\n");
+        for (RecallResult r : hits) {
+            String time = TIME_FMT.format(Instant.ofEpochMilli(r.createdAt()));
+            sb.append(idx++).append(". [").append(MemoryVectorMeta.labelOf(r.memType())).append(" · ").append(time).append("] ")
+                    .append(r.content().replace("\n", " ")).append("\n");
         }
         return sb.toString();
     }

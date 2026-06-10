@@ -7,9 +7,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
-import com.zoufx.ai.agent.memory.model.HotMemoryEntry;
 import reactor.core.scheduler.Schedulers;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +28,7 @@ import java.util.Map;
  *
  * <p>- 与其他 store 共用 memoryDataSource / memoryJdbcTemplate
  * <p>- schema 在自身 @PostConstruct 里建
- * <p>- snapshot / recent 同步：见 {@link HotMemoryStore} 接口文档
+ * <p>- snapshot / fetchValues 同步：见 {@link HotMemoryStore} 接口文档
  * <p>- set 反应式：阻塞 JDBC 包到 boundedElastic
  */
 @Slf4j
@@ -75,16 +77,19 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
     }
 
     @Override
-    public List<HotMemoryEntry> recent(String userId, String type, int limit) {
-        return jdbc.query(
-                "SELECT key, value, updated_at FROM hot_memory "
-                        + "WHERE user_id = ? AND type = ? "
-                        + "ORDER BY updated_at DESC LIMIT ?",
-                (rs, rowNum) -> new HotMemoryEntry(
-                        rs.getString("key"),
-                        rs.getString("value"),
-                        rs.getLong("updated_at")),
-                userId, type, limit);
+    public Map<String, String> fetchValues(String userId, String type, Collection<String> keys) {
+        if (keys == null || keys.isEmpty()) return Map.of();
+        String placeholders = String.join(",", java.util.Collections.nCopies(keys.size(), "?"));
+        List<Object> args = new ArrayList<>(keys.size() + 2);
+        args.add(userId);
+        args.add(type);
+        args.addAll(keys);
+        Map<String, String> out = new HashMap<>();
+        jdbc.query(
+                "SELECT key, value FROM hot_memory WHERE user_id = ? AND type = ? AND key IN (" + placeholders + ")",
+                rs -> { out.put(rs.getString("key"), rs.getString("value")); },
+                args.toArray());
+        return out;
     }
 
     private void setBlocking(String userId, String type, String key, String value) {

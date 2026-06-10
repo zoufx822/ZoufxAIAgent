@@ -4,6 +4,8 @@ import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields;
+import com.zoufx.ai.agent.recall.api.MemoryIndexer;
+import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -26,6 +28,7 @@ public class UserImpressionUpdateTool implements ToolPrompt {
 
     private final HotMemoryStore hotMemoryStore;
     private final AnchorMemoryStore anchorMemoryStore;
+    private final MemoryIndexer memoryIndexer;
 
     @Override
     public String section() {
@@ -85,6 +88,12 @@ public class UserImpressionUpdateTool implements ToolPrompt {
         }
         log.info("📝 update_user_impression [userId={}] {}={}", userId, trimmedKey, trimmedValue);
         hotMemoryStore.set(userId, HotMemoryType.USER_IMPRESSION, trimmedKey, trimmedValue).block();
+        // 画像向量索引：embed 带字段语义的短句（如「你做什么的：Java 后端」），UPSERT 由确定性 id 保证。
+        // fire-and-forget，不拖慢工具返回。
+        String embedText = UserImpressionFields.embedText(trimmedKey, trimmedValue);
+        memoryIndexer.index(userId, MemoryVectorMeta.USER_IMPRESSION, trimmedKey, embedText, null,
+                System.currentTimeMillis())
+                .subscribe();
         return "已记下：" + trimmedKey + "=" + trimmedValue;
     }
 }

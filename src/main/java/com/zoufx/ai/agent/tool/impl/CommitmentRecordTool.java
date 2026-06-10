@@ -3,6 +3,8 @@ package com.zoufx.ai.agent.tool.impl;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
+import com.zoufx.ai.agent.recall.api.MemoryIndexer;
+import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -27,6 +29,7 @@ public class CommitmentRecordTool implements ToolPrompt {
 
     private final HotMemoryStore hotMemoryStore;
     private final AnchorMemoryStore anchorMemoryStore;
+    private final MemoryIndexer memoryIndexer;
 
     @Override
     public String section() {
@@ -85,6 +88,10 @@ public class CommitmentRecordTool implements ToolPrompt {
         String key = UUID.randomUUID().toString();
         log.info("📝 record_commitment [userId={}] uuid={} description={}", userId, key, trimmed);
         hotMemoryStore.set(userId, HotMemoryType.COMMITMENT, key, trimmed).block();
+        // 向量索引 fire-and-forget，不拖慢工具返回
+        memoryIndexer.index(userId, MemoryVectorMeta.COMMITMENT, key, trimmed, null,
+                System.currentTimeMillis())
+                .subscribe();
         return "已记下承诺：" + trimmed;
     }
 }

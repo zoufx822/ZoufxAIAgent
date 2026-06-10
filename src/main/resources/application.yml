@@ -22,6 +22,39 @@ ai:
   memory:
     db-path: ./data/zoufx-ai.db
 
+  # 语义召回 Embedding（OpenAI 兼容 BGE-M3，与 LLM profile 解耦）
+  embedding:
+    base-url: ${EMBEDDING_BASE_URL:https://api.siliconflow.cn/v1}
+    api-key: ${EMBEDDING_API_KEY:}
+    model: BAAI/bge-m3
+    dimension: 1024
+    timeout: 30s
+
+  # Qdrant 向量库（派生索引：只存向量+指针，不存正文）
+  vector:
+    host: ${QDRANT_HOST:localhost}
+    port: ${QDRANT_PORT:6334}
+    collection: memory_vectors
+    dimension: 1024
+    distance: cosine
+    use-tls: ${QDRANT_TLS:false}
+    api-key: ${QDRANT_API_KEY:}
+
+  # 召回引擎：三维加权（recency × importance × relevance）+ MMR
+  recall:
+    weights:
+      alpha: 1.0          # recency
+      beta: 1.0           # importance
+      gamma: 1.5          # relevance
+    recency-tau-days: 7
+    top-k: 30             # Qdrant 一阶召回数
+    min-score: 0.3        # cosine 下限
+    limit: 5              # 注入 prompt 的最终条数
+    mmr:
+      enabled: true
+      lambda: 0.7
+    backfill-on-start: false
+
   llm:
     # 当前激活的 LLM profile：deepseek-v4 | minimax
     profile: deepseek-v4

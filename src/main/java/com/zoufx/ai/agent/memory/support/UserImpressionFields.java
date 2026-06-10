@@ -155,5 +155,15 @@ public final class UserImpressionFields {
         return WHITELIST_LITERAL;
     }
 
+    /**
+     * 画像字段的语义化 embed 文本——带字段含义的短句（如「你做什么的：Java 后端」），
+     * 供向量索引时 embed（裸值语义太弱）。写入路径与 backfill 共用，保证一致。
+     * 非白名单 key（不应发生）回退为裸值。
+     */
+    public static String embedText(String key, String value) {
+        FieldSpec spec = FIELDS.get(key);
+        return spec == null ? value : spec.nameForUser() + "：" + value;
+    }
+
     private UserImpressionFields() {}
 }

@@ -10,37 +10,41 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 有状态的情绪事件处理器——从 LLM content 流里剥离 {@code <!--mood:KEYWORD-->} 标记。
+ * 有状态的情绪事件处理器——从 LLM content 流里剥离专用情绪标记 {@code ⟦mood:KEYWORD⟧}。
  *
- * <p>工作方式：维护一个 buffer，每次 {@link #accept(String)} 时追加 token，
- * 扫描是否含完整 mood 标记，命中即剥离并发独立 SSE mood 事件。一轮可命中多次
- * （LLM 在情绪转折处就地追加标记，像连发表情），故 tail buffer 全程保留以兜住后续标记。
- * 为容忍标记跨 chunk，始终保留 buffer 末尾 {@code tailSize} 字符不 emit。
+ * <p>专用 sentinel（U+27E6/U+27E7 数学白方括号）正文/代码/markdown/HTML 里都不出现，剥离规则
+ * "见到 {@code ⟦...⟧} 就整段删"而零误伤；内部再校验是否 {@code mood:合法词}——是则发独立 SSE mood
+ * 事件，否则（畸形）静默丢弃。无论 LLM 怎么填错，标记都不泄漏到用户屏幕。
  *
- * <p>一次性使用：==每条 chat 请求 new 一个实例==，complete 时调 {@link #flush()} 兜底扫描 + 清空。
+ * <p>跨 chunk：{@code ⟦} 是单字符，一旦出现就把它及之后的内容留在 buffer 等 {@code ⟧} 闭合，
+ * 不 emit 越过未闭合的 {@code ⟦}。流末 {@link #flush()} 若仍有未闭合 {@code ⟦} 则丢弃其尾部。
  *
- * <p>线程模型：accept / flush 都在 LC4J 单 token 回调线程上串行调用，无并发——不需要 synchronized。
+ * <p>一次性使用：每条 chat 请求 new 一个实例。线程模型：accept / flush 在 LC4J 单 token 回调线程串行调用。
  */
 @Slf4j
 public class MoodEventProcessor {
 
-    /** 匹配 {@code <!--mood:任何非 > 字符-->}，非贪婪。 */
-    private static final Pattern MOOD = Pattern.compile("<!--mood:([^>]+?)-->");
+    /** 专用情绪标记定界符。 */
+    private static final char OPEN = '⟦';   // ⟦
+    private static final char CLOSE = '⟧';  // ⟧
 
-    private final int tailSize;
+    /** 匹配 ⟦任意非⟧字符⟧。 */
+    private static final Pattern TAG = Pattern.compile(OPEN + "([^" + CLOSE + "]*)" + CLOSE);
+    /** 标记内部须形如 mood:KEYWORD。 */
+    private static final Pattern INNER = Pattern.compile("^\\s*mood:\\s*(.+?)\\s*$");
+
     private final FluxSink<ChatEvent> sink;
     private final String userId;
     private final StringBuilder buffer = new StringBuilder();
-    /** 本轮 LLM 在正文里依次输出的所有 mood 关键词（可 0~N 个）；流末由 ChatService 取出落库。 */
+    /** 本轮正文里依次输出的所有合法 mood 关键词（可 0~N 个）；流末由 ChatService 取出落库。 */
     private final List<String> moods = new ArrayList<>();
 
-    public MoodEventProcessor(int tailSize, FluxSink<ChatEvent> sink, String userId) {
-        this.tailSize = tailSize;
+    public MoodEventProcessor(FluxSink<ChatEvent> sink, String userId) {
         this.sink = sink;
         this.userId = userId;
     }
 
-    /** 接收 LC4J 增量 token；可能 emit content + 0..N mood 事件（一轮 LLM 可能输出多次标记）。 */
+    /** 接收 LC4J 增量 token；可能 emit content + 0..N mood 事件。 */
     public void accept(String chunk) {
         if (chunk == null || chunk.isEmpty()) return;
         buffer.append(chunk);
@@ -48,48 +52,58 @@ public class MoodEventProcessor {
         flushSafePrefix();
     }
 
-    /** 流末尾兜底：再扫一次（标记可能正好在末尾）+ flush 全部剩余内容。 */
+    /** 流末兜底：再扫一次 + flush 剩余；未闭合的 {@code ⟦} 尾部丢弃（畸形零泄漏）。 */
     public void flush() {
         scanAndStrip();
+        int open = buffer.indexOf(String.valueOf(OPEN));
+        if (open >= 0) {
+            if (open > 0) sink.next(new ChatEvent("content", buffer.substring(0, open)));
+            log.info("Dropped unclosed mood sentinel tail [userId={}]", userId);
+            buffer.setLength(0);
+            return;
+        }
         if (buffer.length() > 0) {
             sink.next(new ChatEvent("content", buffer.toString()));
             buffer.setLength(0);
         }
     }
 
-    /**
-     * 扫描并剥离 buffer 内的所有 mood 标记。命中：emit 命中前内容 + 删除标记 + 发 mood 事件。
-     * <p>用 while 循环处理"一轮 LLM 输出多次 mood 标记"的情况（例如开头一次 + 末尾一次）。
-     * 前端 setMood 自然以后到为准，并通过 React key 重放 fade-in 动画。
-     */
+    /** 剥离 buffer 内所有完整 {@code ⟦...⟧}：emit 命中前内容 + 删标记 + 校验内部发 mood 事件或静默丢弃。 */
     private void scanAndStrip() {
         while (true) {
-            Matcher m = MOOD.matcher(buffer);
-            if (!m.find()) return;
-            String mood = m.group(1).trim();
-            String before = buffer.substring(0, m.start());
+            Matcher t = TAG.matcher(buffer);
+            if (!t.find()) return;
+            String before = buffer.substring(0, t.start());
             if (!before.isEmpty()) {
                 sink.next(new ChatEvent("content", before));
             }
-            buffer.delete(0, m.end());
-            sink.next(new ChatEvent("mood", moodPayload(mood)));
-            moods.add(mood);
-            log.info("Mood stripped [userId={}] mood={}", userId, mood);
+            String inner = t.group(1);
+            buffer.delete(0, t.end());
+
+            Matcher m = INNER.matcher(inner);
+            if (m.matches() && Moods.isValid(m.group(1).trim())) {
+                String mood = m.group(1).trim();
+                sink.next(new ChatEvent("mood", moodPayload(mood)));
+                moods.add(mood);
+                log.info("Mood stripped [userId={}] mood={}", userId, mood);
+            } else {
+                log.info("Dropped malformed mood tag [userId={}] inner='{}'", userId, inner.trim());
+            }
         }
+    }
+
+    /** 流式途中：不 emit 越过未闭合的 {@code ⟦}（此时 buffer 里已无完整标记，任何 ⟦ 都是未闭合的）。 */
+    private void flushSafePrefix() {
+        int open = buffer.indexOf(String.valueOf(OPEN));
+        int safeLen = (open >= 0) ? open : buffer.length();
+        if (safeLen <= 0) return;
+        sink.next(new ChatEvent("content", buffer.substring(0, safeLen)));
+        buffer.delete(0, safeLen);
     }
 
     /** 本轮正文里依次出现的所有 mood（按出现顺序）；无则空 list。 */
     public List<String> getMoods() {
         return moods;
-    }
-
-    /** 流式途中：总是保留尾部 tailSize 字符，防止跨 chunk 切碎下一个可能的标记。 */
-    private void flushSafePrefix() {
-        int safeLen = buffer.length() - tailSize;
-        if (safeLen <= 0) return;
-        String safe = buffer.substring(0, safeLen);
-        sink.next(new ChatEvent("content", safe));
-        buffer.delete(0, safeLen);
     }
 
     /** 构造 mood 事件 JSON payload；对 keyword 做 JSON 转义。供瞬时分类情绪复用同一格式。 */

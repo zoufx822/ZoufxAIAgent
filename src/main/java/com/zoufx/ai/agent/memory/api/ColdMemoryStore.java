@@ -4,6 +4,7 @@ import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Mono;
 import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -26,18 +27,24 @@ import java.util.List;
 public interface ColdMemoryStore {
 
     /**
-     * 追加一条经历流记录。失败应仅记日志不抛错（不阻断主对话流）。
+     * 追加一条经历流记录，返回新行自增 id（供向量索引作 sourceId / 回查正文）。
+     * 失败应仅记日志不抛错（不阻断主对话流）。
      *
      * @param role         'user' / 'assistant'（当前写入这两类）
      * @param metadataJson JSON 字符串，当前留空（预留 importance/tags/embedding_id）
      * @param mood         AI 回复时的情绪关键词（参见 {@code Moods.ALL}），仅 assistant 消息有值；user 消息传 null
      */
-    Mono<Void> append(String userId, String role, String content, String metadataJson, @Nullable String mood);
+    Mono<Long> append(String userId, String role, String content, String metadataJson, @Nullable String mood);
 
     /**
-     * FTS5 全文检索经历流。必须带 userId 过滤防跨用户泄露。
-     *
-     * @param limit 调用方期望条数，实现侧应做上界裁剪（建议默认 5、上限 20）
+     * 按 id 批量取原文——召回 hydration 用（Qdrant 只存指针，正文回这里取）。
+     * 同步签名：调用方 {@code RecallServiceImpl} 在 boundedElastic 上。带 userId 过滤防跨用户。
      */
-    Mono<List<ColdMemoryEntry>> search(String userId, String keyword, int limit);
+    List<ColdMemoryEntry> fetchByIds(String userId, Collection<Long> ids);
+
+    /**
+     * 该用户第 {@code windowSize} 近一条经历的 created_at——作为召回排除"工作窗口内已可见"cold 条目的下界。
+     * 不足 windowSize 条返回 null（不排除，全部可召回）。同步签名（调用方在 boundedElastic 上）。
+     */
+    @Nullable Long windowLowerBound(String userId, int windowSize);
 }

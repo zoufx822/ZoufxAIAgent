@@ -41,6 +41,8 @@ description: ZoufxAIAgent 项目前后端技术选型备忘。当用户提出任
 | 场景 | 优选方案 | 说明 |
 |------|----------|------|
 | 网络检索 / 实时信息 | Tavily + LangChain4J `.tools()` | langchain4j-web-search-engine-tavily (1.11.0-beta19)；模型自主判断调用；支持 basic/advanced 深度、结果数配置；apiKey 缺失自动降级；SSE 新增 tool_call/tool_result 事件 |
+| 语义检索 Embedding | OpenAI 兼容 API（BGE-M3，1024 维） | LC4J `OpenAiEmbeddingModel` 走现有 OpenAI 兼容协议链路；中文语义效果强；具体 endpoint 走第三方 OpenAI 兼容服务（如硅基流动），密钥走 `EMBEDDING_API_KEY` 环境变量。v0.2 拍板 |
+| 向量库 / RAG 检索 | Qdrant（独立服务）+ `langchain4j-qdrant` | filter 灵活，便于按 `userId` + 记忆类型多维过滤；LC4J 有官方 EmbeddingStore 模块。备选 Chroma。v0.2 拍板（偏离了项目原"单文件 SQLite 零运维"形态——为换取检索能力与 filter 扩展性，需起独立向量库进程） |
 
 ---
 
