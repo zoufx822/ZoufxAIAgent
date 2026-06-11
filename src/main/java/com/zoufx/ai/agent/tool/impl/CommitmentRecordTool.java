@@ -1,10 +1,10 @@
 package com.zoufx.ai.agent.tool.impl;
 
-import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
-import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
+import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.recall.api.MemoryIndexer;
-import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
+import com.zoufx.ai.agent.recall.support.VectorPayload;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -27,13 +28,18 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CommitmentRecordTool implements ToolPrompt {
 
-    private final HotMemoryStore hotMemoryStore;
-    private final AnchorMemoryStore anchorMemoryStore;
+    private final HotMemoryDao hotMemoryDao;
+    private final AnchorMemoryDao anchorMemoryDao;
     private final MemoryIndexer memoryIndexer;
 
     @Override
     public String section() {
         return "承诺记录";
+    }
+
+    @Override
+    public Map<String, String> methodSections() {
+        return Map.of("record_commitment", section());
     }
 
     @Override
@@ -76,7 +82,7 @@ public class CommitmentRecordTool implements ToolPrompt {
                     + "\"{对方称呼}答应我：本周内 review 完代码\" / "
                     + "\"我们约定：一起读 SICP\"。"
                     + "{对方称呼} 占位用已知 username；未知时用「对方」。") String description) {
-        String userId = anchorMemoryStore.findUserId(memoryId);
+        String userId = anchorMemoryDao.findUserId(memoryId);
         if (userId == null) {
             log.error("record_commitment: unknown memoryId={}", memoryId);
             return "record_commitment 调用失败：未识别的对话上下文";
@@ -87,9 +93,9 @@ public class CommitmentRecordTool implements ToolPrompt {
         String trimmed = description.trim();
         String key = UUID.randomUUID().toString();
         log.info("📝 record_commitment [userId={}] uuid={} description={}", userId, key, trimmed);
-        hotMemoryStore.set(userId, HotMemoryType.COMMITMENT, key, trimmed);
+        hotMemoryDao.set(userId, HotMemoryType.COMMITMENT, key, trimmed);
         // 向量索引 fire-and-forget：embed+Qdrant 写都在异步链路（不阻塞工具返回）
-        memoryIndexer.indexTextAsync(userId, MemoryVectorMeta.COMMITMENT, key, trimmed, null,
+        memoryIndexer.indexTextAsync(userId, VectorPayload.COMMITMENT, key, trimmed, null,
                 System.currentTimeMillis()).subscribe();
         return "已记下承诺：" + trimmed;
     }

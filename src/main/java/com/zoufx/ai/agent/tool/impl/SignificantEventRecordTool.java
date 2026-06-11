@@ -1,10 +1,10 @@
 package com.zoufx.ai.agent.tool.impl;
 
-import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
-import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
+import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.recall.api.MemoryIndexer;
-import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
+import com.zoufx.ai.agent.recall.support.VectorPayload;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -27,13 +28,18 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SignificantEventRecordTool implements ToolPrompt {
 
-    private final HotMemoryStore hotMemoryStore;
-    private final AnchorMemoryStore anchorMemoryStore;
+    private final HotMemoryDao hotMemoryDao;
+    private final AnchorMemoryDao anchorMemoryDao;
     private final MemoryIndexer memoryIndexer;
 
     @Override
     public String section() {
         return "重要经历记录";
+    }
+
+    @Override
+    public Map<String, String> methodSections() {
+        return Map.of("record_significant_event", section());
     }
 
     @Override
@@ -63,7 +69,7 @@ public class SignificantEventRecordTool implements ToolPrompt {
             @ToolMemoryId String memoryId,
             @P("事件的完整叙事描述。例：\"去年父亲去世\"、\"正在备考研究生\"、\"刚结束一段七年的感情\"。"
                     + "不要只写关键词；不要包含时间戳（系统自动记录）。") String description) {
-        String userId = anchorMemoryStore.findUserId(memoryId);
+        String userId = anchorMemoryDao.findUserId(memoryId);
         if (userId == null) {
             log.error("record_significant_event: unknown memoryId={}", memoryId);
             return "record_significant_event 调用失败：未识别的对话上下文";
@@ -74,9 +80,9 @@ public class SignificantEventRecordTool implements ToolPrompt {
         String trimmed = description.trim();
         String key = UUID.randomUUID().toString();
         log.info("📝 record_significant_event [userId={}] uuid={} description={}", userId, key, trimmed);
-        hotMemoryStore.set(userId, HotMemoryType.SIGNIFICANT_EVENT, key, trimmed);
+        hotMemoryDao.set(userId, HotMemoryType.SIGNIFICANT_EVENT, key, trimmed);
         // 向量索引 fire-and-forget：embed+Qdrant 写都在异步链路（不阻塞工具返回）
-        memoryIndexer.indexTextAsync(userId, MemoryVectorMeta.SIGNIFICANT_EVENT, key, trimmed, null,
+        memoryIndexer.indexTextAsync(userId, VectorPayload.SIGNIFICANT_EVENT, key, trimmed, null,
                 System.currentTimeMillis()).subscribe();
         return "已记下重要经历：" + trimmed;
     }

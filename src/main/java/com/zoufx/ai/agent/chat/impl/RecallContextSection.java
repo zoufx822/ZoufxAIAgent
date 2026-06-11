@@ -3,7 +3,7 @@ package com.zoufx.ai.agent.chat.impl;
 import com.zoufx.ai.agent.chat.api.PromptSection;
 import com.zoufx.ai.agent.chat.support.RecallContextHolder;
 import com.zoufx.ai.agent.recall.model.RecallResult;
-import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
+import com.zoufx.ai.agent.recall.support.VectorPayload;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
@@ -55,7 +55,7 @@ public class RecallContextSection implements PromptSection {
 
     private static String label(String memType) {
         // cold（对话原文）不加前缀；hot 三类加「[类型] 」
-        return MemoryVectorMeta.COLD.equals(memType) ? "" : "[" + MemoryVectorMeta.labelOf(memType) + "] ";
+        return VectorPayload.COLD.equals(memType) ? "" : "[" + VectorPayload.labelOf(memType) + "] ";
     }
 
     private static String truncate(String s) {

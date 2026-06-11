@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @RequiredArgsConstructor
-public class ScoringPipeline {
+public class RecallScorer {
 
     private final RecallProperties props;
 

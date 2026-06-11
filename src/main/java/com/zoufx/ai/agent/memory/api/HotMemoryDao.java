@@ -14,7 +14,7 @@ import java.util.Map;
  * <p>同步方法供已允许阻塞的调用方（PromptSection / {@code @Tool} 线程 / boundedElastic）；
  * {@code snapshotAsync} 供 WebFlux Controller 反应式串接。
  */
-public interface HotMemoryStore {
+public interface HotMemoryDao {
 
     /**
      * 同步一次性读取该 (userId, type) 下全部已写入的 key/value，按 {@code updated_at DESC} 有序

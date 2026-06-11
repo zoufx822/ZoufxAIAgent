@@ -2,8 +2,8 @@ package com.zoufx.ai.agent.chat.service;
 
 import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.chat.model.AnchorContextView;
-import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
-import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
+import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -44,15 +44,15 @@ public class AnchorService {
     private static final int SUMMARY_MAX_CHARS = 400;
 
     private final ChatModel chatModel;
-    private final ChatMemoryStore chatMemoryStore;
-    private final AnchorMemoryStore anchorMemoryStore;
+    private final ChatMemoryDao chatMemoryDao;
+    private final AnchorMemoryDao anchorMemoryDao;
 
     public AnchorService(@Qualifier("chatModelFast") ChatModel chatModel,
-                         ChatMemoryStore chatMemoryStore,
-                         AnchorMemoryStore anchorMemoryStore) {
+                         ChatMemoryDao chatMemoryDao,
+                         AnchorMemoryDao anchorMemoryDao) {
         this.chatModel = chatModel;
-        this.chatMemoryStore = chatMemoryStore;
-        this.anchorMemoryStore = anchorMemoryStore;
+        this.chatMemoryDao = chatMemoryDao;
+        this.anchorMemoryDao = anchorMemoryDao;
     }
 
     public Mono<Void> compressAsync(String anchorId) {
@@ -68,18 +68,18 @@ public class AnchorService {
      * 流水线是顺序阻塞 IO（DB 读 → LLM → DB CAS 写），调用方需保证不在 event loop 上。
      */
     private void compress(String anchorId) {
-        Long snapshotAt = anchorMemoryStore.snapshotActiveAt(anchorId);
+        Long snapshotAt = anchorMemoryDao.snapshotActiveAt(anchorId);
         if (snapshotAt == null) {
             log.info("Skip compression [anchorId={}]: anchor not found", anchorId);
             return;
         }
-        String transcript = formatTranscript(chatMemoryStore.loadByAnchorId(anchorId));
+        String transcript = formatTranscript(chatMemoryDao.loadByAnchorId(anchorId));
         if (transcript.isBlank()) {
             log.info("Skip compression [anchorId={}]: empty transcript", anchorId);
             return;
         }
         String summary = callLlm(transcript);
-        anchorMemoryStore.updateSummaryIfUnchanged(anchorId, summary, snapshotAt);
+        anchorMemoryDao.updateSummaryIfUnchanged(anchorId, summary, snapshotAt);
         log.info("Anchor summary saved [anchorId={}] len={}", anchorId, summary.length());
     }
 
@@ -92,9 +92,9 @@ public class AnchorService {
      * anchorId 不存在返回空结构，让前端统一走"这是我们的第一次对话"空态。
      */
     private AnchorContextView anchorContext(String anchorId) {
-        String userId = anchorMemoryStore.findUserId(anchorId);
+        String userId = anchorMemoryDao.findUserId(anchorId);
         if (userId == null) return AnchorContextView.empty();
-        return AnchorContextView.from(anchorMemoryStore.listOtherAnchors(userId, anchorId));
+        return AnchorContextView.from(anchorMemoryDao.listOtherAnchors(userId, anchorId));
     }
 
     private String callLlm(String transcript) {

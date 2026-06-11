@@ -7,9 +7,9 @@ import com.zoufx.ai.agent.chat.model.ChatRequest;
 import com.zoufx.ai.agent.chat.service.ChatService;
 import com.zoufx.ai.agent.chat.service.AnchorService;
 import com.zoufx.ai.agent.chat.support.ChatMessageHelper;
-import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
-import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
-import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
+import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
+import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import com.zoufx.ai.agent.memory.model.AnchorMemoryEntry;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import jakarta.validation.Valid;
@@ -52,9 +52,9 @@ public class ChatController {
     private final ChatService chatService;
     private final AnchorService anchorService;
     private final LlmCapabilities capabilities;
-    private final HotMemoryStore hotMemoryStore;
-    private final AnchorMemoryStore anchorMemoryStore;
-    private final ChatMemoryStore chatMemoryStore;
+    private final HotMemoryDao hotMemoryDao;
+    private final AnchorMemoryDao anchorMemoryDao;
+    private final ChatMemoryDao chatMemoryDao;
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> chat(@Valid @RequestBody ChatRequest request, ServerHttpResponse response) {
@@ -85,13 +85,13 @@ public class ChatController {
     /** 列出该用户全部锚点，按 last_active_at desc。 */
     @GetMapping("/anchors")
     public Mono<List<AnchorMemoryEntry>> listAnchors(@RequestParam String userId) {
-        return anchorMemoryStore.listByUserAsync(userId);
+        return anchorMemoryDao.listByUserAsync(userId);
     }
 
     /** 加载锚点消息历史（滑动窗口，默认 20 条），供前端切锚点时显示。 */
     @GetMapping("/anchors/{anchorId}/messages")
     public Mono<List<Map<String, String>>> messages(@PathVariable String anchorId) {
-        return chatMemoryStore.loadByAnchorIdAsync(anchorId)
+        return chatMemoryDao.loadByAnchorIdAsync(anchorId)
                 .map(list -> list.stream()
                         .map(ChatMessageHelper::toMessageView)
                         .toList());
@@ -110,7 +110,7 @@ public class ChatController {
     @PatchMapping("/anchors/{anchorId}/title")
     public Mono<Void> renameAnchor(@PathVariable String anchorId,
             @Valid @RequestBody AnchorTitleUpdateRequest request) {
-        return anchorMemoryStore.updateTitleAsync(anchorId, request.title().trim());
+        return anchorMemoryDao.updateTitleAsync(anchorId, request.title().trim());
     }
 
     // ====== Memory snapshots ======
@@ -127,7 +127,7 @@ public class ChatController {
         if (!HotMemoryType.ALL.contains(type)) {
             return Mono.error(new IllegalArgumentException("type 无效: " + type));
         }
-        return hotMemoryStore.snapshotAsync(userId, type);
+        return hotMemoryDao.snapshotAsync(userId, type);
     }
 
 }

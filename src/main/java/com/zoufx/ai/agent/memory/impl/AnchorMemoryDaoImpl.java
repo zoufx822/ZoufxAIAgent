@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.memory.impl;
 
 import com.zoufx.ai.agent.base.support.Blocking;
-import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.model.AnchorMemoryEntry;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
@@ -23,15 +23,15 @@ import java.util.List;
  *   INDEX (user_id, last_active_at DESC)
  * </pre>
  *
- * <p>同步读 / 反应式写——见 {@link AnchorMemoryStore} 接口文档。
+ * <p>同步读 / 反应式写——见 {@link AnchorMemoryDao} 接口文档。
  */
 @Slf4j
 @Component
-public class SqliteAnchorMemoryStore implements AnchorMemoryStore {
+public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
 
     private final JdbcTemplate jdbc;
 
-    public SqliteAnchorMemoryStore(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc) {
+    public AnchorMemoryDaoImpl(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
@@ -49,7 +49,7 @@ public class SqliteAnchorMemoryStore implements AnchorMemoryStore {
                 )
                 """);
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_anchor_memory_user_active ON anchor_memory(user_id, last_active_at DESC)");
-        log.info("SqliteAnchorMemoryStore schema ready (anchor_memory)");
+        log.info("AnchorMemoryDaoImpl schema ready (anchor_memory)");
     }
 
     // ====== 同步读 ======

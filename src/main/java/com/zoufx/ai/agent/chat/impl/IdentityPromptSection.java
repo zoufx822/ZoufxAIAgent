@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.chat.impl;
 
 import com.zoufx.ai.agent.chat.api.PromptSection;
-import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields.FieldSpec;
@@ -22,7 +22,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class IdentityPromptSection implements PromptSection {
 
-    private final HotMemoryStore hotMemoryStore;
+    private final HotMemoryDao hotMemoryDao;
 
     @Override
     public int order() {
@@ -33,7 +33,7 @@ public class IdentityPromptSection implements PromptSection {
     @Nullable
     public String render(@Nullable String userId, @Nullable String anchorId) {
         if (userId == null) return null;
-        Map<String, String> snap = hotMemoryStore.snapshot(userId, HotMemoryType.USER_IMPRESSION);
+        Map<String, String> snap = hotMemoryDao.snapshot(userId, HotMemoryType.USER_IMPRESSION);
 
         StringBuilder sb = new StringBuilder("## 关于对方\n\n");
         boolean any = false;

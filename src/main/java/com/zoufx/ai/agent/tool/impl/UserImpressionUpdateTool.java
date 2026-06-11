@@ -1,11 +1,11 @@
 package com.zoufx.ai.agent.tool.impl;
 
-import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
-import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
+import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields;
 import com.zoufx.ai.agent.recall.api.MemoryIndexer;
-import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
+import com.zoufx.ai.agent.recall.support.VectorPayload;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -13,6 +13,8 @@ import dev.langchain4j.agent.tool.ToolMemoryId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
+import java.util.Map;
 
 /**
  * 用户印象更新工具——专管 hot_memory user-impression type（结构化 KV，UPSERT）。
@@ -26,13 +28,18 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class UserImpressionUpdateTool implements ToolPrompt {
 
-    private final HotMemoryStore hotMemoryStore;
-    private final AnchorMemoryStore anchorMemoryStore;
+    private final HotMemoryDao hotMemoryDao;
+    private final AnchorMemoryDao anchorMemoryDao;
     private final MemoryIndexer memoryIndexer;
 
     @Override
     public String section() {
         return "用户印象更新";
+    }
+
+    @Override
+    public Map<String, String> methodSections() {
+        return Map.of("update_user_impression", section());
     }
 
     @Override
@@ -69,7 +76,7 @@ public class UserImpressionUpdateTool implements ToolPrompt {
             // 加字段时只改 UserImpressionFields 一处，本注解自动跟随
             @P("属性字段名。必须从白名单选：" + UserImpressionFields.WHITELIST_LITERAL) String key,
             @P("属性值。只传事实本身，不带「我是」「我叫」「我在」等前缀") String value) {
-        String userId = anchorMemoryStore.findUserId(memoryId);
+        String userId = anchorMemoryDao.findUserId(memoryId);
         if (userId == null) {
             log.error("update_user_impression: unknown memoryId={}", memoryId);
             return "update_user_impression 调用失败：未识别的对话上下文";
@@ -87,11 +94,11 @@ public class UserImpressionUpdateTool implements ToolPrompt {
             return "update_user_impression 调用失败：key '" + trimmedKey + "' 不在允许字段列表内";
         }
         log.info("📝 update_user_impression [userId={}] {}={}", userId, trimmedKey, trimmedValue);
-        hotMemoryStore.set(userId, HotMemoryType.USER_IMPRESSION, trimmedKey, trimmedValue);
+        hotMemoryDao.set(userId, HotMemoryType.USER_IMPRESSION, trimmedKey, trimmedValue);
         // 画像向量索引 fire-and-forget：embed 带字段语义的短句（如「你做什么的：Java 后端」），
         // UPSERT 由确定性 id 保证；embed+Qdrant 写都在异步链路（不阻塞工具返回）
         String embedText = UserImpressionFields.embedText(trimmedKey, trimmedValue);
-        memoryIndexer.indexTextAsync(userId, MemoryVectorMeta.USER_IMPRESSION, trimmedKey, embedText, null,
+        memoryIndexer.indexTextAsync(userId, VectorPayload.USER_IMPRESSION, trimmedKey, embedText, null,
                 System.currentTimeMillis()).subscribe();
         return "已记下：" + trimmedKey + "=" + trimmedValue;
     }

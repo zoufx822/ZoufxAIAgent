@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import com.zoufx.ai.agent.soul.api.SoulStore;
+import com.zoufx.ai.agent.soul.api.SoulDao;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -22,7 +22,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class SqliteSoulStore implements SoulStore {
+public class SoulDaoImpl implements SoulDao {
 
     static final Map<String, String> DEFAULT_SEED;
 
@@ -71,7 +71,7 @@ public class SqliteSoulStore implements SoulStore {
 
     private final JdbcTemplate jdbc;
 
-    public SqliteSoulStore(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc) {
+    public SoulDaoImpl(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
@@ -85,13 +85,13 @@ public class SqliteSoulStore implements SoulStore {
                 )
                 """);
         seedIfEmpty();
-        log.info("SqliteSoulStore schema ready (soul_profile)");
+        log.info("SoulDaoImpl schema ready (soul_profile)");
     }
 
     private void seedIfEmpty() {
         Map<String, String> seed = DEFAULT_SEED;
         if (seed == null || seed.isEmpty()) {
-            log.info("SoulStore seed empty, nothing to insert");
+            log.info("SoulDao seed empty, nothing to insert");
             return;
         }
         long now = System.currentTimeMillis();
@@ -104,9 +104,9 @@ public class SqliteSoulStore implements SoulStore {
             inserted += rows;
         }
         if (inserted > 0) {
-            log.info("SoulStore seeded with {} new keys ({} skipped)", inserted, seed.size() - inserted);
+            log.info("SoulDao seeded with {} new keys ({} skipped)", inserted, seed.size() - inserted);
         } else {
-            log.debug("SoulStore all {} seed keys already exist, nothing inserted", seed.size());
+            log.debug("SoulDao all {} seed keys already exist, nothing inserted", seed.size());
         }
     }
 

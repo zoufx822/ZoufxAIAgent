@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.chat.impl;
 
 import com.zoufx.ai.agent.chat.api.PromptSection;
-import com.zoufx.ai.agent.soul.api.SoulStore;
+import com.zoufx.ai.agent.soul.api.SoulDao;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
@@ -12,14 +12,14 @@ import java.util.Map;
  * 「## 关于你自己」段（order=10）——注入 AI 自身人格 / 风格 / 原则 / 反模式 / 一致性原则 / 小习惯。
  *
  * <p>渲染顺序硬编码：role → name/tone → principles → forbidden_patterns → consistency_principles → quirks，
- * 直接从 {@code SoulStore.snapshot()} 取值，缺值字段自然跳过。与 {@code IdentityPromptSection}
+ * 直接从 {@code SoulDao.snapshot()} 取值，缺值字段自然跳过。与 {@code IdentityPromptSection}
  * 对偶——前者是"我是谁"，后者是"对方是谁"。
  */
 @Component
 @RequiredArgsConstructor
 public class SoulPromptSection implements PromptSection {
 
-    private final SoulStore soulStore;
+    private final SoulDao soulDao;
 
     @Override
     public int order() {
@@ -29,7 +29,7 @@ public class SoulPromptSection implements PromptSection {
     @Override
     @Nullable
     public String render(@Nullable String userId, @Nullable String anchorId) {
-        Map<String, String> snap = soulStore.snapshot();
+        Map<String, String> snap = soulDao.snapshot();
         if (snap.isEmpty()) return null;
 
         StringBuilder sb = new StringBuilder("## 关于你自己\n\n");

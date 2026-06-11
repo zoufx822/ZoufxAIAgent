@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
-import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
+import com.zoufx.ai.agent.memory.api.ColdMemoryDao;
 import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
 
 import java.util.ArrayList;
@@ -15,20 +15,20 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * 冷内存（ColdMemoryStore）的 SQLite 实现——经历流原文的唯一权威源（system of record）。
+ * 冷内存（ColdMemoryDao）的 SQLite 实现——经历流原文的唯一权威源（system of record）。
  *
  * <p>v0.2 起检索全面转向量语义召回（{@code RecallService} + Qdrant），原 FTS5 关键词索引已下线：
  * 不再建 {@code cold_memory_fts} 虚表/触发器，启动时幂等 DROP 清理旧库残留。cold_memory 只存原文 + id，
- * 供向量索引作 sourceId、召回 hydration 回查正文。与 SqliteChatMemoryStore 共用 memoryDataSource（HikariCP + WAL）。
+ * 供向量索引作 sourceId、召回 hydration 回查正文。与 ChatMemoryDaoImpl 共用 memoryDataSource（HikariCP + WAL）。
  */
 @Slf4j
 @Component
-public class SqliteColdMemoryStore implements ColdMemoryStore {
+public class ColdMemoryDaoImpl implements ColdMemoryDao {
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
 
-    public SqliteColdMemoryStore(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc,
+    public ColdMemoryDaoImpl(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc,
                                  @Qualifier("memoryTxTemplate") TransactionTemplate tx) {
         this.jdbc = jdbc;
         this.tx = tx;
@@ -53,7 +53,7 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
         jdbc.execute("DROP TRIGGER IF EXISTS cold_memory_ad");
         jdbc.execute("DROP TABLE IF EXISTS cold_memory_fts");
 
-        log.info("SqliteColdMemoryStore schema ready (cold_memory; FTS5 retired)");
+        log.info("ColdMemoryDaoImpl schema ready (cold_memory; FTS5 retired)");
     }
 
     @Override

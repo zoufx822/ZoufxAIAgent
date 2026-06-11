@@ -6,7 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
@@ -28,15 +28,15 @@ import java.util.Map;
  *
  * <p>- 与其他 store 共用 memoryDataSource / memoryJdbcTemplate
  * <p>- schema 在自身 @PostConstruct 里建
- * <p>- snapshot / fetchValues / set 同步：见 {@link HotMemoryStore} 接口文档
+ * <p>- snapshot / fetchValues / set 同步：见 {@link HotMemoryDao} 接口文档
  */
 @Slf4j
 @Component
-public class SqliteHotMemoryStore implements HotMemoryStore {
+public class HotMemoryDaoImpl implements HotMemoryDao {
 
     private final JdbcTemplate jdbc;
 
-    public SqliteHotMemoryStore(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc) {
+    public HotMemoryDaoImpl(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
@@ -52,7 +52,7 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
                     PRIMARY KEY (user_id, type, key)
                 )
                 """);
-        log.info("SqliteHotMemoryStore schema ready (hot_memory with type)");
+        log.info("HotMemoryDaoImpl schema ready (hot_memory with type)");
     }
 
     @Override

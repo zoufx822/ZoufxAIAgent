@@ -1,10 +1,10 @@
 package com.zoufx.ai.agent.recall.impl;
 
-import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.recall.api.ImportanceScorer;
 import com.zoufx.ai.agent.recall.api.MemoryIndexer;
-import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
+import com.zoufx.ai.agent.recall.support.VectorPayload;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
@@ -35,22 +35,22 @@ public class MemoryIndexerImpl implements MemoryIndexer {
 
     private final EmbeddingStore<TextSegment> embeddingStore;
     private final ImportanceScorer importanceScorer;
-    private final HotMemoryStore hotMemoryStore;
+    private final HotMemoryDao hotMemoryDao;
     private final EmbeddingModel embeddingModel;
 
     @Override
     public void index(String userId, String memType, String sourceId, String content,
                       @Nullable String role, long createdAt, Embedding embedding) {
         try {
-            String username = hotMemoryStore.snapshot(userId, HotMemoryType.USER_IMPRESSION).get("username");
+            String username = hotMemoryDao.snapshot(userId, HotMemoryType.USER_IMPRESSION).get("username");
             double importance = importanceScorer.score(memType, role, content, username);
             Metadata md = new Metadata();
-            md.put(MemoryVectorMeta.USER_ID, userId);
-            md.put(MemoryVectorMeta.MEM_TYPE, memType);
-            md.put(MemoryVectorMeta.SOURCE_ID, sourceId);
-            md.put(MemoryVectorMeta.CREATED_AT, createdAt);
-            md.put(MemoryVectorMeta.IMPORTANCE, importance);
-            if (role != null && !role.isBlank()) md.put(MemoryVectorMeta.ROLE, role);
+            md.put(VectorPayload.USER_ID, userId);
+            md.put(VectorPayload.MEM_TYPE, memType);
+            md.put(VectorPayload.SOURCE_ID, sourceId);
+            md.put(VectorPayload.CREATED_AT, createdAt);
+            md.put(VectorPayload.IMPORTANCE, importance);
+            if (role != null && !role.isBlank()) md.put(VectorPayload.ROLE, role);
 
             // 空正文：text 字段放 sourceId 占位（非内容），正文留 SQLite 正本
             TextSegment seg = TextSegment.from(sourceId, md);

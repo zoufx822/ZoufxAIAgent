@@ -14,7 +14,7 @@ import java.util.List;
  * {@code xxxAsync} 是同步本体的 boundedElastic 包装，供 WebFlux Controller /
  * ChatService 反应式编排串接，仅在确有反应式调用方时提供。
  */
-public interface AnchorMemoryStore {
+public interface AnchorMemoryDao {
 
     /**
      * 同步反查 userId——给 PromptSection 与 @Tool 方法使用。

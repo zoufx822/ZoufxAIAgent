@@ -1,8 +1,8 @@
-package com.zoufx.ai.agent.recall.impl;
+package com.zoufx.ai.agent.recall.runner;
 
 import com.zoufx.ai.agent.memory.support.UserImpressionFields;
 import com.zoufx.ai.agent.recall.api.MemoryIndexer;
-import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
+import com.zoufx.ai.agent.recall.support.VectorPayload;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -24,14 +24,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "ai.recall.backfill-on-start", havingValue = "true")
-public class MemoryVectorBackfill implements ApplicationRunner {
+public class VectorBackfillRunner implements ApplicationRunner {
 
     private final JdbcTemplate jdbc;
     private final MemoryIndexer indexer;
     private final EmbeddingModel embeddingModel;
 
-    public MemoryVectorBackfill(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc, MemoryIndexer indexer,
-                                EmbeddingModel embeddingModel) {
+    public VectorBackfillRunner(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc, MemoryIndexer indexer,
+                                      EmbeddingModel embeddingModel) {
         this.jdbc = jdbc;
         this.indexer = indexer;
         this.embeddingModel = embeddingModel;
@@ -39,14 +39,14 @@ public class MemoryVectorBackfill implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        log.info("MemoryVectorBackfill START (this may take a while)");
+        log.info("VectorBackfill START (this may take a while)");
         AtomicInteger cold = new AtomicInteger();
         jdbc.query("SELECT id, user_id, role, content, created_at FROM cold_memory ORDER BY id", rs -> {
             String userId = rs.getString("user_id");
             String role = rs.getString("role");
             String content = rs.getString("content");
             long createdAt = rs.getLong("created_at");
-            indexRow(userId, MemoryVectorMeta.COLD, String.valueOf(rs.getLong("id")), content, role, createdAt);
+            indexRow(userId, VectorPayload.COLD, String.valueOf(rs.getLong("id")), content, role, createdAt);
             cold.incrementAndGet();
         });
 
@@ -62,7 +62,7 @@ public class MemoryVectorBackfill implements ApplicationRunner {
             hot.incrementAndGet();
         });
 
-        log.info("MemoryVectorBackfill DONE cold={} hot={}", cold.get(), hot.get());
+        log.info("VectorBackfill DONE cold={} hot={}", cold.get(), hot.get());
     }
 
     /** 单行 embed + 索引——失败仅记日志继续遍历，不让个别坏行中断 backfill / 应用启动。 */
@@ -76,7 +76,7 @@ public class MemoryVectorBackfill implements ApplicationRunner {
 
     /** user-impression 嵌入带字段语义的短句（与 UserImpressionUpdateTool 共用 helper）；其余直接 embed value。 */
     private String embedTextFor(String type, String key, String value) {
-        return MemoryVectorMeta.USER_IMPRESSION.equals(type)
+        return VectorPayload.USER_IMPRESSION.equals(type)
                 ? UserImpressionFields.embedText(key, value)
                 : value;
     }

@@ -2,7 +2,7 @@ package com.zoufx.ai.agent.chat.support;
 
 import com.zoufx.ai.agent.base.support.DateFormats;
 import com.zoufx.ai.agent.chat.api.PromptSection;
-import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
@@ -38,13 +38,13 @@ public class SystemPromptComposer {
             """;
 
     private final List<PromptSection> sections;
-    private final AnchorMemoryStore anchorMemoryStore;
+    private final AnchorMemoryDao anchorMemoryDao;
 
-    public SystemPromptComposer(List<PromptSection> sections, AnchorMemoryStore anchorMemoryStore) {
+    public SystemPromptComposer(List<PromptSection> sections, AnchorMemoryDao anchorMemoryDao) {
         this.sections = sections.stream()
                 .sorted(Comparator.comparingInt(PromptSection::order))
                 .toList();
-        this.anchorMemoryStore = anchorMemoryStore;
+        this.anchorMemoryDao = anchorMemoryDao;
     }
 
     public Function<Object, String> asProvider() {
@@ -52,7 +52,7 @@ public class SystemPromptComposer {
     }
 
     public String compose(@Nullable String anchorId) {
-        String userId = anchorId != null ? anchorMemoryStore.findUserId(anchorId) : null;
+        String userId = anchorId != null ? anchorMemoryDao.findUserId(anchorId) : null;
 
         StringBuilder sb = new StringBuilder();
         sb.append("当前日期：").append(LocalDate.now().format(DateFormats.CN_LONG_DATE)).append("\n\n");

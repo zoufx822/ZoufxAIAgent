@@ -6,16 +6,16 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 /**
- * 业务侧 ChatMemoryStore——继承 LC4J {@code dev.langchain4j.store.memory.chat.ChatMemoryStore}
+ * 业务侧 ChatMemoryDao——继承 LC4J {@code dev.langchain4j.store.memory.chat.ChatMemoryStore}
  * 同步契约（按 Object memoryId 给框架调），叠加反应式业务方法（按 String anchorId 给业务调）。
  * 实现类只实现本接口，同一 Bean 同时满足框架注入和业务注入。
  *
- * <p>save 时需把 user_id 列也写入（冗余兜底）——由实现侧通过 {@link AnchorMemoryStore#findUserId}
+ * <p>save 时需把 user_id 列也写入（冗余兜底）——由实现侧通过 {@link AnchorMemoryDao#findUserId}
  * 反查。anchorId 不存在视为异常状态，fail-fast。
  *
  * <p>反应式方法返回 Mono，阻塞 JDBC 在 boundedElastic 调度。
  */
-public interface ChatMemoryStore extends dev.langchain4j.store.memory.chat.ChatMemoryStore {
+public interface ChatMemoryDao extends dev.langchain4j.store.memory.chat.ChatMemoryStore {
 
     /** 同步加载某锚点全部消息（按写入顺序）——供已在 boundedElastic 上的阻塞流水线使用。 */
     List<ChatMessage> loadByAnchorId(String anchorId);

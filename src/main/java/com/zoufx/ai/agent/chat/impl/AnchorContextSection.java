@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.chat.impl;
 
 import com.zoufx.ai.agent.chat.api.PromptSection;
-import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.model.AnchorMemoryEntry;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -24,7 +24,7 @@ public class AnchorContextSection implements PromptSection {
     /** 最多注入的其他锚点条数——按 last_active_at desc 取头部。 */
     private static final int INJECT_LIMIT = 5;
 
-    private final AnchorMemoryStore anchorMemoryStore;
+    private final AnchorMemoryDao anchorMemoryDao;
 
     @Override
     public int order() {
@@ -36,7 +36,7 @@ public class AnchorContextSection implements PromptSection {
     public String render(@Nullable String userId, @Nullable String anchorId) {
         if (userId == null || anchorId == null) return null;
 
-        List<AnchorMemoryEntry> others = anchorMemoryStore.listOtherAnchors(userId, anchorId);
+        List<AnchorMemoryEntry> others = anchorMemoryDao.listOtherAnchors(userId, anchorId);
         if (others.isEmpty()) {
             return "## 你与对方的其他对话窗口\n\n当前没有其他对话窗口的摘要——**不要**凭空说「我们之前聊过 X」或「你之前提到过 Y」。\n\n";
         }

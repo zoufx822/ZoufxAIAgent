@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.recall.impl;
 
 import com.zoufx.ai.agent.recall.api.ImportanceScorer;
-import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
+import com.zoufx.ai.agent.recall.support.VectorPayload;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -36,11 +36,11 @@ public class RuleImportanceScorer implements ImportanceScorer {
     }
 
     private double baseScore(String memType, @Nullable String role) {
-        if (MemoryVectorMeta.SIGNIFICANT_EVENT.equals(memType)
-                || MemoryVectorMeta.COMMITMENT.equals(memType)) {
+        if (VectorPayload.SIGNIFICANT_EVENT.equals(memType)
+                || VectorPayload.COMMITMENT.equals(memType)) {
             return 0.7;
         }
-        if (MemoryVectorMeta.USER_IMPRESSION.equals(memType)) {
+        if (VectorPayload.USER_IMPRESSION.equals(memType)) {
             return 0.6;
         }
         // cold

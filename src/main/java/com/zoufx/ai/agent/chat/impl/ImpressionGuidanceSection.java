@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.chat.impl;
 
 import com.zoufx.ai.agent.chat.api.PromptSection;
-import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields.FieldSpec;
@@ -57,7 +57,7 @@ public class ImpressionGuidanceSection implements PromptSection {
     private static final double STRANGER_THRESHOLD = 0.3;
     private static final double FULLY_KNOWN_THRESHOLD = 0.7;
 
-    private final HotMemoryStore hotMemoryStore;
+    private final HotMemoryDao hotMemoryDao;
 
     @Override
     public int order() {
@@ -68,7 +68,7 @@ public class ImpressionGuidanceSection implements PromptSection {
     @Nullable
     public String render(@Nullable String userId, @Nullable String anchorId) {
         if (userId == null) return null;
-        Map<String, String> snap = hotMemoryStore.snapshot(userId, HotMemoryType.USER_IMPRESSION);
+        Map<String, String> snap = hotMemoryDao.snapshot(userId, HotMemoryType.USER_IMPRESSION);
 
         int total = UserImpressionFields.FIELDS.size();
         if (total == 0) return null;

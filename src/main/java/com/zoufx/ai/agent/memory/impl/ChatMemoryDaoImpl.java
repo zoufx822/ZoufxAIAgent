@@ -1,8 +1,8 @@
 package com.zoufx.ai.agent.memory.impl;
 
 import com.zoufx.ai.agent.base.support.Blocking;
-import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
-import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
+import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ChatMessageDeserializer;
@@ -26,32 +26,32 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * SQLite 实现——只实现业务 {@link ChatMemoryStore} 接口，后者继承 LC4J
+ * SQLite 实现——只实现业务 {@link ChatMemoryDao} 接口，后者继承 LC4J
  * {@code dev.langchain4j.store.memory.chat.ChatMemoryStore}，因此同一 Bean
  * 同时满足框架同步契约和业务反应式契约。
  *
  * <p>隔离 key 是 anchor_id（来自 LC4J 框架的 Object memoryId，业务侧也传同一值）。
- * user_id 列保留作冗余兜底，save 时通过 {@link AnchorMemoryStore#findUserId} 反查写入。
+ * user_id 列保留作冗余兜底，save 时通过 {@link AnchorMemoryDao#findUserId} 反查写入。
  * anchorId 不存在视为异常状态，fail-fast 抛异常。
  *
- * <p>构造函数注入 {@link AnchorMemoryStore} 同时承担依赖排序：保证
- * {@code SqliteAnchorMemoryStore.init()} 在本类的 {@link #init()} 之前完成，
+ * <p>构造函数注入 {@link AnchorMemoryDao} 同时承担依赖排序：保证
+ * {@code AnchorMemoryDaoImpl.init()} 在本类的 {@link #init()} 之前完成，
  * 因为后者的 backfill 需要 anchor 表已存在。
  */
 @Slf4j
 @Component
-public class SqliteChatMemoryStore implements ChatMemoryStore {
+public class ChatMemoryDaoImpl implements ChatMemoryDao {
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
-    private final AnchorMemoryStore anchorMemoryStore;
+    private final AnchorMemoryDao anchorMemoryDao;
 
-    public SqliteChatMemoryStore(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc,
+    public ChatMemoryDaoImpl(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc,
                                  @Qualifier("memoryTxTemplate") TransactionTemplate tx,
-                                 AnchorMemoryStore anchorMemoryStore) {
+                                 AnchorMemoryDao anchorMemoryDao) {
         this.jdbc = jdbc;
         this.tx = tx;
-        this.anchorMemoryStore = anchorMemoryStore;
+        this.anchorMemoryDao = anchorMemoryDao;
     }
 
     @PostConstruct
@@ -69,10 +69,10 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
                 """);
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_chat_memory_user ON chat_memory(user_id)");
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_chat_memory_anchor ON chat_memory(anchor_id)");
-        log.info("SqliteChatMemoryStore schema ready (chat_memory)");
+        log.info("ChatMemoryDaoImpl schema ready (chat_memory)");
     }
 
-    // ====== LC4J ChatMemoryStore 同步契约（框架线程调用；memoryId == anchorId）======
+    // ====== LC4J ChatMemoryDao 同步契约（框架线程调用；memoryId == anchorId）======
 
     @Override
     public List<ChatMessage> getMessages(Object memoryId) {
@@ -211,7 +211,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
     }
 
     private void saveByAnchorId(String anchorId, List<ChatMessage> messages) {
-        String userId = anchorMemoryStore.findUserId(anchorId);
+        String userId = anchorMemoryDao.findUserId(anchorId);
         if (userId == null) {
             throw new IllegalStateException("Unknown anchorId: " + anchorId
                     + " — anchor row must exist before chat_memory writes");

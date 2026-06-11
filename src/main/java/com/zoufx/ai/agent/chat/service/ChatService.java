@@ -4,9 +4,9 @@ import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
 import com.zoufx.ai.agent.chat.api.LlmCapabilities;
 import com.zoufx.ai.agent.chat.property.ChatProperties;
-import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
-import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
-import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
+import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
+import com.zoufx.ai.agent.memory.api.ColdMemoryDao;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import com.zoufx.ai.agent.chat.model.ChatPrepared;
 import com.zoufx.ai.agent.chat.impl.RecallContextSection;
@@ -18,12 +18,11 @@ import com.zoufx.ai.agent.recall.api.MemoryIndexer;
 import com.zoufx.ai.agent.recall.api.RecallService;
 import com.zoufx.ai.agent.recall.model.RecallResult;
 import com.zoufx.ai.agent.recall.property.RecallProperties;
-import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
+import com.zoufx.ai.agent.recall.support.VectorPayload;
+import com.zoufx.ai.agent.chat.support.ToolNameMap;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.agent.tool.Tool;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -34,11 +33,8 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -70,11 +66,11 @@ public class ChatService {
     private final ChatAssistant chatAssistant;
     private final LlmCapabilities llmCapabilities;
     /** LC4J AiServices 管理的会话消息历史（按 anchorId 分桶）。 */
-    private final ChatMemoryStore chatMemoryStore;
+    private final ChatMemoryDao chatMemoryDao;
     /** 锚点（对话会话）的 CRUD——创建、touch、title backfill。 */
-    private final AnchorMemoryStore anchorMemoryStore;
+    private final AnchorMemoryDao anchorMemoryDao;
     /** 长期对话原文归档，按 userId 顺序追加；向量索引的数据源。 */
-    private final ColdMemoryStore coldMemoryStore;
+    private final ColdMemoryDao coldMemoryDao;
     private final MoodService moodService;
     private final ChatProperties chatProperties;
     /** 所有 @Tool 实现类，启动时反射扫描方法名 → section（中文名）映射。 */
@@ -88,23 +84,7 @@ public class ChatService {
     private final MemoryIndexer memoryIndexer;
     private final EmbeddingModel embeddingModel;
     private final RecallProperties recallProperties;
-    /**
-     * Java 方法名 → 工具中文显示名（如 search_web → "联网搜索"）。
-     * LC4J 回调只能拿到 Java 方法名，前端渲染工具卡片需要中文名。
-     */
-    private final Map<String, String> toolNameMap = new HashMap<>();
-
-    /** 扫描所有 ToolPrompt 实现类，建立方法名 → section 映射供前端工具卡片显示。 */
-    @PostConstruct
-    public void initToolNameMap() {
-        for (ToolPrompt tool : tools) {
-            for (Method m : tool.getClass().getDeclaredMethods()) {
-                if (m.isAnnotationPresent(Tool.class)) {
-                    toolNameMap.put(m.getName(), tool.section());
-                }
-            }
-        }
-    }
+    private final ToolNameMap toolNameMap;
 
     /**
      * 完整对话流程：prepare（锚点创建 + 召回准备）→ LLM 流式对话 → 流结束后处理。
@@ -136,22 +116,22 @@ public class ChatService {
     private ChatPrepared prepare(String userId, @Nullable String anchorId, String prompt) {
         boolean newAnchor = anchorId == null;
         if (newAnchor) {
-            anchorId = anchorMemoryStore.create(userId);
+            anchorId = anchorMemoryDao.create(userId);
         }
         try {
             // 1. 用户消息原文持久化，拿行 id 作向量指针
-            long coldUserId = coldMemoryStore.append(userId, "user", prompt, null, null);
+            long coldUserId = coldMemoryDao.append(userId, "user", prompt, null, null);
 
             // 2. prompt 向量化：召回 query + 索引复用同一份，避免重复嵌入
             Embedding emb = embeddingModel.embed(prompt).content();
 
             // 3. 语义召回注入 holder，SystemPromptProvider.compose() 会在 LC4J 构建 prompt 时同步读取
-            Long windowSince = coldMemoryStore.windowLowerBound(userId, chatProperties.getLoadMessage());
+            Long windowSince = coldMemoryDao.windowLowerBound(userId, chatProperties.getLoadMessage());
             List<RecallResult> recalled = recallService.recall(userId, emb, recallProperties.getLimit(), windowSince);
             recallContextHolder.set(anchorId, RecallContextSection.format(recalled));
 
             // 4. fire-and-forget 索引（先召回后索引，避免本次消息把自己召回）
-            memoryIndexer.indexAsync(userId, MemoryVectorMeta.COLD, String.valueOf(coldUserId),
+            memoryIndexer.indexAsync(userId, VectorPayload.COLD, String.valueOf(coldUserId),
                     prompt, "user", System.currentTimeMillis(), emb).subscribe();
         } catch (Exception e) {
             log.warn("Prepare failed, skip auto-association [anchorId={}]: {}", anchorId, e.toString());
@@ -174,7 +154,7 @@ public class ChatService {
         List<String> inlineMoods = new CopyOnWriteArrayList<>();       // main 支写入，onStreamComplete 合并
 
         // 情绪快速分类支路：拉对话历史 → LLM 分类关键词 → mood 事件；与 main 支并发，通常先于首条 content 到达
-        Flux<ChatEvent> instant = chatMemoryStore.loadByAnchorIdAsync(anchorId)
+        Flux<ChatEvent> instant = chatMemoryDao.loadByAnchorIdAsync(anchorId)
                 .flatMap(history -> moodService.classifyAsync(prompt, history))
                 .doOnNext(instantMood::set)
                 .map(kw -> new ChatEvent("mood", MoodEventProcessor.moodPayload(kw)))
@@ -209,7 +189,7 @@ public class ChatService {
                 .doOnCancel(() -> {
                     log.info("Stream cancelled [anchorId={}, userId={}]", anchorId, userId);
                     recallContextHolder.remove(anchorId);
-                    chatMemoryStore.cleanupOrphansAsync(anchorId)
+                    chatMemoryDao.cleanupOrphansAsync(anchorId)
                             .onErrorResume(err -> {
                                 log.warn("Post-cancel sanitize failed [anchorId={}]: {}", anchorId, err.toString());
                                 return Mono.empty();
@@ -252,7 +232,7 @@ public class ChatService {
                     hasEmitted.set(true);
                     String name = evt.request().name();
                     String query = WebSearchEvents.extractQuery(evt.request().arguments());
-                    String chineseName = toolNameMap.getOrDefault(name, name);
+                    String chineseName = toolNameMap.toolName(name);
                     log.info("Tool call start [anchorId={}] {} ({}) query={}", anchorId, name, chineseName, query);
                     sink.next(new ChatEvent("tool_call", WebSearchEvents.toolCallPayload(name, chineseName, query)));
                 })
@@ -261,7 +241,7 @@ public class ChatService {
                     hasEmitted.set(true);
                     String name = exec.request().name();
                     String result = exec.result();
-                    String chineseName = toolNameMap.getOrDefault(name, name);
+                    String chineseName = toolNameMap.toolName(name);
                     int count = WebSearchEvents.countResults(result);
                     log.info("Tool call done [anchorId={}] {} ({}) count={}", anchorId, name, chineseName, count);
                     sink.next(new ChatEvent("tool_result", WebSearchEvents.toolResultPayload(name, chineseName, count, result)));
@@ -300,7 +280,7 @@ public class ChatService {
         String moodTrail = moods.isEmpty() ? null : String.join(",", moods);
 
         // 1. touch 锚点：更新 last_active 时间戳（供会话列表排序）+ 写入最终情绪
-        anchorMemoryStore.touchAsync(anchorId, settledMood)
+        anchorMemoryDao.touchAsync(anchorId, settledMood)
                 .onErrorResume(err -> {
                     log.warn("Failed to touch anchor [anchorId={}]: {}", anchorId, err.toString());
                     return Mono.empty();
@@ -310,7 +290,7 @@ public class ChatService {
         // 2. 自动补标题：取首条用户消息截断值，仅当标题为空时写入（不覆盖用户手动改名）
         String autoTitle = truncate(prompt, AUTO_TITLE_MAX_LEN);
         if (!autoTitle.isBlank()) {
-            anchorMemoryStore.updateTitleIfBlankAsync(anchorId, autoTitle)
+            anchorMemoryDao.updateTitleIfBlankAsync(anchorId, autoTitle)
                     .onErrorResume(err -> {
                         log.warn("Failed to backfill anchor title [anchorId={}]: {}", anchorId, err.toString());
                         return Mono.empty();
@@ -320,9 +300,9 @@ public class ChatService {
 
         if (buffer.length() == 0) {
             // 3a. LLM 无产出（网络中断等）→ 清理 LC4J 已提前写入的孤儿 UserMessage
-            // LC4J AiServices 在调用 LLM 前就把 UserMessage 写入 ChatMemoryStore，
+            // LC4J AiServices 在调用 LLM 前就把 UserMessage 写入 ChatMemoryDao，
             // 若 LLM 未返回任何内容则会话历史中留下"有问无答"的孤儿，需主动清理
-            chatMemoryStore.removeLastOrphanUserMessageAsync(anchorId)
+            chatMemoryDao.removeLastOrphanUserMessageAsync(anchorId)
                     .onErrorResume(err -> {
                         log.warn("Failed to remove orphan user message [anchorId={}]: {}", anchorId, err.toString());
                         return Mono.empty();
@@ -333,8 +313,8 @@ public class ChatService {
         if (buffer.length() > 0) {
             // 3b. 持久化 assistant 原文：先 append 拿行 id 作向量 docId，再异步嵌入+索引
             String assistantText = buffer.toString();
-            Blocking.call(() -> coldMemoryStore.append(userId, "assistant", assistantText, null, moodTrail))
-                    .flatMap(id -> memoryIndexer.indexTextAsync(userId, MemoryVectorMeta.COLD, String.valueOf(id),
+            Blocking.call(() -> coldMemoryDao.append(userId, "assistant", assistantText, null, moodTrail))
+                    .flatMap(id -> memoryIndexer.indexTextAsync(userId, VectorPayload.COLD, String.valueOf(id),
                             assistantText, "assistant", System.currentTimeMillis()))
                     .onErrorResume(err -> {
                         log.warn("Failed to append/index assistant message to cold_memory [userId={}]: {}",

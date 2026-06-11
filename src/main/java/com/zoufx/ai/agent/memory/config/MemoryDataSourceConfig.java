@@ -21,7 +21,7 @@ import java.nio.file.Paths;
  * 记忆持久化层数据源装配。
  *
  * 独立的 DataSource / JdbcTemplate / TransactionTemplate 三件套，
- * 给 ChatMemory（SqliteChatMemoryStore）/ ColdMemory（SqliteColdMemoryStore）/ HotMemory（SqliteHotMemoryStore）共用一套底座。
+ * 给 ChatMemory（ChatMemoryDaoImpl）/ ColdMemory（ColdMemoryDaoImpl）/ HotMemory（HotMemoryDaoImpl）共用一套底座。
  *
  * 不使用 Spring Boot 自动配置的 spring.datasource.*，路径由 ai.memory.db-path 配置。
  */

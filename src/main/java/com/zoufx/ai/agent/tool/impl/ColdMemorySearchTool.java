@@ -1,9 +1,9 @@
 package com.zoufx.ai.agent.tool.impl;
 
-import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
+import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.recall.api.RecallService;
 import com.zoufx.ai.agent.recall.model.RecallResult;
-import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
+import com.zoufx.ai.agent.recall.support.VectorPayload;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;
@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * 记忆检索工具——当对方暗示之前说过某事而当前窗口里没有时，==语义召回==过往记忆（与自动召回共用
@@ -35,12 +36,17 @@ public class ColdMemorySearchTool implements ToolPrompt {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.CHINA).withZone(ZoneId.systemDefault());
 
     private final RecallService recallService;
-    private final AnchorMemoryStore anchorMemoryStore;
+    private final AnchorMemoryDao anchorMemoryDao;
     private final EmbeddingModel embeddingModel;
 
     @Override
     public String section() {
         return "记忆检索";
+    }
+
+    @Override
+    public Map<String, String> methodSections() {
+        return Map.of("search_cold_memory", section());
     }
 
     @Override
@@ -65,7 +71,7 @@ public class ColdMemorySearchTool implements ToolPrompt {
             @ToolMemoryId String memoryId,
             @P("搜索关键词（短词或短语，不要用整句话）") String keyword,
             @P("返回条数，默认 5，最大 20") int limit) {
-        String userId = anchorMemoryStore.findUserId(memoryId);
+        String userId = anchorMemoryDao.findUserId(memoryId);
         if (userId == null) {
             return "search_cold_memory 调用失败：未识别的对话上下文";
         }
@@ -88,7 +94,7 @@ public class ColdMemorySearchTool implements ToolPrompt {
         int idx = 1;
         for (RecallResult r : hits) {
             String time = TIME_FMT.format(Instant.ofEpochMilli(r.createdAt()));
-            sb.append(idx++).append(". [").append(MemoryVectorMeta.labelOf(r.memType())).append(" · ").append(time).append("] ")
+            sb.append(idx++).append(". [").append(VectorPayload.labelOf(r.memType())).append(" · ").append(time).append("] ")
                     .append(r.content().replace("\n", " ")).append("\n");
         }
         return sb.toString();

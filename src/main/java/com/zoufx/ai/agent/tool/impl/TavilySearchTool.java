@@ -11,6 +11,7 @@ import dev.langchain4j.web.search.WebSearchResults;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -34,6 +35,11 @@ public class TavilySearchTool implements ToolPrompt {
     @Override
     public String section() {
         return "网络检索";
+    }
+
+    @Override
+    public Map<String, String> methodSections() {
+        return Map.of("search_web", section());
     }
 
     @Override

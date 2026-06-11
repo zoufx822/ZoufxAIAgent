@@ -6,7 +6,7 @@ package com.zoufx.ai.agent.recall.support;
  * <p>Qdrant 只存向量 + 这些指针元数据，==不存正文==；召回时凭 memType + sourceId 回 SQLite 取原文。
  * memType 取值与 {@code HotMemoryType} 对齐（hot 三类）+ cold。
  */
-public final class MemoryVectorMeta {
+public final class VectorPayload {
 
     // ===== payload 元数据 key =====
     public static final String USER_ID = "userId";
@@ -32,5 +32,5 @@ public final class MemoryVectorMeta {
         };
     }
 
-    private MemoryVectorMeta() {}
+    private VectorPayload() {}
 }

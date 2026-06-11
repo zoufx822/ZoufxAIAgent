@@ -1,14 +1,14 @@
 package com.zoufx.ai.agent.recall.impl;
 
-import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
-import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import com.zoufx.ai.agent.memory.api.ColdMemoryDao;
+import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.recall.api.RecallService;
 import com.zoufx.ai.agent.recall.model.RecallResult;
 import com.zoufx.ai.agent.recall.property.RecallProperties;
-import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
-import com.zoufx.ai.agent.recall.support.ScoringPipeline;
+import com.zoufx.ai.agent.recall.support.VectorPayload;
+import com.zoufx.ai.agent.recall.support.RecallScorer;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
@@ -40,15 +40,15 @@ import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metad
 public class RecallServiceImpl implements RecallService {
 
     private final EmbeddingStore<TextSegment> embeddingStore;
-    private final ScoringPipeline scoring;
+    private final RecallScorer scoring;
     private final RecallProperties props;
-    private final ColdMemoryStore coldMemoryStore;
-    private final HotMemoryStore hotMemoryStore;
+    private final ColdMemoryDao coldMemoryDao;
+    private final HotMemoryDao hotMemoryDao;
 
     @Override
     public List<RecallResult> recall(String userId, Embedding embedding, int limit, @Nullable Long windowSince) {
         try {
-            Filter filter = metadataKey(MemoryVectorMeta.USER_ID).isEqualTo(userId);   // 用户隔离硬要求
+            Filter filter = metadataKey(VectorPayload.USER_ID).isEqualTo(userId);   // 用户隔离硬要求
             EmbeddingSearchRequest req = EmbeddingSearchRequest.builder()
                     .queryEmbedding(embedding)
                     .filter(filter)
@@ -62,14 +62,14 @@ public class RecallServiceImpl implements RecallService {
             List<Candidate> candidates = new ArrayList<>();
             for (EmbeddingMatch<TextSegment> m : matches) {
                 Metadata md = m.embedded().metadata();
-                String memType = md.getString(MemoryVectorMeta.MEM_TYPE);
-                String sourceId = md.getString(MemoryVectorMeta.SOURCE_ID);
-                Long createdAt = md.getLong(MemoryVectorMeta.CREATED_AT);
+                String memType = md.getString(VectorPayload.MEM_TYPE);
+                String sourceId = md.getString(VectorPayload.SOURCE_ID);
+                Long createdAt = md.getLong(VectorPayload.CREATED_AT);
                 if (memType == null || sourceId == null || createdAt == null) continue;
                 // 排除滑窗内已可见的 cold 条目（hot 不在滑窗，不过滤）
-                if (windowSince != null && MemoryVectorMeta.COLD.equals(memType) && createdAt >= windowSince) continue;
+                if (windowSince != null && VectorPayload.COLD.equals(memType) && createdAt >= windowSince) continue;
 
-                Double impBox = md.getDouble(MemoryVectorMeta.IMPORTANCE);
+                Double impBox = md.getDouble(VectorPayload.IMPORTANCE);
                 double importance = impBox == null ? 0.5 : impBox;
                 double relevance = m.score() == null ? 0.0 : m.score();
                 double recency = scoring.recency(now - createdAt);
@@ -108,7 +108,7 @@ public class RecallServiceImpl implements RecallService {
             for (Candidate c : pool) {
                 double maxSim = 0.0;
                 for (Candidate s : selected) {
-                    maxSim = Math.max(maxSim, ScoringPipeline.cosine(c.vector(), s.vector()));
+                    maxSim = Math.max(maxSim, RecallScorer.cosine(c.vector(), s.vector()));
                 }
                 double mmrScore = lambda * (c.finalScore() / maxScore) - (1 - lambda) * maxSim;
                 if (mmrScore > bestMmr) {
@@ -125,13 +125,13 @@ public class RecallServiceImpl implements RecallService {
     /** 仅对最终选中的 Top-N 回 SQLite 正本取正文；正本缺失（已删）则跳过。 */
     private List<RecallResult> hydrate(String userId, List<Candidate> selected) {
         List<Long> coldIds = selected.stream()
-                .filter(c -> MemoryVectorMeta.COLD.equals(c.memType()))
+                .filter(c -> VectorPayload.COLD.equals(c.memType()))
                 .map(c -> parseLongOrNull(c.sourceId()))
                 .filter(Objects::nonNull)
                 .toList();
         Map<Long, String> coldContent = new HashMap<>();
         if (!coldIds.isEmpty()) {
-            for (ColdMemoryEntry e : coldMemoryStore.fetchByIds(userId, coldIds)) {
+            for (ColdMemoryEntry e : coldMemoryDao.fetchByIds(userId, coldIds)) {
                 coldContent.put(e.id(), e.content());
             }
         }
@@ -143,14 +143,14 @@ public class RecallServiceImpl implements RecallService {
                     .map(Candidate::sourceId)
                     .toList();
             if (!keys.isEmpty()) {
-                hotByType.put(type, hotMemoryStore.fetchValues(userId, type, keys));
+                hotByType.put(type, hotMemoryDao.fetchValues(userId, type, keys));
             }
         }
 
         List<RecallResult> out = new ArrayList<>();
         for (Candidate c : selected) {
             String content;
-            if (MemoryVectorMeta.COLD.equals(c.memType())) {
+            if (VectorPayload.COLD.equals(c.memType())) {
                 Long id = parseLongOrNull(c.sourceId());
                 content = id == null ? null : coldContent.get(id);
             } else {

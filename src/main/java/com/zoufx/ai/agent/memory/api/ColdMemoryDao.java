@@ -9,9 +9,9 @@ import java.util.List;
 /**
  * 冷内存（Cold Archive）业务接口——经历流存储。
  *
- * 与 {@link ChatMemoryStore}（工作记忆，继承 LC4J ChatMemoryStore）并行：
- * - {@link ChatMemoryStore}：滑窗 20 条，全量替换语义
- * - {@link ColdMemoryStore}：所有用户/AI 消息按时间序==只追加==，无上限
+ * 与 {@link ChatMemoryDao}（工作记忆，继承 LC4J ChatMemoryDao）并行：
+ * - {@link ChatMemoryDao}：滑窗 20 条，全量替换语义
+ * - {@link ColdMemoryDao}：所有用户/AI 消息按时间序==只追加==，无上限
  *
  * 写入路径（不在 LC4J Hook 里做，避免与 LC4J 全量替换语义冲突）：
  * - {@code ChatService.prepare()}：接到请求 → append user prompt
@@ -19,7 +19,7 @@ import java.util.List;
  *
  * 当前不写入 tool_result（噪音大）。全部同步签名，调用方均在 boundedElastic 上。
  */
-public interface ColdMemoryStore {
+public interface ColdMemoryDao {
 
     /**
      * 追加一条经历流记录，返回新行自增 id。
