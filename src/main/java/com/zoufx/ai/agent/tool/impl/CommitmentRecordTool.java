@@ -87,7 +87,7 @@ public class CommitmentRecordTool implements ToolPrompt {
         String trimmed = description.trim();
         String key = UUID.randomUUID().toString();
         log.info("📝 record_commitment [userId={}] uuid={} description={}", userId, key, trimmed);
-        hotMemoryStore.set(userId, HotMemoryType.COMMITMENT, key, trimmed).block();
+        hotMemoryStore.set(userId, HotMemoryType.COMMITMENT, key, trimmed);
         // 向量索引 fire-and-forget，不拖慢工具返回
         memoryIndexer.index(userId, MemoryVectorMeta.COMMITMENT, key, trimmed, null,
                 System.currentTimeMillis())

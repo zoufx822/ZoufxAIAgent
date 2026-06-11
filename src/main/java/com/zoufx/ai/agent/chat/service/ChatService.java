@@ -7,6 +7,7 @@ import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
+import com.zoufx.ai.agent.chat.model.ChatPrepared;
 import com.zoufx.ai.agent.chat.impl.RecallContextSection;
 import com.zoufx.ai.agent.chat.support.MoodEventProcessor;
 import com.zoufx.ai.agent.chat.support.RecallContextHolder;
@@ -37,27 +38,25 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * 聊天编排服务。一个类里能看见完整的"对话生命周期"：
+ * 聊天编排服务——一个类里可读到完整对话生命周期：
  *
  * <pre>
  *   chat()
- *     ├── beforeStream(...)          流前 Hook：写 user 到 Cold Memory
- *     └── buildStream(...)           Flux.create 主体
- *           ├── startTokenStream     装配 LC4J TokenStream 6 个回调 → FluxSink
- *           ├── retryWhen            首次 emit 前重试
- *           ├── doOnNext             收集 assistant 文本
- *           ├── onErrorResume        错误兜底成 error event
- *           ├── doOnComplete         触发 onStreamComplete Hook（touch + title backfill + 写 assistant）
- *           └── doOnCancel           客户端断开：日志 + fire-and-forget 清理孤儿消息
+ *     ├── prepare()              boundedElastic 上同步准备：
+ *     │     锚点懒创建 → 写 cold_memory → embed → 召回 → 索引
+ *     └── buildStream()          Flux 主体
+ *           ├── instant 支        情绪快速分类（并发，辅助能力）
+ *           ├── main 支           LC4J TokenStream → FluxSink，带重试
+ *           ├── doOnNext          收集 assistant 全文
+ *           ├── onErrorResume     错误兜底成 error 事件（保持 SSE 流不断）
+ *           ├── doOnComplete      触发 onStreamComplete（touch + title + 持久化 + 索引）
+ *           └── doOnCancel        客户端断开时清理召回上下文 + 孤儿消息
  * </pre>
- *
- * 入参校验由 ChatRequest 上的 Bean Validation 承担（GlobalExceptionHandler 翻译为 HTTP 400）。
  */
 @Slf4j
 @Service
@@ -69,20 +68,32 @@ public class ChatService {
 
     private final ChatAssistant chatAssistant;
     private final LlmCapabilities llmCapabilities;
+    /** LC4J AiServices 管理的会话消息历史（按 anchorId 分桶）。 */
     private final ChatMemoryStore chatMemoryStore;
+    /** 锚点（对话会话）的 CRUD——创建、touch、title backfill。 */
     private final AnchorMemoryStore anchorMemoryStore;
+    /** 长期对话原文归档，按 userId 顺序追加；向量索引的数据源。 */
     private final ColdMemoryStore coldMemoryStore;
-    private final AnchorService anchorSummaryService;
     private final MoodService moodService;
     private final ChatProperties chatProperties;
+    /** 所有 @Tool 实现类，启动时反射扫描方法名 → section（中文名）映射。 */
     private final List<ToolPrompt> tools;
     private final RecallService recallService;
+    /**
+     * 跨方法传递召回结果的 anchorId 级别 holder。
+     * prepare() 写入，SystemPromptProvider.compose() 读取，流结束/取消时清理。
+     */
     private final RecallContextHolder recallContextHolder;
     private final MemoryIndexer memoryIndexer;
     private final EmbeddingModel embeddingModel;
     private final RecallProperties recallProperties;
+    /**
+     * Java 方法名 → 工具中文显示名（如 search_web → "联网搜索"）。
+     * LC4J 回调只能拿到 Java 方法名，前端渲染工具卡片需要中文名。
+     */
     private final Map<String, String> toolNameMap = new HashMap<>();
 
+    /** 扫描所有 ToolPrompt 实现类，建立方法名 → section 映射供前端工具卡片显示。 */
     @PostConstruct
     public void initToolNameMap() {
         for (ToolPrompt tool : tools) {
@@ -95,86 +106,81 @@ public class ChatService {
     }
 
     /**
-     * anchorId 不存在 fail-fast 成 error event；userId 在入口反查一次供下游共用。
+     * 完整对话流程：prepare（锚点创建 + 召回准备）→ LLM 流式对话 → 流结束后处理。
      *
-     * <p>{@code thinking} 在 capability.thinkingToggle=false 时被静默忽略 + warn log
-     * （LC4J 1.13.1 langchain4j-anthropic 不支持 per-call thinking 覆盖）。
-     *
-     * <p>{@code prevAnchorId} 非空表示客户端发生锚点切换——fire-and-forget 触发对前一锚点的压缩。
+     * <p>新对话（{@code anchorId == null}）时自动创建锚点，{@code anchor_created} 作为首条事件发出，
+     * 前端收到后更新 URL 中的 anchorId。
      */
-    public Flux<ChatEvent> chat(String anchorId, String prompt, boolean thinking,
-                               @Nullable String prevAnchorId, @Nullable String requestUserId) {
+    public Flux<ChatEvent> chat(@Nullable String anchorId, String prompt, boolean thinking, String userId) {
         if (thinking && !llmCapabilities.thinkingToggle()) {
             log.warn("Request asks thinking=true but profile [{}] does not support thinkingToggle; ignored",
                     llmCapabilities.profile());
         }
-
-        triggerCompressionIfNeeded(prevAnchorId);
-
-        AtomicBoolean hasEmitted = new AtomicBoolean(false);
-        StringBuilder assistantBuffer = new StringBuilder();
-        // 瞬时分类情绪（并行先到）+ 正文里 LLM 自行追加的多个情绪，流末合并落库
-        AtomicReference<String> instantMood = new AtomicReference<>();
-        List<String> inlineMoods = new CopyOnWriteArrayList<>();
-
-        // findUserId 是阻塞 JDBC——包进 boundedElastic 延迟到订阅时执行，绝不在 event loop 上跑。
-        // 用 Optional 承载"可能为 null"，避免 Mono.fromCallable 返回 null 退化成空流、与"流本身为空"混淆。
-        return Mono.fromCallable(() -> {
-                    String found = anchorMemoryStore.findUserId(anchorId);
-                    if (found == null && requestUserId != null) {
-                        // 前端懒创建：anchor 尚未入库，用请求携带的 userId 按需建立
-                        anchorMemoryStore.createSync(anchorId, requestUserId);
-                        return Optional.of(requestUserId);
-                    }
-                    return Optional.ofNullable(found);
-                })
+        // prepare 含同步 DB + embedding 操作，必须离开 event loop
+        return Mono.fromCallable(() -> prepare(userId, anchorId, prompt))
                 .subscribeOn(Schedulers.boundedElastic())
-                .flatMapMany(userIdOpt -> {
-                    if (userIdOpt.isEmpty()) {
-                        log.error("chat: unknown anchorId={}, no userId provided for lazy creation", anchorId);
-                        return Flux.just(new ChatEvent("error", "未识别的对话锚点（anchorId 不存在）"));
+                .flatMapMany(p -> {
+                    Flux<ChatEvent> main = buildStream(chatAssistant, p.anchorId(), userId, prompt);
+                    // anchor_created 必须是首条事件；concatWith 保证顺序，main 在其后依次发射
+                    if (p.newAnchor()) {
+                        return Flux.just(new ChatEvent("anchor_created", p.anchorId())).concatWith(main);
                     }
-                    String userId = userIdOpt.get();
-                    return beforeStream(userId, prompt)
-                            .flatMapMany(coldUserId -> buildStream(chatAssistant, anchorId, userId, prompt, coldUserId,
-                                    hasEmitted, assistantBuffer, instantMood, inlineMoods));
-                });
-    }
-
-    /**
-     * 客户端切换锚点时 fire-and-forget 触发对前一锚点的 LLM 摘要压缩，写入 anchor.summary。
-     * 失败不阻断当前主流，由 {@link AnchorService} 内部 catch 兜底。
-     */
-    private void triggerCompressionIfNeeded(@Nullable String prevAnchorId) {
-        if (prevAnchorId == null || prevAnchorId.isBlank()) return;
-        log.info("Anchor switch detected, compressing prevAnchorId={}", prevAnchorId);
-        anchorSummaryService.compress(prevAnchorId).subscribe();
-    }
-
-    /**
-     * Hook：流启动前——把 user prompt 写入 Cold Memory（按 userId 分区，跨锚点共享）。
-     * 失败仅记日志、不阻断主流。
-     */
-    private Mono<Long> beforeStream(String userId, String prompt) {
-        // 只 append cold-user 原文，拿回新行 id（供 startTokenStream 召回后索引、复用同一 embedding）。
-        // 失败回 -1，下游据此跳过索引；不阻断主流。
-        return coldMemoryStore.append(userId, "user", prompt, null, null)
+                    return main;
+                })
+                // 兜底 prepare 阶段的硬错误（如锚点创建失败）——buildStream 内部的 onErrorResume 罩不到这里；
+                // 不转 error 事件的话 SSE 会以原始异常断连，前端只能看到连接错误
                 .onErrorResume(err -> {
-                    log.warn("Failed to append user message to cold_memory [userId={}]: {}",
-                            userId, err.toString());
-                    return Mono.just(-1L);
+                    log.error("Chat prepare failed [userId={}]", userId, err);
+                    return Flux.just(new ChatEvent("error", "会话初始化失败，请稍后重试"));
                 });
     }
 
     /**
-     * LLM 流主体：在最外层 {@code Flux.create} 里启动 LC4J TokenStream，叠加重试 / 收集 / 错误兜底 / 完成钩子。
+     * 在 {@code assistant.chat()} 启动前同步完成，返回解析后的锚点信息。
+     *
+     * <p>锚点创建在 try 外——失败是硬错误，直接传播；embed / 召回 / 索引失败吞掉（辅助能力，不阻断对话）。
      */
-    private Flux<ChatEvent> buildStream(ChatAssistant assistant, String anchorId, String userId, String prompt,
-                                        long coldUserId, AtomicBoolean hasEmitted, StringBuilder assistantBuffer,
-                                        AtomicReference<String> instantMood, List<String> inlineMoods) {
-        // 并行支：先拉本锚点对话窗口（与主流并行、同源），据此快速分类先到的瞬时情绪事件。
-        // 整支失败（加载或分类）都吞为 empty 静默不发；重试只裹主流，分类不随之重跑。
-        Flux<ChatEvent> instant = chatMemoryStore.loadByAnchorId(anchorId)
+    private ChatPrepared prepare(String userId, @Nullable String anchorId, String prompt) {
+        boolean newAnchor = anchorId == null;
+        if (newAnchor) {
+            anchorId = anchorMemoryStore.create(userId);
+        }
+        try {
+            // 1. 用户消息原文持久化，拿行 id 作向量指针
+            long coldUserId = coldMemoryStore.append(userId, "user", prompt, null, null);
+
+            // 2. prompt 向量化：召回 query + 索引复用同一份，避免重复嵌入
+            Embedding emb = embeddingModel.embed(prompt).content();
+
+            // 3. 语义召回注入 holder，SystemPromptProvider.compose() 会在 LC4J 构建 prompt 时同步读取
+            Long windowSince = coldMemoryStore.windowLowerBound(userId, chatProperties.getLoadMessage());
+            List<RecallResult> recalled = recallService.recall(userId, emb, recallProperties.getLimit(), windowSince);
+            recallContextHolder.set(anchorId, RecallContextSection.format(recalled));
+
+            // 4. fire-and-forget 索引（先召回后索引，避免本次消息把自己召回）
+            memoryIndexer.indexWith(userId, MemoryVectorMeta.COLD, String.valueOf(coldUserId),
+                    prompt, "user", System.currentTimeMillis(), emb).subscribe();
+        } catch (Exception e) {
+            log.warn("Prepare failed, skip auto-association [anchorId={}]: {}", anchorId, e.toString());
+        }
+        return new ChatPrepared(anchorId, newAnchor);
+    }
+
+    /**
+     * 组装 Flux 管道：instant（情绪分类）和 main（LLM 主流）并发 merge，
+     * 再套上全文收集 / 错误兜底 / 完成钩子 / 取消清理。
+     *
+     * <p>instant 支失败静默不发射（情绪是辅助能力）；main 支重试仅限首次 emit 前。
+     */
+    private Flux<ChatEvent> buildStream(ChatAssistant assistant, String anchorId, String userId, String prompt) {
+        // instant / main 两支并发写同一批状态变量，必须用线程安全类型
+        AtomicBoolean hasEmitted = new AtomicBoolean(false);   // 重试守门：收到首条 token 后禁止再重试
+        StringBuilder assistantBuffer = new StringBuilder();   // 收集 content 事件全文，流结束后持久化
+        AtomicReference<String> instantMood = new AtomicReference<>(); // instant 支写入，onStreamComplete 合并
+        List<String> inlineMoods = new CopyOnWriteArrayList<>();       // main 支写入，onStreamComplete 合并
+
+        // 情绪快速分类支路：拉对话历史 → LLM 分类关键词 → mood 事件；与 main 支并发，通常先于首条 content 到达
+        Flux<ChatEvent> instant = chatMemoryStore.loadByAnchorIdAsync(anchorId)
                 .flatMap(history -> moodService.classify(prompt, history))
                 .doOnNext(instantMood::set)
                 .map(kw -> new ChatEvent("mood", MoodEventProcessor.moodPayload(kw)))
@@ -184,29 +190,32 @@ public class ChatService {
                 })
                 .flux();
 
-        // subscribeOn 保证首次及 retry 时 startTokenStream（含 embed + .block()）都在 boundedElastic 上执行。
-        // retryWhen 默认退避调度器是 parallel——不加此句重试时阻塞 I/O 会打到 parallel 线程。
+        // LLM 主流支路：subscribeOn 固定 boundedElastic（retryWhen 默认走 parallel，需显式指定才能继承）
         Flux<ChatEvent> main = Flux.<ChatEvent>create(sink ->
-                        startTokenStream(sink, assistant, anchorId, userId, prompt, coldUserId, hasEmitted, inlineMoods))
+                        startTokenStream(sink, assistant, anchorId, userId, prompt, hasEmitted, inlineMoods))
                 .subscribeOn(Schedulers.boundedElastic())
                 .retryWhen(buildRetrySpec(hasEmitted));
 
         return Flux.merge(instant, main)
+                // 实时收集 content token，流结束后一次性持久化（避免中途断开导致内容丢失）
                 .doOnNext(event -> {
                     if ("content".equals(event.type())) {
                         assistantBuffer.append(event.data());
                     }
                 })
+                // 错误转 error 事件：保持 SSE 连接不断，前端能收到提示而非看到连接异常
                 .onErrorResume(err -> {
                     log.error("Stream error [anchorId={}, userId={}]", anchorId, userId, err);
                     String msg = err.getMessage() != null ? err.getMessage() : "AI 服务异常，请稍后重试";
                     return Flux.just(new ChatEvent("error", msg));
                 })
+                // 流正常完成：触发 touch / title / cold_memory / 向量索引等持久化副作用
                 .doOnComplete(() -> onStreamComplete(anchorId, userId, prompt, assistantBuffer, instantMood.get(), inlineMoods))
+                // 客户端断开（关页面 / 取消请求）：清理召回 holder + 孤儿消息，避免内存泄漏
                 .doOnCancel(() -> {
                     log.info("Stream cancelled [anchorId={}, userId={}]", anchorId, userId);
                     recallContextHolder.remove(anchorId);
-                    chatMemoryStore.cleanupOrphans(anchorId)
+                    chatMemoryStore.cleanupOrphansAsync(anchorId)
                             .onErrorResume(err -> {
                                 log.warn("Post-cancel sanitize failed [anchorId={}]: {}", anchorId, err.toString());
                                 return Mono.empty();
@@ -216,48 +225,30 @@ public class ChatService {
     }
 
     /**
-     * 把 LC4J {@code TokenStream} 的 6 个回调（thinking / content / tool_call / tool_result / error / complete）
-     * 装配到 {@code FluxSink}，并触发 {@code .start()} 启动流。
+     * 把 LC4J TokenStream 的回调桥接为 {@link FluxSink} 事件流。
      *
-     * {@code hasEmitted} 在任何首次回调里置 true，被 {@link #buildRetrySpec} 据此判断"流是否已开始"。
-     * LC4J 的回调跑在框架自己的线程上，与 WebFlux event loop 隔离。
+     * <p>LC4J 回调跑在框架线程，与 event loop 隔离；{@code hasEmitted} 首次回调时置位，供重试策略判断。
      */
     private void startTokenStream(FluxSink<ChatEvent> sink, ChatAssistant assistant,
-                                  String anchorId, String userId, String prompt, long coldUserId,
+                                  String anchorId, String userId, String prompt,
                                   AtomicBoolean hasEmitted, List<String> inlineMoods) {
-        // 自动关联：在 boundedElastic 上、assistant.chat() 触发 compose 之前算完召回塞 holder。
-        // 当前 user 消息 embed 一次——召回 query 与 cold-user 入库向量复用，避免双重 embedding；
-        // 先召回（此刻库里还没有当前消息向量，不会自命中）再 fire-and-forget 索引 cold-user。
-        try {
-            Embedding emb = embeddingModel.embed(prompt).content();
-            // 窗口下界：用 cold_memory 第 N 近一条的 created_at（chat_memory.created_at 每次 save 被重写、不可靠）。
-            // 排除已在工作窗口里、LLM 本就看得到的近期 cold 条目，避免召回名额浪费。
-            Long windowSince = coldMemoryStore.windowLowerBound(userId, chatProperties.getLoadMessage());
-            List<RecallResult> recalled = recallService
-                    .recallWith(userId, emb, recallProperties.getLimit(), windowSince).block();
-            recallContextHolder.set(anchorId, RecallContextSection.format(recalled));
-            if (coldUserId >= 0) {
-                memoryIndexer.indexWith(userId, MemoryVectorMeta.COLD, String.valueOf(coldUserId),
-                        prompt, "user", System.currentTimeMillis(), emb).subscribe();
-            }
-        } catch (Exception e) {
-            log.warn("Recall failed, skip auto-association [anchorId={}]: {}", anchorId, e.toString());
-        }
-
-        // 一条请求一个实例：内部维护 tail buffer + 命中状态，请求结束 flush() 兜底。
+        // MoodEventProcessor：从 content token 流中剥离 LLM 内嵌的情绪标签，剩余文本作为正常 content 事件推给 sink
         final MoodEventProcessor moodStripper = new MoodEventProcessor(sink, userId);
 
         assistant.chat(anchorId, prompt)
+                // 思考过程 token（仅支持 thinking 的 profile 会触发，pt 可能为 null）
                 .onPartialThinking(pt -> {
                     hasEmitted.set(true);
                     if (pt != null && pt.text() != null) {
                         sink.next(new ChatEvent("thinking", pt.text()));
                     }
                 })
+                // 正文 token：交给 moodStripper 剥离情绪标签后转 content 事件，识别到的情绪词缓存在 stripper 内部
                 .onPartialResponse(ct -> {
                     hasEmitted.set(true);
                     moodStripper.accept(ct);
                 })
+                // 工具调用开始：提取查询词 + 中文名，发 tool_call 事件让前端展示工具卡片
                 .beforeToolExecution(evt -> {
                     hasEmitted.set(true);
                     String name = evt.request().name();
@@ -266,6 +257,7 @@ public class ChatService {
                     log.info("Tool call start [anchorId={}] {} ({}) query={}", anchorId, name, chineseName, query);
                     sink.next(new ChatEvent("tool_call", WebSearchEvents.toolCallPayload(name, chineseName, query)));
                 })
+                // 工具调用结束：统计结果条数，发 tool_result 事件（结果原文由前端折叠展示）
                 .onToolExecuted(exec -> {
                     hasEmitted.set(true);
                     String name = exec.request().name();
@@ -275,16 +267,16 @@ public class ChatService {
                     log.info("Tool call done [anchorId={}] {} ({}) count={}", anchorId, name, chineseName, count);
                     sink.next(new ChatEvent("tool_result", WebSearchEvents.toolResultPayload(name, chineseName, count, result)));
                 })
+                // LLM 出错：清理 holder 防止脏召回上下文，再向上传播触发外层 retryWhen 判断
                 .onError(err -> {
                     recallContextHolder.remove(anchorId);
                     sink.error(err);
                 })
+                // 流正常结束：flush 处理末尾残留的未完整情绪标签，导出情绪列表供 onStreamComplete 持久化
                 .onCompleteResponse(r -> {
                     log.info("Stream completed [anchorId={}]", anchorId);
                     recallContextHolder.remove(anchorId);
                     moodStripper.flush();
-                    // moodStripper 在 startTokenStream 局部作用域，必须在此处把正文情绪导出到外部 list
-                    // 供 doOnComplete 的 onStreamComplete 持久化到 anchor.last_mood / cold_memory.mood
                     inlineMoods.addAll(moodStripper.getMoods());
                     sink.complete();
                 })
@@ -292,35 +284,34 @@ public class ChatService {
     }
 
     /**
-     * Hook：流完成后——
-     * <ol>
-     *   <li>touch 锚点（last_active_at = now，summary 置 NULL）</li>
-     *   <li>title 为空时用首条用户消息截取自动 backfill</li>
-     *   <li>把拼装好的 assistant 文本写入 Cold Memory</li>
-     * </ol>
-     * 全部异步、失败仅记日志，不重抛——副作用失败不应影响已经返回给用户的对话内容。
+     * 流完成后异步钩子：touch + title backfill + assistant 持久化 + 索引。
+     *
+     * <p>情绪轨迹：instant（对话开始时的快速分类）置首，inline（LLM 正文内嵌标签）依次追加；
+     * {@code settledMood} 取最后一个写 anchor.last_mood，{@code moodTrail} 存完整轨迹写 cold_memory.mood。
+     *
+     * <p>全部 fire-and-forget，失败仅记日志——副作用不应影响已返回给用户的对话内容。
      */
     private void onStreamComplete(String anchorId, String userId, String prompt, StringBuilder buffer,
                                   @Nullable String instantMood, List<String> inlineMoods) {
-        // 一轮情绪轨迹 = 瞬时分类（若有，置首）+ 正文里依次追加的情绪。
-        // anchor.last_mood 存最后一个（沉淀表情，供头像还原，单词语义）；
-        // cold_memory.mood 存整轮逗号拼接（暂塞同一字段，记录情绪轨迹，后续再优化）。
+        // 合并情绪轨迹：instant 置首（对话开始前的快速分类），inline 依次追加（LLM 正文中识别到的变化）
         List<String> moods = new ArrayList<>();
         if (instantMood != null && !instantMood.isBlank()) moods.add(instantMood);
         moods.addAll(inlineMoods);
         String settledMood = moods.isEmpty() ? null : moods.get(moods.size() - 1);
         String moodTrail = moods.isEmpty() ? null : String.join(",", moods);
 
-        anchorMemoryStore.touch(anchorId, settledMood)
+        // 1. touch 锚点：更新 last_active 时间戳（供会话列表排序）+ 写入最终情绪
+        anchorMemoryStore.touchAsync(anchorId, settledMood)
                 .onErrorResume(err -> {
                     log.warn("Failed to touch anchor [anchorId={}]: {}", anchorId, err.toString());
                     return Mono.empty();
                 })
                 .subscribe();
 
+        // 2. 自动补标题：取首条用户消息截断值，仅当标题为空时写入（不覆盖用户手动改名）
         String autoTitle = truncate(prompt, AUTO_TITLE_MAX_LEN);
         if (!autoTitle.isBlank()) {
-            anchorMemoryStore.updateTitleIfBlank(anchorId, autoTitle)
+            anchorMemoryStore.updateTitleIfBlankAsync(anchorId, autoTitle)
                     .onErrorResume(err -> {
                         log.warn("Failed to backfill anchor title [anchorId={}]: {}", anchorId, err.toString());
                         return Mono.empty();
@@ -329,8 +320,10 @@ public class ChatService {
         }
 
         if (buffer.length() == 0) {
-            // LLM 未产出任何内容（网络中断等），清理 LC4J 已提前写入的孤儿 UserMessage
-            chatMemoryStore.removeLastOrphanUserMessage(anchorId)
+            // 3a. LLM 无产出（网络中断等）→ 清理 LC4J 已提前写入的孤儿 UserMessage
+            // LC4J AiServices 在调用 LLM 前就把 UserMessage 写入 ChatMemoryStore，
+            // 若 LLM 未返回任何内容则会话历史中留下"有问无答"的孤儿，需主动清理
+            chatMemoryStore.removeLastOrphanUserMessageAsync(anchorId)
                     .onErrorResume(err -> {
                         log.warn("Failed to remove orphan user message [anchorId={}]: {}", anchorId, err.toString());
                         return Mono.empty();
@@ -339,12 +332,11 @@ public class ChatService {
         }
 
         if (buffer.length() > 0) {
+            // 3b. 持久化 assistant 原文：先 append 拿行 id，再用行 id 作向量 docId，保证 cold_memory 与向量库同步
             String assistantText = buffer.toString();
-            // append 拿回 id 后 fire-and-forget 索引 cold-assistant（off TTFT 关键路径）
-            coldMemoryStore.append(userId, "assistant", assistantText, null, moodTrail)
-                    .flatMap(id -> id < 0 ? Mono.<Void>empty()
-                            : memoryIndexer.index(userId, MemoryVectorMeta.COLD, String.valueOf(id), assistantText,
-                                    "assistant", System.currentTimeMillis()))
+            coldMemoryStore.appendAsync(userId, "assistant", assistantText, null, moodTrail)
+                    .flatMap(id -> memoryIndexer.index(userId, MemoryVectorMeta.COLD, String.valueOf(id), assistantText,
+                            "assistant", System.currentTimeMillis()))
                     .onErrorResume(err -> {
                         log.warn("Failed to append/index assistant message to cold_memory [userId={}]: {}",
                                 userId, err.toString());
@@ -361,8 +353,8 @@ public class ChatService {
     }
 
     /**
-     * 构造 LLM 调用的重试策略：仅在首次 emit 前对可重试错误生效，按指数退避重试。
-     * 调用方需持有 {@code hasEmitted}，并在 LC4J 任一回调触发时置为 true。
+     * 指数退避重试策略——仅首次 emit 前对可重试错误生效。
+     * {@code hasEmitted} 由 startTokenStream 任一回调置位，避免流开始后重试（已部分发送的内容无法回滚）。
      */
     private Retry buildRetrySpec(AtomicBoolean hasEmitted) {
         ChatProperties.Retry r = chatProperties.getRetry();

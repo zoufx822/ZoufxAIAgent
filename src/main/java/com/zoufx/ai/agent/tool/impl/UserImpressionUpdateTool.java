@@ -87,7 +87,7 @@ public class UserImpressionUpdateTool implements ToolPrompt {
             return "update_user_impression 调用失败：key '" + trimmedKey + "' 不在允许字段列表内";
         }
         log.info("📝 update_user_impression [userId={}] {}={}", userId, trimmedKey, trimmedValue);
-        hotMemoryStore.set(userId, HotMemoryType.USER_IMPRESSION, trimmedKey, trimmedValue).block();
+        hotMemoryStore.set(userId, HotMemoryType.USER_IMPRESSION, trimmedKey, trimmedValue);
         // 画像向量索引：embed 带字段语义的短句（如「你做什么的：Java 后端」），UPSERT 由确定性 id 保证。
         // fire-and-forget，不拖慢工具返回。
         String embedText = UserImpressionFields.embedText(trimmedKey, trimmedValue);

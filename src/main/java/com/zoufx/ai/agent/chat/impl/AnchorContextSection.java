@@ -36,7 +36,7 @@ public class AnchorContextSection implements PromptSection {
     public String render(@Nullable String userId, @Nullable String anchorId) {
         if (userId == null || anchorId == null) return null;
 
-        List<AnchorMemoryEntry> others = anchorMemoryStore.listOtherAnchorsSync(userId, anchorId);
+        List<AnchorMemoryEntry> others = anchorMemoryStore.listOtherAnchors(userId, anchorId);
         if (others.isEmpty()) {
             return "## 你与对方的其他对话窗口\n\n当前没有其他对话窗口的摘要——**不要**凭空说「我们之前聊过 X」或「你之前提到过 Y」。\n\n";
         }

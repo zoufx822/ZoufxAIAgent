@@ -7,6 +7,7 @@ import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;
+import dev.langchain4j.model.embedding.EmbeddingModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -35,6 +36,7 @@ public class ColdMemorySearchTool implements ToolPrompt {
 
     private final RecallService recallService;
     private final AnchorMemoryStore anchorMemoryStore;
+    private final EmbeddingModel embeddingModel;
 
     @Override
     public String section() {
@@ -73,9 +75,11 @@ public class ColdMemorySearchTool implements ToolPrompt {
         int effectiveLimit = limit > 0 ? Math.min(limit, HARD_MAX_LIMIT) : DEFAULT_LIMIT;
 
         log.info("🔎 search_cold_memory [userId={}] keyword='{}' limit={}", userId, keyword, effectiveLimit);
-        // windowSince 传 null——LLM 显式深挖时不排除近期内容
-        List<RecallResult> hits = recallService.recall(userId, keyword, effectiveLimit, null).block();
-        if (hits == null || hits.isEmpty()) {
+        // windowSince 传 null——LLM 显式深挖时不排除近期内容；
+        // @Tool 在工具线程上跑（允许阻塞），直接调同步 recall，不绕 recallAsync().block()
+        var emb = embeddingModel.embed(keyword).content();
+        List<RecallResult> hits = recallService.recall(userId, emb, effectiveLimit, null);
+        if (hits.isEmpty()) {
             return "经历流里没找到与「" + keyword + "」相关的内容。";
         }
 

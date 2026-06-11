@@ -74,7 +74,7 @@ public class SignificantEventRecordTool implements ToolPrompt {
         String trimmed = description.trim();
         String key = UUID.randomUUID().toString();
         log.info("📝 record_significant_event [userId={}] uuid={} description={}", userId, key, trimmed);
-        hotMemoryStore.set(userId, HotMemoryType.SIGNIFICANT_EVENT, key, trimmed).block();
+        hotMemoryStore.set(userId, HotMemoryType.SIGNIFICANT_EVENT, key, trimmed);
         // 向量索引 fire-and-forget，不拖慢工具返回；失败不影响已落库的原文
         memoryIndexer.index(userId, MemoryVectorMeta.SIGNIFICANT_EVENT, key, trimmed, null,
                 System.currentTimeMillis())

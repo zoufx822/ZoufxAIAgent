@@ -5,9 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.Mono;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -28,8 +26,7 @@ import java.util.Map;
  *
  * <p>- 与其他 store 共用 memoryDataSource / memoryJdbcTemplate
  * <p>- schema 在自身 @PostConstruct 里建
- * <p>- snapshot / fetchValues 同步：见 {@link HotMemoryStore} 接口文档
- * <p>- set 反应式：阻塞 JDBC 包到 boundedElastic
+ * <p>- snapshot / fetchValues / set 同步：见 {@link HotMemoryStore} 接口文档
  */
 @Slf4j
 @Component
@@ -71,12 +68,6 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
     }
 
     @Override
-    public Mono<Void> set(String userId, String type, String key, String value) {
-        return Mono.<Void>fromRunnable(() -> setBlocking(userId, type, key, value))
-                .subscribeOn(Schedulers.boundedElastic());
-    }
-
-    @Override
     public Map<String, String> fetchValues(String userId, String type, Collection<String> keys) {
         if (keys == null || keys.isEmpty()) return Map.of();
         String placeholders = String.join(",", java.util.Collections.nCopies(keys.size(), "?"));
@@ -92,7 +83,8 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
         return out;
     }
 
-    private void setBlocking(String userId, String type, String key, String value) {
+    @Override
+    public void set(String userId, String type, String key, String value) {
         // SQLite UPSERT 语法（3.24+）：后写覆盖前写
         jdbc.update("""
                 INSERT INTO hot_memory (user_id, type, key, value, updated_at)

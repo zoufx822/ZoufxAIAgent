@@ -67,7 +67,7 @@ public class AnchorService {
                         return Mono.<Void>empty();
                     }
                     long snapshotAt = snapshotOpt.get();
-                    return chatMemoryStore.loadByAnchorId(anchorId)
+                    return chatMemoryStore.loadByAnchorIdAsync(anchorId)
                             .flatMap(messages -> {
                                 String transcript = formatTranscript(messages);
                                 if (transcript.isBlank()) {
@@ -77,7 +77,7 @@ public class AnchorService {
                                 return Mono.fromCallable(() -> callLlm(transcript))
                                         .subscribeOn(Schedulers.boundedElastic())
                                         .flatMap(summary -> anchorMemoryStore
-                                                .updateSummaryIfUnchanged(anchorId, summary, snapshotAt)
+                                                .updateSummaryIfUnchangedAsync(anchorId, summary, snapshotAt)
                                                 .doOnSuccess(v -> log.info("Anchor summary saved [anchorId={}] len={}",
                                                         anchorId, summary.length())));
                             });

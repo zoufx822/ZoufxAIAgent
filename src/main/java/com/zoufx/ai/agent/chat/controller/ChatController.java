@@ -5,6 +5,7 @@ import com.zoufx.ai.agent.chat.model.AnchorContextView;
 import com.zoufx.ai.agent.chat.model.AnchorTitleUpdateRequest;
 import com.zoufx.ai.agent.chat.model.ChatRequest;
 import com.zoufx.ai.agent.chat.service.ChatService;
+import com.zoufx.ai.agent.chat.service.AnchorService;
 import com.zoufx.ai.agent.chat.support.ChatMessageHelper;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
@@ -50,6 +51,7 @@ import java.util.Map;
 public class ChatController {
 
     private final ChatService chatService;
+    private final AnchorService anchorService;
     private final LlmCapabilities capabilities;
     private final HotMemoryStore hotMemoryStore;
     private final AnchorMemoryStore anchorMemoryStore;
@@ -60,12 +62,17 @@ public class ChatController {
         response.getHeaders().set("X-Accel-Buffering", "no");
         response.getHeaders().set("Cache-Control", "no-cache");
 
-        String anchorId = request.anchorId();
         String prompt = request.prompt().trim();
         log.info("Received prompt [anchorId={}, prevAnchorId={}, thinking={}]: {}",
-                anchorId, request.prevAnchorId(), request.thinking(), prompt);
+                request.anchorId(), request.prevAnchorId(), request.thinking(), prompt);
 
-        return chatService.chat(anchorId, prompt, request.thinking(), request.prevAnchorId(), request.userId())
+        // 锚点切换：fire-and-forget 触发对前一锚点的 LLM 摘要压缩
+        if (request.prevAnchorId() != null && !request.prevAnchorId().isBlank()) {
+            log.info("Anchor switch detected, compressing prevAnchorId={}", request.prevAnchorId());
+            anchorService.compress(request.prevAnchorId()).subscribe();
+        }
+
+        return chatService.chat(request.anchorId(), prompt, request.thinking(), request.userId())
                 .map(e -> ServerSentEvent.<String>builder().event(e.type()).data(e.data()).build());
     }
 
@@ -79,13 +86,13 @@ public class ChatController {
     /** 列出该用户全部锚点，按 last_active_at desc。 */
     @GetMapping("/anchors")
     public Mono<List<AnchorMemoryEntry>> listAnchors(@RequestParam String userId) {
-        return anchorMemoryStore.listByUser(userId);
+        return anchorMemoryStore.listByUserAsync(userId);
     }
 
     /** 加载锚点消息历史（滑动窗口，默认 20 条），供前端切锚点时显示。 */
     @GetMapping("/anchors/{anchorId}/messages")
     public Mono<List<Map<String, String>>> messages(@PathVariable String anchorId) {
-        return chatMemoryStore.loadByAnchorId(anchorId)
+        return chatMemoryStore.loadByAnchorIdAsync(anchorId)
                 .map(list -> list.stream()
                         .map(ChatMessageHelper::toMessageView)
                         .toList());
@@ -100,7 +107,7 @@ public class ChatController {
         return Mono.fromCallable(() -> {
             String userId = anchorMemoryStore.findUserId(anchorId);
             if (userId == null) return AnchorContextView.empty();
-            return AnchorContextView.from(anchorMemoryStore.listOtherAnchorsSync(userId, anchorId));
+            return AnchorContextView.from(anchorMemoryStore.listOtherAnchors(userId, anchorId));
         }).subscribeOn(Schedulers.boundedElastic());
     }
 
@@ -108,7 +115,7 @@ public class ChatController {
     @PatchMapping("/anchors/{anchorId}/title")
     public Mono<Void> renameAnchor(@PathVariable String anchorId,
             @Valid @RequestBody AnchorTitleUpdateRequest request) {
-        return anchorMemoryStore.updateTitle(anchorId, request.title().trim());
+        return anchorMemoryStore.updateTitleAsync(anchorId, request.title().trim());
     }
 
     // ====== Memory snapshots ======

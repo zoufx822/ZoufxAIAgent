@@ -59,8 +59,19 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
     }
 
     @Override
-    public Mono<Long> append(String userId, String role, String content, String metadataJson, @Nullable String mood) {
-        return Mono.fromCallable(() -> appendBlocking(userId, role, content, metadataJson, mood))
+    public long append(String userId, String role, String content, @Nullable String metadataJson, @Nullable String mood) {
+        return tx.execute(status -> {
+            jdbc.update(
+                    "INSERT INTO cold_memory (user_id, role, content, metadata, mood, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    userId, role, content, metadataJson, mood, System.currentTimeMillis());
+            Long id = jdbc.queryForObject("SELECT last_insert_rowid()", Long.class);
+            return id == null ? -1L : id;
+        });
+    }
+
+    @Override
+    public Mono<Long> appendAsync(String userId, String role, String content, @Nullable String metadataJson, @Nullable String mood) {
+        return Mono.fromCallable(() -> append(userId, role, content, metadataJson, mood))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
@@ -88,13 +99,4 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
                 args.toArray());
     }
 
-    private long appendBlocking(String userId, String role, String content, String metadataJson, @Nullable String mood) {
-        Long id = tx.execute(status -> {
-            jdbc.update(
-                    "INSERT INTO cold_memory (user_id, role, content, metadata, mood, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    userId, role, content, metadataJson, mood, System.currentTimeMillis());
-            return jdbc.queryForObject("SELECT last_insert_rowid()", Long.class);
-        });
-        return id == null ? -1L : id;
-    }
 }

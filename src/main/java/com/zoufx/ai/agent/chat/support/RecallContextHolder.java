@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentMap;
 /**
  * 请求级召回暂存：按 anchorId 存当前请求算好的「## 此刻想起的相关记忆」段。
  *
- * <p>{@code ChatService.startTokenStream} 在召回后 {@link #set}，{@code RecallContextSection.render}
+ * <p>{@code ChatService.prepare} 在召回后 {@link #set}，{@code RecallContextSection.render}
  * 在 compose 时同步 {@link #get}；流终态（complete/error/cancel）{@link #remove}。
  * 同 anchorId double-send 接受"最后写赢"，不做请求级隔离。
  */

@@ -5,9 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.Mono;
 import com.zoufx.ai.agent.soul.api.SoulStore;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -20,7 +18,7 @@ import java.util.Map;
  * <p>{@code @PostConstruct} 顺序：建表 → 按 seed 常量 INSERT OR IGNORE
  * （"已有不覆盖"语义，seed 仅首启动生效）。
  *
- * <p>线程契约：get/snapshot 同步（compose 在 event loop），set 反应式（boundedElastic）。
+ * <p>线程契约：snapshot 同步（compose 在 event loop）。seed 仅在 @PostConstruct 写入，运行期只读。
  */
 @Slf4j
 @Component
@@ -121,20 +119,4 @@ public class SqliteSoulStore implements SoulStore {
         return result;
     }
 
-    @Override
-    public Mono<Void> set(String key, String value) {
-        return Mono.<Void>fromRunnable(() -> setBlocking(key, value))
-                .subscribeOn(Schedulers.boundedElastic());
-    }
-
-    private void setBlocking(String key, String value) {
-        jdbc.update("""
-                INSERT INTO soul_profile (key, value, updated_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET
-                    value = excluded.value,
-                    updated_at = excluded.updated_at
-                """,
-                key, value, System.currentTimeMillis());
-    }
 }

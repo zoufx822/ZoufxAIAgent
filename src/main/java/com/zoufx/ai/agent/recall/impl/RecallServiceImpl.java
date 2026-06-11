@@ -12,7 +12,6 @@ import com.zoufx.ai.agent.recall.support.ScoringPipeline;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
-import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingStore;
@@ -21,9 +20,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,7 +39,6 @@ import static dev.langchain4j.store.embedding.filter.MetadataFilterBuilder.metad
 @RequiredArgsConstructor
 public class RecallServiceImpl implements RecallService {
 
-    private final EmbeddingModel embeddingModel;
     private final EmbeddingStore<TextSegment> embeddingStore;
     private final ScoringPipeline scoring;
     private final RecallProperties props;
@@ -51,56 +46,48 @@ public class RecallServiceImpl implements RecallService {
     private final HotMemoryStore hotMemoryStore;
 
     @Override
-    public Mono<List<RecallResult>> recall(String userId, String query, int limit, @Nullable Long windowSince) {
-        return Mono.fromCallable(() -> doRecall(userId, embeddingModel.embed(query).content(), limit, windowSince))
-                .subscribeOn(Schedulers.boundedElastic())
-                .onErrorResume(err -> swallow(userId, err));
-    }
+    public List<RecallResult> recall(String userId, Embedding embedding, int limit, @Nullable Long windowSince) {
+        try {
+            Filter filter = metadataKey(MemoryVectorMeta.USER_ID).isEqualTo(userId);   // 用户隔离硬要求
+            EmbeddingSearchRequest req = EmbeddingSearchRequest.builder()
+                    .queryEmbedding(embedding)
+                    .filter(filter)
+                    .maxResults(props.getTopK())
+                    .minScore(props.getMinScore())
+                    .build();
 
-    @Override
-    public Mono<List<RecallResult>> recallWith(String userId, Embedding embedding, int limit, @Nullable Long windowSince) {
-        return Mono.fromCallable(() -> doRecall(userId, embedding, limit, windowSince))
-                .subscribeOn(Schedulers.boundedElastic())
-                .onErrorResume(err -> swallow(userId, err));
-    }
+            List<EmbeddingMatch<TextSegment>> matches = embeddingStore.search(req).matches();
+            long now = System.currentTimeMillis();
 
-    private List<RecallResult> doRecall(String userId, Embedding queryEmbedding, int limit, @Nullable Long windowSince) {
-        Filter filter = metadataKey(MemoryVectorMeta.USER_ID).isEqualTo(userId);   // 用户隔离硬要求
-        EmbeddingSearchRequest req = EmbeddingSearchRequest.builder()
-                .queryEmbedding(queryEmbedding)
-                .filter(filter)
-                .maxResults(props.getTopK())
-                .minScore(props.getMinScore())
-                .build();
+            List<Candidate> candidates = new ArrayList<>();
+            for (EmbeddingMatch<TextSegment> m : matches) {
+                Metadata md = m.embedded().metadata();
+                String memType = md.getString(MemoryVectorMeta.MEM_TYPE);
+                String sourceId = md.getString(MemoryVectorMeta.SOURCE_ID);
+                Long createdAt = md.getLong(MemoryVectorMeta.CREATED_AT);
+                if (memType == null || sourceId == null || createdAt == null) continue;
+                // 排除滑窗内已可见的 cold 条目（hot 不在滑窗，不过滤）
+                if (windowSince != null && MemoryVectorMeta.COLD.equals(memType) && createdAt >= windowSince) continue;
 
-        List<EmbeddingMatch<TextSegment>> matches = embeddingStore.search(req).matches();
-        long now = System.currentTimeMillis();
+                Double impBox = md.getDouble(MemoryVectorMeta.IMPORTANCE);
+                double importance = impBox == null ? 0.5 : impBox;
+                double relevance = m.score() == null ? 0.0 : m.score();
+                double recency = scoring.recency(now - createdAt);
+                double finalScore = scoring.finalScore(relevance, recency, importance);
+                float[] vector = m.embedding() == null ? null : m.embedding().vector();
+                candidates.add(new Candidate(memType, sourceId, createdAt, relevance, recency, importance, finalScore, vector));
+            }
 
-        List<Candidate> candidates = new ArrayList<>();
-        for (EmbeddingMatch<TextSegment> m : matches) {
-            Metadata md = m.embedded().metadata();
-            String memType = md.getString(MemoryVectorMeta.MEM_TYPE);
-            String sourceId = md.getString(MemoryVectorMeta.SOURCE_ID);
-            Long createdAt = md.getLong(MemoryVectorMeta.CREATED_AT);
-            if (memType == null || sourceId == null || createdAt == null) continue;
-            // 排除滑窗内已可见的 cold 条目（hot 不在滑窗，不过滤）
-            if (windowSince != null && MemoryVectorMeta.COLD.equals(memType) && createdAt >= windowSince) continue;
-
-            Double impBox = md.getDouble(MemoryVectorMeta.IMPORTANCE);
-            double importance = impBox == null ? 0.5 : impBox;
-            double relevance = m.score() == null ? 0.0 : m.score();
-            double recency = scoring.recency(now - createdAt);
-            double finalScore = scoring.finalScore(relevance, recency, importance);
-            float[] vector = m.embedding() == null ? null : m.embedding().vector();
-            candidates.add(new Candidate(memType, sourceId, createdAt, relevance, recency, importance, finalScore, vector));
+            candidates.sort((a, b) -> Double.compare(b.finalScore(), a.finalScore()));
+            List<Candidate> selected = selectTopN(candidates, Math.max(1, limit));
+            List<RecallResult> results = hydrate(userId, selected);
+            log.info("Recall [userId={}] matched={} selected={} hydrated={}",
+                    userId, matches.size(), selected.size(), results.size());
+            return results;
+        } catch (Exception err) {
+            log.warn("Recall failed [userId={}]: {}", userId, err.toString());
+            return List.of();
         }
-
-        candidates.sort((a, b) -> Double.compare(b.finalScore(), a.finalScore()));
-        List<Candidate> selected = selectTopN(candidates, Math.max(1, limit));
-        List<RecallResult> results = hydrate(userId, selected);
-        log.info("Recall [userId={}] matched={} selected={} hydrated={}",
-                userId, matches.size(), selected.size(), results.size());
-        return results;
     }
 
     /** MMR 多样性选择；归一化 finalScore 后与候选间余弦相似度按 λ 混合。 */
@@ -175,11 +162,6 @@ public class RecallServiceImpl implements RecallService {
                     c.relevance(), c.recency(), c.importance(), c.finalScore()));
         }
         return out;
-    }
-
-    private Mono<List<RecallResult>> swallow(String userId, Throwable err) {
-        log.warn("Recall failed [userId={}]: {}", userId, err.toString());
-        return Mono.just(List.of());
     }
 
     @Nullable

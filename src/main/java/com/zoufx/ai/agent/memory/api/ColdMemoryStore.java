@@ -14,27 +14,27 @@ import java.util.List;
  * - {@link ChatMemoryStore}：滑窗 20 条，全量替换语义
  * - {@link ColdMemoryStore}：所有用户/AI 消息按时间序==只追加==，无上限
  *
- * 写入路径为 Controller/Service-driven Append（不在 LC4J Hook 里做，避免与 LC4J 全量替换语义冲突）：
- * - {@code ChatService.beforeStream()} 接到请求 → append user prompt
- * - {@code ChatService.onStreamComplete()} 流式响应拼装完 → append assistant text
+ * 写入路径（不在 LC4J Hook 里做，避免与 LC4J 全量替换语义冲突）：
+ * - {@code ChatService.prepare()}：接到请求 → 同步 append user prompt
+ * - {@code ChatService.onStreamComplete()}：流结束 → 异步 appendAsync assistant text
  *
- * 当前不写入 tool_result（噪音大）。
- *
- * 所有方法均为反应式签名——调用方都在 WebFlux 反应式链（Service）或 LC4J 工具线程
- * （ColdMemorySearchTool 内部可 .block() 桥接）；不与 LC4J SystemPromptProvider 同步契约挂钩，
- * 因此整接口可以全反应式（对比 {@link HotMemoryStore} 的 snapshot 必须同步）。
+ * 当前不写入 tool_result（噪音大）。提供同步/异步两种 append 签名，调用方按所在线程选用。
  */
 public interface ColdMemoryStore {
 
     /**
-     * 追加一条经历流记录，返回新行自增 id（供向量索引作 sourceId / 回查正文）。
-     * 失败应仅记日志不抛错（不阻断主对话流）。
+     * 追加一条经历流记录，返回新行自增 id。同步签名，调用方在 boundedElastic 上。
      *
-     * @param role         'user' / 'assistant'（当前写入这两类）
-     * @param metadataJson JSON 字符串，当前留空（预留 importance/tags/embedding_id）
-     * @param mood         AI 回复时的情绪关键词（参见 {@code Moods.ALL}），仅 assistant 消息有值；user 消息传 null
+     * @param role         'user' / 'assistant'
+     * @param metadataJson JSON 字符串，当前留空
+     * @param mood         情绪关键词，仅 assistant 消息有值；user 消息传 null
      */
-    Mono<Long> append(String userId, String role, String content, String metadataJson, @Nullable String mood);
+    long append(String userId, String role, String content, @Nullable String metadataJson, @Nullable String mood);
+
+    /**
+     * 反应式版 append——供响应式链调用方（如 {@code onStreamComplete}）使用。
+     */
+    Mono<Long> appendAsync(String userId, String role, String content, @Nullable String metadataJson, @Nullable String mood);
 
     /**
      * 按 id 批量取原文——召回 hydration 用（Qdrant 只存指针，正文回这里取）。

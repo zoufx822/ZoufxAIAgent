@@ -76,54 +76,42 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
 
     @Override
     public List<ChatMessage> getMessages(Object memoryId) {
-        return loadByAnchorIdBlocking(memoryId.toString());
+        return loadByAnchorId(memoryId.toString());
     }
 
     @Override
     public void updateMessages(Object memoryId, List<ChatMessage> messages) {
-        saveByAnchorIdBlocking(memoryId.toString(), messages);
+        saveByAnchorId(memoryId.toString(), messages);
     }
 
     @Override
     public void deleteMessages(Object memoryId) {
-        deleteByAnchorIdBlocking(memoryId.toString());
+        deleteByAnchorId(memoryId.toString());
     }
 
     // ====== 业务反应式契约（自动 boundedElastic 调度）======
 
     @Override
-    public Mono<List<ChatMessage>> loadByAnchorId(String anchorId) {
-        return Mono.fromCallable(() -> loadByAnchorIdBlocking(anchorId))
+    public Mono<List<ChatMessage>> loadByAnchorIdAsync(String anchorId) {
+        return Mono.fromCallable(() -> loadByAnchorId(anchorId))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
     @Override
-    public Mono<Void> saveByAnchorId(String anchorId, List<ChatMessage> messages) {
-        return Mono.<Void>fromRunnable(() -> saveByAnchorIdBlocking(anchorId, messages))
+    public Mono<Void> cleanupOrphansAsync(String anchorId) {
+        return Mono.<Void>fromRunnable(() -> cleanupOrphans(anchorId))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
     @Override
-    public Mono<Void> deleteByAnchorId(String anchorId) {
-        return Mono.<Void>fromRunnable(() -> deleteByAnchorIdBlocking(anchorId))
-                .subscribeOn(Schedulers.boundedElastic());
-    }
-
-    @Override
-    public Mono<Void> cleanupOrphans(String anchorId) {
-        return Mono.<Void>fromRunnable(() -> cleanupOrphansBlocking(anchorId))
-                .subscribeOn(Schedulers.boundedElastic());
-    }
-
-    @Override
-    public Mono<Void> removeLastOrphanUserMessage(String anchorId) {
-        return Mono.<Void>fromRunnable(() -> removeLastOrphanUserMessageBlocking(anchorId))
+    public Mono<Void> removeLastOrphanUserMessageAsync(String anchorId) {
+        return Mono.<Void>fromRunnable(() -> removeLastOrphanUserMessage(anchorId))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
     // ====== 私有同步实现（被两套契约共享）======
 
-    private List<ChatMessage> loadByAnchorIdBlocking(String anchorId) {
+    private List<ChatMessage> loadByAnchorId(String anchorId) {
         // LC4J add(AiMessage_tool_calls) 写完后会立即 add(ToolExecutionResultMessage)，
         // 若在 load 时 sanitize，会把刚写入的 AiMessage 误判为孤儿。
         // sanitize 仅在 stop 取消流后由 ChatService.doOnCancel fire-and-forget 调用。
@@ -133,21 +121,21 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
                 anchorId);
     }
 
-    private void removeLastOrphanUserMessageBlocking(String anchorId) {
-        List<ChatMessage> msgs = loadByAnchorIdBlocking(anchorId);
+    private void removeLastOrphanUserMessage(String anchorId) {
+        List<ChatMessage> msgs = loadByAnchorId(anchorId);
         if (msgs.isEmpty()) return;
         ChatMessage last = msgs.get(msgs.size() - 1);
         if (!(last instanceof dev.langchain4j.data.message.UserMessage)) return;
         List<ChatMessage> trimmed = new ArrayList<>(msgs.subList(0, msgs.size() - 1));
-        saveByAnchorIdBlocking(anchorId, trimmed);
+        saveByAnchorId(anchorId, trimmed);
         log.info("Removed orphan user message [anchorId={}]", anchorId);
     }
 
-    private void cleanupOrphansBlocking(String anchorId) {
-        List<ChatMessage> raw = loadByAnchorIdBlocking(anchorId);
+    private void cleanupOrphans(String anchorId) {
+        List<ChatMessage> raw = loadByAnchorId(anchorId);
         List<ChatMessage> cleaned = sanitize(anchorId, raw);
         if (cleaned.size() == raw.size()) return;
-        saveByAnchorIdBlocking(anchorId, cleaned);
+        saveByAnchorId(anchorId, cleaned);
         log.info("Post-cancel sanitize fired [anchorId={}]", anchorId);
     }
 
@@ -224,7 +212,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
         return msg;
     }
 
-    private void saveByAnchorIdBlocking(String anchorId, List<ChatMessage> messages) {
+    private void saveByAnchorId(String anchorId, List<ChatMessage> messages) {
         String userId = anchorMemoryStore.findUserId(anchorId);
         if (userId == null) {
             throw new IllegalStateException("Unknown anchorId: " + anchorId
@@ -262,7 +250,7 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
         });
     }
 
-    private void deleteByAnchorIdBlocking(String anchorId) {
+    private void deleteByAnchorId(String anchorId) {
         jdbc.update("DELETE FROM chat_memory WHERE anchor_id = ?", anchorId);
     }
 }
