@@ -75,10 +75,9 @@ public class SignificantEventRecordTool implements ToolPrompt {
         String key = UUID.randomUUID().toString();
         log.info("📝 record_significant_event [userId={}] uuid={} description={}", userId, key, trimmed);
         hotMemoryStore.set(userId, HotMemoryType.SIGNIFICANT_EVENT, key, trimmed);
-        // 向量索引 fire-and-forget，不拖慢工具返回；失败不影响已落库的原文
-        memoryIndexer.index(userId, MemoryVectorMeta.SIGNIFICANT_EVENT, key, trimmed, null,
-                System.currentTimeMillis())
-                .subscribe();
+        // 向量索引 fire-and-forget：embed+Qdrant 写都在异步链路（不阻塞工具返回）
+        memoryIndexer.indexTextAsync(userId, MemoryVectorMeta.SIGNIFICANT_EVENT, key, trimmed, null,
+                System.currentTimeMillis()).subscribe();
         return "已记下重要经历：" + trimmed;
     }
 }

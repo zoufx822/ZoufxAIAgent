@@ -17,6 +17,9 @@ import java.util.List;
  */
 public interface ChatMemoryStore extends dev.langchain4j.store.memory.chat.ChatMemoryStore {
 
+    /** 同步加载某锚点全部消息（按写入顺序）——供已在 boundedElastic 上的阻塞流水线使用。 */
+    List<ChatMessage> loadByAnchorId(String anchorId);
+
     Mono<List<ChatMessage>> loadByAnchorIdAsync(String anchorId);
 
     /**

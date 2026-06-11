@@ -1,5 +1,7 @@
 package com.zoufx.ai.agent.chat.service;
 
+import com.zoufx.ai.agent.base.support.Blocking;
+import com.zoufx.ai.agent.chat.model.AnchorContextView;
 import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import dev.langchain4j.data.message.AiMessage;
@@ -10,16 +12,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
- * 锚点服务——客户端切走某锚点时调 {@link #compress}，
- * 用同步 ChatModel 一次性把消息流压成短摘要写回 anchor.summary 缓存。
+ * 锚点服务——客户端切走某锚点时调 {@link #compressAsync}，
+ * 用同步 ChatModel 一次性把消息流压成短摘要写回 anchor.summary 缓存；
+ * 另承载锚点上下文视图（其他锚点三层衰减）的组装。
  *
- * <p>调用方（ChatService）以 fire-and-forget 形式 subscribe()，
+ * <p>压缩调用方（ChatController）以 fire-and-forget 形式 subscribe()，
  * 失败仅记日志，不阻断主聊天流。
  */
 @Slf4j
@@ -54,38 +55,46 @@ public class AnchorService {
         this.anchorMemoryStore = anchorMemoryStore;
     }
 
-    /**
-     * 压缩指定锚点的消息流为短摘要，写入 anchor.summary。
-     * 整条管道在 boundedElastic 上跑（LLM sync call 是阻塞 IO）。
-     */
-    public Mono<Void> compress(String anchorId) {
-        return Mono.fromCallable(() -> Optional.ofNullable(anchorMemoryStore.snapshotActiveAt(anchorId)))
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(snapshotOpt -> {
-                    if (snapshotOpt.isEmpty()) {
-                        log.info("Skip compression [anchorId={}]: anchor not found", anchorId);
-                        return Mono.<Void>empty();
-                    }
-                    long snapshotAt = snapshotOpt.get();
-                    return chatMemoryStore.loadByAnchorIdAsync(anchorId)
-                            .flatMap(messages -> {
-                                String transcript = formatTranscript(messages);
-                                if (transcript.isBlank()) {
-                                    log.info("Skip compression [anchorId={}]: empty transcript", anchorId);
-                                    return Mono.<Void>empty();
-                                }
-                                return Mono.fromCallable(() -> callLlm(transcript))
-                                        .subscribeOn(Schedulers.boundedElastic())
-                                        .flatMap(summary -> anchorMemoryStore
-                                                .updateSummaryIfUnchangedAsync(anchorId, summary, snapshotAt)
-                                                .doOnSuccess(v -> log.info("Anchor summary saved [anchorId={}] len={}",
-                                                        anchorId, summary.length())));
-                            });
-                })
+    public Mono<Void> compressAsync(String anchorId) {
+        return Blocking.run(() -> compress(anchorId))
                 .onErrorResume(err -> {
                     log.warn("Anchor compression failed [anchorId={}]: {}", anchorId, err.toString());
                     return Mono.empty();
                 });
+    }
+
+    /**
+     * 压缩指定锚点的消息流为短摘要，写入 anchor.summary。
+     * 流水线是顺序阻塞 IO（DB 读 → LLM → DB CAS 写），调用方需保证不在 event loop 上。
+     */
+    private void compress(String anchorId) {
+        Long snapshotAt = anchorMemoryStore.snapshotActiveAt(anchorId);
+        if (snapshotAt == null) {
+            log.info("Skip compression [anchorId={}]: anchor not found", anchorId);
+            return;
+        }
+        String transcript = formatTranscript(chatMemoryStore.loadByAnchorId(anchorId));
+        if (transcript.isBlank()) {
+            log.info("Skip compression [anchorId={}]: empty transcript", anchorId);
+            return;
+        }
+        String summary = callLlm(transcript);
+        anchorMemoryStore.updateSummaryIfUnchanged(anchorId, summary, snapshotAt);
+        log.info("Anchor summary saved [anchorId={}] len={}", anchorId, summary.length());
+    }
+
+    public Mono<AnchorContextView> anchorContextAsync(String anchorId) {
+        return Blocking.call(() -> anchorContext(anchorId));
+    }
+
+    /**
+     * 当前锚点的"其他锚点"三层衰减视图（near/mid/far）。
+     * anchorId 不存在返回空结构，让前端统一走"这是我们的第一次对话"空态。
+     */
+    private AnchorContextView anchorContext(String anchorId) {
+        String userId = anchorMemoryStore.findUserId(anchorId);
+        if (userId == null) return AnchorContextView.empty();
+        return AnchorContextView.from(anchorMemoryStore.listOtherAnchors(userId, anchorId));
     }
 
     private String callLlm(String transcript) {

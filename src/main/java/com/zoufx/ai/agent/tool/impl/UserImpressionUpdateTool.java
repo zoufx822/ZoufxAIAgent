@@ -88,12 +88,11 @@ public class UserImpressionUpdateTool implements ToolPrompt {
         }
         log.info("📝 update_user_impression [userId={}] {}={}", userId, trimmedKey, trimmedValue);
         hotMemoryStore.set(userId, HotMemoryType.USER_IMPRESSION, trimmedKey, trimmedValue);
-        // 画像向量索引：embed 带字段语义的短句（如「你做什么的：Java 后端」），UPSERT 由确定性 id 保证。
-        // fire-and-forget，不拖慢工具返回。
+        // 画像向量索引 fire-and-forget：embed 带字段语义的短句（如「你做什么的：Java 后端」），
+        // UPSERT 由确定性 id 保证；embed+Qdrant 写都在异步链路（不阻塞工具返回）
         String embedText = UserImpressionFields.embedText(trimmedKey, trimmedValue);
-        memoryIndexer.index(userId, MemoryVectorMeta.USER_IMPRESSION, trimmedKey, embedText, null,
-                System.currentTimeMillis())
-                .subscribe();
+        memoryIndexer.indexTextAsync(userId, MemoryVectorMeta.USER_IMPRESSION, trimmedKey, embedText, null,
+                System.currentTimeMillis()).subscribe();
         return "已记下：" + trimmedKey + "=" + trimmedValue;
     }
 }

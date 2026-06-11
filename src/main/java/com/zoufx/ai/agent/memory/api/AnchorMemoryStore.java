@@ -9,13 +9,10 @@ import java.util.List;
 /**
  * 锚点记忆业务接口——管理 anchor_memory 表，承载 anchorId ↔ userId 关联 + title / summary 缓存。
  *
- * <p><b>读/写签名分裂原因</b>：
- * <ul>
- *   <li>{@link #findUserId} / {@link #listOtherAnchors} / {@link #snapshotActiveAt} 同步——
- *       调用方 PromptSection.render / @Tool 方法不能 .block() 也不便包 Mono</li>
- *   <li>create / touchAsync / updateSummaryIfUnchangedAsync / updateTitleIfBlankAsync 反应式——
- *       调用方在 WebFlux Controller / ChatService 流式编排上，需要反应式串接</li>
- * </ul>
+ * <p>同步方法是本体（阻塞 JDBC），只允许已脱离 event loop 的调用方使用
+ * （PromptSection.render、@Tool 方法、boundedElastic 上的阻塞流水线）；
+ * {@code xxxAsync} 是同步本体的 boundedElastic 包装，供 WebFlux Controller /
+ * ChatService 反应式编排串接，仅在确有反应式调用方时提供。
  */
 public interface AnchorMemoryStore {
 
@@ -58,9 +55,9 @@ public interface AnchorMemoryStore {
     /**
      * CAS 写入压缩摘要——仅当 last_active_at 与快照值一致时才写入。
      * 若 touch 在压缩期间推进了时间戳，CAS 不匹配 → 静默丢弃过时摘要，summary 维持 NULL（活跃状态）。
-     * 由 {@link com.zoufx.ai.agent.chat.service.AnchorService#compress} 调用。
+     * 由 {@link com.zoufx.ai.agent.chat.service.AnchorService#compress} 的同步流水线调用。
      */
-    Mono<Void> updateSummaryIfUnchangedAsync(String anchorId, String summary, long snapshotAt);
+    void updateSummaryIfUnchanged(String anchorId, String summary, long snapshotAt);
 
     /**
      * 仅当 title 为 null / 空白时填入——避免覆盖用户手动改过的标题。

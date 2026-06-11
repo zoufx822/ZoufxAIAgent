@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.chat.service;
 
+import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.chat.support.Moods;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
@@ -9,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,27 +66,29 @@ public class MoodService {
         this.chatModel = chatModel;
     }
 
-    /**
-     * 结合本锚点最近窗口判出情绪词之一；异常/超时吞掉为 empty，不影响主流。
-     *
-     * @param history 本锚点对话滑窗（与主 LLM 同源）；可空/可含末尾的当轮消息，内部自行处理
-     */
-    public Mono<String> classify(String userMessage, List<ChatMessage> history) {
-        return Mono.fromCallable(() -> {
-                    String context = formatRecentContext(history, userMessage);
-                    String contextBlock = context.isBlank() ? "（这是你们对话的开始，暂无历史）" : context;
-                    String raw = chatModel.chat(UserMessage.from(
-                                    String.format(PROMPT_TEMPLATE, contextBlock, userMessage)))
-                            .aiMessage().text();
-                    String mood = Moods.normalize(raw);
-                    log.info("Mood classified instant={} (raw={})", mood, raw == null ? "" : raw.trim());
-                    return mood;
-                })
-                .subscribeOn(Schedulers.boundedElastic())
+    /** 异常/超时吞掉为 empty，不发情绪事件、不影响主流。 */
+    public Mono<String> classifyAsync(String userMessage, List<ChatMessage> history) {
+        return Blocking.call(() -> classify(userMessage, history))
                 .onErrorResume(err -> {
                     log.warn("Mood classification failed, skip instant mood: {}", err.toString());
                     return Mono.empty();
                 });
+    }
+
+    /**
+     * 结合本锚点最近窗口判出情绪词之一（阻塞 LLM 调用，调用方需保证不在 event loop 上）。
+     *
+     * @param history 本锚点对话滑窗（与主 LLM 同源）；可空/可含末尾的当轮消息，内部自行处理
+     */
+    private String classify(String userMessage, List<ChatMessage> history) {
+        String context = formatRecentContext(history, userMessage);
+        String contextBlock = context.isBlank() ? "（这是你们对话的开始，暂无历史）" : context;
+        String raw = chatModel.chat(UserMessage.from(
+                        String.format(PROMPT_TEMPLATE, contextBlock, userMessage)))
+                .aiMessage().text();
+        String mood = Moods.normalize(raw);
+        log.info("Mood classified instant={} (raw={})", mood, raw == null ? "" : raw.trim());
+        return mood;
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.memory.impl;
 
+import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.api.ChatMemoryStore;
 import dev.langchain4j.data.message.AiMessage;
@@ -15,7 +16,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -93,25 +93,23 @@ public class SqliteChatMemoryStore implements ChatMemoryStore {
 
     @Override
     public Mono<List<ChatMessage>> loadByAnchorIdAsync(String anchorId) {
-        return Mono.fromCallable(() -> loadByAnchorId(anchorId))
-                .subscribeOn(Schedulers.boundedElastic());
+        return Blocking.call(() -> loadByAnchorId(anchorId));
     }
 
     @Override
     public Mono<Void> cleanupOrphansAsync(String anchorId) {
-        return Mono.<Void>fromRunnable(() -> cleanupOrphans(anchorId))
-                .subscribeOn(Schedulers.boundedElastic());
+        return Blocking.run(() -> cleanupOrphans(anchorId));
     }
 
     @Override
     public Mono<Void> removeLastOrphanUserMessageAsync(String anchorId) {
-        return Mono.<Void>fromRunnable(() -> removeLastOrphanUserMessage(anchorId))
-                .subscribeOn(Schedulers.boundedElastic());
+        return Blocking.run(() -> removeLastOrphanUserMessage(anchorId));
     }
 
-    // ====== 私有同步实现（被两套契约共享）======
+    // ====== 同步实现（被两套契约共享）======
 
-    private List<ChatMessage> loadByAnchorId(String anchorId) {
+    @Override
+    public List<ChatMessage> loadByAnchorId(String anchorId) {
         // LC4J add(AiMessage_tool_calls) 写完后会立即 add(ToolExecutionResultMessage)，
         // 若在 load 时 sanitize，会把刚写入的 AiMessage 误判为孤儿。
         // sanitize 仅在 stop 取消流后由 ChatService.doOnCancel fire-and-forget 调用。

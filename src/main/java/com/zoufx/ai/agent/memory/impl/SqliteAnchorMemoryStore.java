@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.memory.impl;
 
+import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryStore;
 import com.zoufx.ai.agent.memory.model.AnchorMemoryEntry;
 import jakarta.annotation.PostConstruct;
@@ -10,7 +11,6 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 
@@ -112,37 +112,28 @@ public class SqliteAnchorMemoryStore implements AnchorMemoryStore {
 
     @Override
     public Mono<List<AnchorMemoryEntry>> listByUserAsync(String userId) {
-        return Mono.fromCallable(() -> listByUser(userId))
-                .subscribeOn(Schedulers.boundedElastic());
+        return Blocking.call(() -> listByUser(userId));
     }
 
     @Override
     public Mono<Void> touchAsync(String anchorId, @Nullable String lastMood) {
-        return Mono.<Void>fromRunnable(() -> touch(anchorId, lastMood))
-                .subscribeOn(Schedulers.boundedElastic());
-    }
-
-    @Override
-    public Mono<Void> updateSummaryIfUnchangedAsync(String anchorId, String summary, long snapshotAt) {
-        return Mono.<Void>fromRunnable(() -> updateSummaryIfUnchanged(anchorId, summary, snapshotAt))
-                .subscribeOn(Schedulers.boundedElastic());
+        return Blocking.run(() -> touch(anchorId, lastMood));
     }
 
     @Override
     public Mono<Void> updateTitleIfBlankAsync(String anchorId, String title) {
-        return Mono.<Void>fromRunnable(() -> updateTitleIfBlank(anchorId, title))
-                .subscribeOn(Schedulers.boundedElastic());
+        return Blocking.run(() -> updateTitleIfBlank(anchorId, title));
     }
 
     @Override
     public Mono<Void> updateTitleAsync(String anchorId, String title) {
-        return Mono.<Void>fromRunnable(() -> updateTitle(anchorId, title))
-                .subscribeOn(Schedulers.boundedElastic());
+        return Blocking.run(() -> updateTitle(anchorId, title));
     }
 
     // ====== 同步实现 ======
 
-    private void updateSummaryIfUnchanged(String anchorId, String summary, long snapshotAt) {
+    @Override
+    public void updateSummaryIfUnchanged(String anchorId, String summary, long snapshotAt) {
         int rows = jdbc.update(
                 "UPDATE anchor_memory SET summary = ? WHERE id = ? AND last_active_at = ?",
                 summary, anchorId, snapshotAt);

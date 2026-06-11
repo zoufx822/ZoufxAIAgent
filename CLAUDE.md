@@ -32,9 +32,16 @@ Hot Memory 含三种 type（v0.14）：`user-impression`（用户画像，UPSERT
 
 - 接口签名随意写：返回 POJO/Map/`Mono`/`Flux` 都行，Spring 自动适配
 - **红线**：Controller/Service 里禁止直接调 JDBC、`RestTemplate`、`Thread.sleep`、同步文件 IO 等阻塞 API —— 会卡死 Netty event loop
-- 必须用阻塞库时，包 `Mono.fromCallable(...).subscribeOn(Schedulers.boundedElastic())` 隔离
 - 优先选反应式 SDK：HTTP 用 `WebClient`，DB 用 R2DBC
 - 例外：LC4J 的 `@Tool` 方法在框架自己的工具线程跑，不在 event loop，无需特殊处理
+
+### 同步/异步命名与 Mono 收口规范
+
+- **命名**：同步函数按作用命名（如 `compress` / `snapshot`），异步函数 = 同步函数名 + `Async`（如 `compressAsync` / `snapshotAsync`），异步函数内直接调用对应同步函数，消除重复代码
+- **Mono 包装收口**：`Mono.fromCallable / fromRunnable + subscribeOn` 不允许手写，统一走 `base/support/Blocking` 工具类（`Blocking.call` / `Blocking.run`），且只允许出现在两类位置：
+  1. store / 基础设施层的 `xxxAsync` 包装方法（仅在确有反应式调用方时才提供）
+  2. service 自包含阻塞流水线（顺序阻塞 IO + 提前退出，无并发/流式需求）的最外层包一次——先写纯同步私有方法，再在公开边界整体包装，不要在编排链路中段嵌套包装（回调地狱的根源）
+- **Controller 禁止构造 Mono 包装**：要么调 store/service 的 `xxxAsync`，要么逻辑下沉到 service
 
 ## 已知瓶颈
 

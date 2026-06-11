@@ -88,10 +88,9 @@ public class CommitmentRecordTool implements ToolPrompt {
         String key = UUID.randomUUID().toString();
         log.info("📝 record_commitment [userId={}] uuid={} description={}", userId, key, trimmed);
         hotMemoryStore.set(userId, HotMemoryType.COMMITMENT, key, trimmed);
-        // 向量索引 fire-and-forget，不拖慢工具返回
-        memoryIndexer.index(userId, MemoryVectorMeta.COMMITMENT, key, trimmed, null,
-                System.currentTimeMillis())
-                .subscribe();
+        // 向量索引 fire-and-forget：embed+Qdrant 写都在异步链路（不阻塞工具返回）
+        memoryIndexer.indexTextAsync(userId, MemoryVectorMeta.COMMITMENT, key, trimmed, null,
+                System.currentTimeMillis()).subscribe();
         return "已记下承诺：" + trimmed;
     }
 }

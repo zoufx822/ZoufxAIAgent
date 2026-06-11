@@ -7,10 +7,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
-import reactor.core.publisher.Mono;
 import com.zoufx.ai.agent.memory.api.ColdMemoryStore;
 import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -67,12 +65,6 @@ public class SqliteColdMemoryStore implements ColdMemoryStore {
             Long id = jdbc.queryForObject("SELECT last_insert_rowid()", Long.class);
             return id == null ? -1L : id;
         });
-    }
-
-    @Override
-    public Mono<Long> appendAsync(String userId, String role, String content, @Nullable String metadataJson, @Nullable String mood) {
-        return Mono.fromCallable(() -> append(userId, role, content, metadataJson, mood))
-                .subscribeOn(Schedulers.boundedElastic());
     }
 
     @Override

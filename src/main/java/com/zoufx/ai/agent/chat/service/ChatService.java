@@ -1,5 +1,6 @@
 package com.zoufx.ai.agent.chat.service;
 
+import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
 import com.zoufx.ai.agent.chat.api.LlmCapabilities;
 import com.zoufx.ai.agent.chat.property.ChatProperties;
@@ -117,16 +118,8 @@ public class ChatService {
                     llmCapabilities.profile());
         }
         // prepare 含同步 DB + embedding 操作，必须离开 event loop
-        return Mono.fromCallable(() -> prepare(userId, anchorId, prompt))
-                .subscribeOn(Schedulers.boundedElastic())
-                .flatMapMany(p -> {
-                    Flux<ChatEvent> main = buildStream(chatAssistant, p.anchorId(), userId, prompt);
-                    // anchor_created 必须是首条事件；concatWith 保证顺序，main 在其后依次发射
-                    if (p.newAnchor()) {
-                        return Flux.just(new ChatEvent("anchor_created", p.anchorId())).concatWith(main);
-                    }
-                    return main;
-                })
+        return Blocking.call(() -> prepare(userId, anchorId, prompt))
+                .flatMapMany(p -> buildStream(chatAssistant, p, userId, prompt))
                 // 兜底 prepare 阶段的硬错误（如锚点创建失败）——buildStream 内部的 onErrorResume 罩不到这里；
                 // 不转 error 事件的话 SSE 会以原始异常断连，前端只能看到连接错误
                 .onErrorResume(err -> {
@@ -158,7 +151,7 @@ public class ChatService {
             recallContextHolder.set(anchorId, RecallContextSection.format(recalled));
 
             // 4. fire-and-forget 索引（先召回后索引，避免本次消息把自己召回）
-            memoryIndexer.indexWith(userId, MemoryVectorMeta.COLD, String.valueOf(coldUserId),
+            memoryIndexer.indexAsync(userId, MemoryVectorMeta.COLD, String.valueOf(coldUserId),
                     prompt, "user", System.currentTimeMillis(), emb).subscribe();
         } catch (Exception e) {
             log.warn("Prepare failed, skip auto-association [anchorId={}]: {}", anchorId, e.toString());
@@ -168,11 +161,12 @@ public class ChatService {
 
     /**
      * 组装 Flux 管道：instant（情绪分类）和 main（LLM 主流）并发 merge，
-     * 再套上全文收集 / 错误兜底 / 完成钩子 / 取消清理。
+     * 再套上全文收集 / 错误兜底 / 完成钩子 / 取消清理；新锚点时把 anchor_created 置为首条事件。
      *
      * <p>instant 支失败静默不发射（情绪是辅助能力）；main 支重试仅限首次 emit 前。
      */
-    private Flux<ChatEvent> buildStream(ChatAssistant assistant, String anchorId, String userId, String prompt) {
+    private Flux<ChatEvent> buildStream(ChatAssistant assistant, ChatPrepared prepared, String userId, String prompt) {
+        String anchorId = prepared.anchorId();
         // instant / main 两支并发写同一批状态变量，必须用线程安全类型
         AtomicBoolean hasEmitted = new AtomicBoolean(false);   // 重试守门：收到首条 token 后禁止再重试
         StringBuilder assistantBuffer = new StringBuilder();   // 收集 content 事件全文，流结束后持久化
@@ -181,7 +175,7 @@ public class ChatService {
 
         // 情绪快速分类支路：拉对话历史 → LLM 分类关键词 → mood 事件；与 main 支并发，通常先于首条 content 到达
         Flux<ChatEvent> instant = chatMemoryStore.loadByAnchorIdAsync(anchorId)
-                .flatMap(history -> moodService.classify(prompt, history))
+                .flatMap(history -> moodService.classifyAsync(prompt, history))
                 .doOnNext(instantMood::set)
                 .map(kw -> new ChatEvent("mood", MoodEventProcessor.moodPayload(kw)))
                 .onErrorResume(err -> {
@@ -196,7 +190,7 @@ public class ChatService {
                 .subscribeOn(Schedulers.boundedElastic())
                 .retryWhen(buildRetrySpec(hasEmitted));
 
-        return Flux.merge(instant, main)
+        Flux<ChatEvent> stream = Flux.merge(instant, main)
                 // 实时收集 content token，流结束后一次性持久化（避免中途断开导致内容丢失）
                 .doOnNext(event -> {
                     if ("content".equals(event.type())) {
@@ -222,6 +216,11 @@ public class ChatService {
                             })
                             .subscribe();
                 });
+
+        // anchor_created 必须是首条事件（前端靠它更新 URL 中的 anchorId）；concatWith 保证 stream 在其后发射
+        return prepared.newAnchor()
+                ? Flux.just(new ChatEvent("anchor_created", anchorId)).concatWith(stream)
+                : stream;
     }
 
     /**
@@ -332,11 +331,11 @@ public class ChatService {
         }
 
         if (buffer.length() > 0) {
-            // 3b. 持久化 assistant 原文：先 append 拿行 id，再用行 id 作向量 docId，保证 cold_memory 与向量库同步
+            // 3b. 持久化 assistant 原文：先 append 拿行 id 作向量 docId，再异步嵌入+索引
             String assistantText = buffer.toString();
-            coldMemoryStore.appendAsync(userId, "assistant", assistantText, null, moodTrail)
-                    .flatMap(id -> memoryIndexer.index(userId, MemoryVectorMeta.COLD, String.valueOf(id), assistantText,
-                            "assistant", System.currentTimeMillis()))
+            Blocking.call(() -> coldMemoryStore.append(userId, "assistant", assistantText, null, moodTrail))
+                    .flatMap(id -> memoryIndexer.indexTextAsync(userId, MemoryVectorMeta.COLD, String.valueOf(id),
+                            assistantText, "assistant", System.currentTimeMillis()))
                     .onErrorResume(err -> {
                         log.warn("Failed to append/index assistant message to cold_memory [userId={}]: {}",
                                 userId, err.toString());

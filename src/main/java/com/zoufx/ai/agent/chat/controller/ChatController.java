@@ -21,7 +21,6 @@ import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.List;
 import java.util.Map;
@@ -69,7 +68,7 @@ public class ChatController {
         // 锚点切换：fire-and-forget 触发对前一锚点的 LLM 摘要压缩
         if (request.prevAnchorId() != null && !request.prevAnchorId().isBlank()) {
             log.info("Anchor switch detected, compressing prevAnchorId={}", request.prevAnchorId());
-            anchorService.compress(request.prevAnchorId()).subscribe();
+            anchorService.compressAsync(request.prevAnchorId()).subscribe();
         }
 
         return chatService.chat(request.anchorId(), prompt, request.thinking(), request.userId())
@@ -104,11 +103,7 @@ public class ChatController {
      */
     @GetMapping("/anchors/{anchorId}/context")
     public Mono<AnchorContextView> anchorContext(@PathVariable String anchorId) {
-        return Mono.fromCallable(() -> {
-            String userId = anchorMemoryStore.findUserId(anchorId);
-            if (userId == null) return AnchorContextView.empty();
-            return AnchorContextView.from(anchorMemoryStore.listOtherAnchors(userId, anchorId));
-        }).subscribeOn(Schedulers.boundedElastic());
+        return anchorService.anchorContextAsync(anchorId);
     }
 
     /** 手动重命名锚点——无条件覆盖。 */
@@ -132,8 +127,7 @@ public class ChatController {
         if (!HotMemoryType.ALL.contains(type)) {
             return Mono.error(new IllegalArgumentException("type 无效: " + type));
         }
-        return Mono.fromCallable(() -> hotMemoryStore.snapshot(userId, type))
-                .subscribeOn(Schedulers.boundedElastic());
+        return hotMemoryStore.snapshotAsync(userId, type);
     }
 
 }

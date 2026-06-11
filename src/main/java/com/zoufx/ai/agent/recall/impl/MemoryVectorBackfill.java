@@ -3,7 +3,9 @@ package com.zoufx.ai.agent.recall.impl;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields;
 import com.zoufx.ai.agent.recall.api.MemoryIndexer;
 import com.zoufx.ai.agent.recall.support.MemoryVectorMeta;
+import dev.langchain4j.model.embedding.EmbeddingModel;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -17,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 存量记忆回填到向量库——仅 {@code ai.recall.backfill-on-start=true} 时启用（默认关）。
  *
  * <p>遍历 cold_memory + hot_memory 全量，逐条 embed + 写入 Qdrant（确定性 id，重跑幂等不重复）。
- * 每条 {@code .block()} 串行执行以自然限流；这是一次性手动操作，慢可接受。
+ * 同步逐条串行执行以自然限流（ApplicationRunner 线程允许阻塞）；这是一次性手动操作，慢可接受。
  */
 @Slf4j
 @Component
@@ -26,10 +28,13 @@ public class MemoryVectorBackfill implements ApplicationRunner {
 
     private final JdbcTemplate jdbc;
     private final MemoryIndexer indexer;
+    private final EmbeddingModel embeddingModel;
 
-    public MemoryVectorBackfill(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc, MemoryIndexer indexer) {
+    public MemoryVectorBackfill(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc, MemoryIndexer indexer,
+                                EmbeddingModel embeddingModel) {
         this.jdbc = jdbc;
         this.indexer = indexer;
+        this.embeddingModel = embeddingModel;
     }
 
     @Override
@@ -41,8 +46,7 @@ public class MemoryVectorBackfill implements ApplicationRunner {
             String role = rs.getString("role");
             String content = rs.getString("content");
             long createdAt = rs.getLong("created_at");
-            indexer.index(userId, MemoryVectorMeta.COLD, String.valueOf(rs.getLong("id")),
-                    content, role, createdAt).block();
+            indexRow(userId, MemoryVectorMeta.COLD, String.valueOf(rs.getLong("id")), content, role, createdAt);
             cold.incrementAndGet();
         });
 
@@ -54,11 +58,20 @@ public class MemoryVectorBackfill implements ApplicationRunner {
             String value = rs.getString("value");
             long updatedAt = rs.getLong("updated_at");
             String embedText = embedTextFor(type, key, value);
-            indexer.index(userId, type, key, embedText, null, updatedAt).block();
+            indexRow(userId, type, key, embedText, null, updatedAt);
             hot.incrementAndGet();
         });
 
         log.info("MemoryVectorBackfill DONE cold={} hot={}", cold.get(), hot.get());
+    }
+
+    /** 单行 embed + 索引——失败仅记日志继续遍历，不让个别坏行中断 backfill / 应用启动。 */
+    private void indexRow(String userId, String type, String sourceId, String text, @Nullable String role, long ts) {
+        try {
+            indexer.index(userId, type, sourceId, text, role, ts, embeddingModel.embed(text).content());
+        } catch (Exception e) {
+            log.warn("Backfill index failed [type={} sourceId={}]: {}", type, sourceId, e.toString());
+        }
     }
 
     /** user-impression 嵌入带字段语义的短句（与 UserImpressionUpdateTool 共用 helper）；其余直接 embed value。 */

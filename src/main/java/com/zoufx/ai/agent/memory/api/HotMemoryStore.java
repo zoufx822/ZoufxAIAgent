@@ -1,5 +1,7 @@
 package com.zoufx.ai.agent.memory.api;
 
+import reactor.core.publisher.Mono;
+
 import java.util.Collection;
 import java.util.Map;
 
@@ -9,8 +11,8 @@ import java.util.Map;
  * <p>与 Memory Stream（Cold Archive）并行写入，不互相派生：Hot 由 LLM 通过 {@code @Tool} 主动晶化，
  * Cold 自动 append 每轮对话原文。
  *
- * <p>全部方法同步——读方法调用方在 event loop / boundedElastic 上，写方法调用方在 {@code @Tool} 线程上
- * （允许阻塞），均无需 {@code .block()} 桥接。
+ * <p>同步方法供已允许阻塞的调用方（PromptSection / {@code @Tool} 线程 / boundedElastic）；
+ * {@code snapshotAsync} 供 WebFlux Controller 反应式串接。
  */
 public interface HotMemoryStore {
 
@@ -20,6 +22,8 @@ public interface HotMemoryStore {
      * 无时间语义的 UUID，调用方靠此顺序直接取「最近 N 条」而无需自行排序。
      */
     Map<String, String> snapshot(String userId, String type);
+
+    Mono<Map<String, String>> snapshotAsync(String userId, String type);
 
     /**
      * 同步写入：UPSERT 语义，后写覆盖前写。调用方在 {@code @Tool} 线程上（允许阻塞）。

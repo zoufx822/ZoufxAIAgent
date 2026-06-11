@@ -1,11 +1,13 @@
 package com.zoufx.ai.agent.memory.impl;
 
+import com.zoufx.ai.agent.base.support.Blocking;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import com.zoufx.ai.agent.memory.api.HotMemoryStore;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -65,6 +67,11 @@ public class SqliteHotMemoryStore implements HotMemoryStore {
                 rs -> { result.put(rs.getString("key"), rs.getString("value")); },
                 userId, type);
         return result;
+    }
+
+    @Override
+    public Mono<Map<String, String>> snapshotAsync(String userId, String type) {
+        return Blocking.call(() -> snapshot(userId, type));
     }
 
     @Override
