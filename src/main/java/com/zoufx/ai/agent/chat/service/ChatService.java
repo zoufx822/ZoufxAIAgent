@@ -2,7 +2,7 @@ package com.zoufx.ai.agent.chat.service;
 
 import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
-import com.zoufx.ai.agent.llm.api.LlmCapabilities;
+import com.zoufx.ai.agent.llm.model.Features;
 import com.zoufx.ai.agent.chat.property.ChatProperties;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
@@ -65,7 +65,7 @@ public class ChatService {
     private static final int AUTO_TITLE_MAX_LEN = 20;
 
     private final ChatAssistant chatAssistant;
-    private final LlmCapabilities llmCapabilities;
+    private final Features features;
     /** LC4J AiServices 管理的会话消息历史（按 anchorId 分桶）。 */
     private final ChatMemoryDao chatMemoryDao;
     /** 锚点（对话会话）的 CRUD——创建、touch、title backfill。 */
@@ -94,9 +94,9 @@ public class ChatService {
      * 前端收到后更新 URL 中的 anchorId。
      */
     public Flux<ChatEvent> chat(@Nullable String anchorId, String prompt, boolean thinking, String userId) {
-        if (thinking && !llmCapabilities.thinkingToggle()) {
+        if (thinking && !features.thinkingToggle()) {
             log.warn("Request asks thinking=true but profile [{}] does not support thinkingToggle; ignored",
-                    llmCapabilities.profile());
+                    features.profile());
         }
         // prepare 含同步 DB + embedding 操作，必须离开 event loop
         return Blocking.call(() -> prepare(userId, anchorId, prompt))

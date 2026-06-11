@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.chat.controller;
 
-import com.zoufx.ai.agent.llm.api.LlmCapabilities;
+import com.zoufx.ai.agent.llm.model.Features;
 import com.zoufx.ai.agent.chat.model.AnchorContextView;
 import com.zoufx.ai.agent.chat.model.AnchorTitleUpdateRequest;
 import com.zoufx.ai.agent.chat.model.ChatRequest;
@@ -31,7 +31,7 @@ import java.util.Map;
  * <p>端点：
  * <ul>
  *   <li>{@code POST   /ai/chat}：SSE 流式聊天（按 anchorId 隔离）</li>
- *   <li>{@code GET    /ai/capabilities}：LLM 能力声明</li>
+ *   <li>{@code GET    /ai/features}：LLM 能力声明</li>
  *   <li>{@code POST   /ai/anchors}：创建新对话锚点</li>
  *   <li>{@code GET    /ai/anchors?userId=X}：列出该用户全部锚点（sidebar）</li>
  *   <li>{@code GET    /ai/anchors/{anchorId}/messages}：加载锚点消息历史（滑动窗口，默认 20 条）</li>
@@ -51,7 +51,7 @@ public class ChatController {
 
     private final ChatService chatService;
     private final AnchorService anchorService;
-    private final LlmCapabilities capabilities;
+    private final Features features;
     private final HotMemoryDao hotMemoryDao;
     private final AnchorMemoryDao anchorMemoryDao;
     private final ChatMemoryDao chatMemoryDao;
@@ -75,9 +75,9 @@ public class ChatController {
                 .map(e -> ServerSentEvent.<String>builder().event(e.type()).data(e.data()).build());
     }
 
-    @GetMapping("/capabilities")
-    public LlmCapabilities capabilities() {
-        return capabilities;
+    @GetMapping("/features")
+    public Features features() {
+        return features;
     }
 
     // ====== Anchor lifecycle ======

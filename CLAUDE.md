@@ -10,12 +10,12 @@ Hot Memory 含三种 type（v0.14）：`user-impression`（用户画像，UPSERT
 
 **后端：** Spring WebFlux + Reactor Netty（已移除 `spring-boot-starter-web`，对齐 LangChain4J 官方姿势）。HTTP 入口集中在 `ChatController`：
 - `POST /ai/chat`（SSE）—— 单一 ChatAssistant 流式聊天，事件类型 `thinking` / `content` / `tool_call` / `tool_result` / `mood` / `error`
-- `GET /ai/capabilities` —— 当前 profile LLM 能力声明（thinkingToggle / thinkingBudget / reasoningEffort）
+- `GET /ai/features` —— 当前 profile LLM 能力声明（profile / thinkingToggle）
 - `GET /ai/memory/hot?userId=X&type=Y` —— Hot Memory snapshot
 
 配置见 `application.yml`。
 
-**前端：** 独立仓库 `../ZoufxAIAgent-Web`（与后端同级），开发命令 `pnpm dev`（localhost:3000）。启动时拉 `/ai/capabilities` 缓存到 zustand store，UI 行为按 capability 自适应。
+**前端：** 独立仓库 `../ZoufxAIAgent-Web`（与后端同级），开发命令 `pnpm dev`（localhost:3000）。启动时拉 `/ai/features` 缓存到 zustand store，UI 行为按 capability 自适应。
 
 ## LLM Profile 切换
 

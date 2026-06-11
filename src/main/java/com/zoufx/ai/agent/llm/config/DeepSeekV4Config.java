@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.llm.config;
 
-import com.zoufx.ai.agent.llm.api.LlmCapabilities;
+import com.zoufx.ai.agent.llm.model.Features;
 import com.zoufx.ai.agent.llm.property.DeepSeekV4Properties;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * DeepSeek v4 profile：装配 OpenAI 兼容协议下的 {@link StreamingChatModel} + {@link LlmCapabilities}。
+ * DeepSeek v4 profile：装配 OpenAI 兼容协议下的 {@link StreamingChatModel} + {@link Features}。
  *
  * <p>仅在 {@code ai.llm.profile=deepseek-v4} 时激活。配置来自 {@link DeepSeekV4Properties}。
  * 装配单一 {@code chatModel}，thinking 行为由 v4 hybrid 模型自身自适应深度决定。
@@ -74,8 +74,8 @@ public class DeepSeekV4Config {
     }
 
     @Bean
-    public LlmCapabilities llmCapabilities() {
+    public Features features() {
         // DeepSeek v4 hybrid：always-on 自适应思考，协议层无 on/off 开关
-        return new LlmCapabilities("deepseek-v4", false, false, false);
+        return new Features("deepseek-v4", false);
     }
 }
