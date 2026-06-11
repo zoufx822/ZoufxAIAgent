@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.llm.config;
 
-import com.zoufx.ai.agent.chat.api.LlmCapabilities;
+import com.zoufx.ai.agent.llm.api.LlmCapabilities;
 import com.zoufx.ai.agent.llm.property.DeepSeekV4Properties;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;

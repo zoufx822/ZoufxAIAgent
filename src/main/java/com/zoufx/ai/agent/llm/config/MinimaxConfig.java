@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.llm.config;
 
-import com.zoufx.ai.agent.chat.api.LlmCapabilities;
+import com.zoufx.ai.agent.llm.api.LlmCapabilities;
 import com.zoufx.ai.agent.llm.property.MinimaxProperties;
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;

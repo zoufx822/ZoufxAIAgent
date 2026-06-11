@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.chat.config;
 
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
-import com.zoufx.ai.agent.chat.support.SystemPromptComposer;
+import com.zoufx.ai.agent.prompt.support.PromptComposer;
 import com.zoufx.ai.agent.tool.impl.ColdMemorySearchTool;
 import com.zoufx.ai.agent.tool.impl.CommitmentRecordTool;
 import com.zoufx.ai.agent.tool.impl.SignificantEventRecordTool;
@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * 装配单一 {@link ChatAssistant} Bean，绑定当前激活 profile 的 streaming chatModel。
  *
- * <p>System prompt 由 {@link SystemPromptComposer} 按 PromptSection 序列动态组装。
+ * <p>System prompt 由 {@link PromptComposer} 按 PromptSection 序列动态组装。
  * thinking 行为由模型自身决定（DeepSeek v4 always-on 自适应、MiniMax builder 期固定开启），
  * 不做 Java 层 per-call 覆盖（LC4J 1.13.1 langchain4j-anthropic 限制）。
  */
@@ -32,7 +32,7 @@ public class AssistantConfig {
             UserImpressionUpdateTool userImpressionUpdateTool,
             SignificantEventRecordTool significantEventRecordTool,
             CommitmentRecordTool commitmentRecordTool,
-            SystemPromptComposer composer) {
+            PromptComposer composer) {
         return AiServices.builder(ChatAssistant.class)
                 .streamingChatModel(chatModel)
                 .chatMemoryProvider(chatMemoryProvider)

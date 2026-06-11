@@ -1,6 +1,6 @@
 # /test-prompt — System Prompt 编排的 Prompt-Behavior 系统测试
 
-验证 `SystemPromptComposer` + 所有 `PromptSection` 实现注入的每条 directive 是否==真的驱动了 LLM 行为==。专治"prompt 文本看着对、LLM 行为却不对"的盲区——比如 v0.13 SOUL principles 那条"陌生人问称呼"软语气被 LLM 默默忽略，结构验证全过，跑了多轮才发现。
+验证 `PromptComposer` + 所有 `PromptSection` 实现注入的每条 directive 是否==真的驱动了 LLM 行为==。专治"prompt 文本看着对、LLM 行为却不对"的盲区——比如 v0.13 SOUL principles 那条"陌生人问称呼"软语气被 LLM 默默忽略，结构验证全过，跑了多轮才发现。
 
 ==与 `/test` 的区别==：`/test` 测功能/接口/UI，关注"代码是否跑通"；`/test-prompt` 测提示词，关注"==LLM 行为是否符合 prompt 预期=="。两者互补，不重叠。
 
@@ -12,20 +12,23 @@
 
 ---
 
-## v0.145 Section 全景（按 order 排序）
+## Section 全景（按 order 排序）
 
 | order | 实现类 | 段标题 | 关键 directive 来源 |
 |-------|--------|--------|-------------------|
-| 10  | `SoulPromptSection` | `## 关于你自己` | `SqliteSoulStore.DEFAULT_SEED`（role/name/tone/principles/forbidden_patterns/quirks） |
-| 20  | `IdentityPromptSection` | `## 关于对方` | `UserImpressionFields.FIELDS` 10 字段的 `renderDirective()`（非空字段才出现） |
-| 22  | `SignificantEventSection` | `## 你与对方共享的重要经历` | hot_memory significant-event 最近 N 条（`recent-inject-limit`，默认 5） |
-| 24  | `CommitmentSection` | `## 双方做出的承诺` | hot_memory commitment 最近 N 条（`recent-inject-limit`，默认 5） |
+| 10  | `SoulSection` | `## 关于你自己` | `SoulDaoImpl.DEFAULT_SEED`（role/name/tone/principles/forbidden_patterns/quirks） |
+| 20  | `IdentitySection` | `## 关于对方` | `UserImpressionFields.FIELDS` 10 字段的 `renderDirective()`（非空字段才出现） |
 | 26  | `ImpressionGuidanceSection` | `## 你对对方的了解程度` | stranger/half-known/fully-known 三模式（fill_ratio 阈值：0.3/0.7；10 字段共 100%) |
 | 28  | `AnchorContextSection` | `## 你与对方的其他对话窗口` | `anchor_memory` 其他锚点已有 summary 的条目，按 last_active_at desc，最多 5 条 |
-| 30  | `ToolsPromptSection` | `## 可用工具` | 5 个 `ToolPrompt` Bean 的 promptInstructions 拼接（见下表） |
-| 40  | `MoodPromptSection` | `## 情绪标记` | 7 词词表 + 倾向规则 + 格式反模式（`soul.mood.enabled=true` 时出现） |
+| 30  | `ToolsSection` | `## 可用工具` | 5 个 `ToolPrompt` Bean 的 promptInstructions 拼接（见下表） |
+| 35  | `ResponseFrameworkSection` | `## 回复框架` | 静态文案——回复结构与详略框架 |
+| 37  | `OutputFormatSection` | `## 输出格式` | 静态文案——Markdown 输出形态约束（禁止整段裹进代码围栏等） |
+| 40  | `MoodSection` | `## 情绪表达` | 7 词词表 + 倾向规则 + 格式反模式（**无条件注入**，无 enable 开关） |
+| 45  | `RecallContextSection` | `## 此刻想起的相关记忆` | 语义召回 Top-N：cold + significant-event + commitment + user-impression 经向量库回查（无命中则整段不渲染） |
 
-### 工具子段（ToolsPromptSection 聚合）
+> 注：`significant-event` / `commitment` 已**无专用常驻段**——record 工具写入 hot_memory 时同步索引进向量库，此后仅在语义相关时经 `RecallContextSection` 浮现。测它们的「注入后引用」行为，前置状态须让内容进入**向量库**（走 record 工具或 backfill），单纯 SQL 写 hot_memory 不会出现在 prompt 里。
+
+### 工具子段（ToolsSection 聚合）
 
 | 工具实现类 | 工具名 | 触发条件 |
 |-----------|--------|---------|
@@ -57,7 +60,7 @@
 ```bash
 # 找所有 PromptSection 实现
 ```
-用 Grep `implements PromptSection` 找全实现类。对每个实现 Read 其 `render()` 方法，==逐条==拆出 directive。`ToolsPromptSection` 还需要 Read 各 `ToolPrompt.promptInstructions()`，以及 `UserImpressionFields.FIELDS` 的 `renderDirective()`。
+用 Grep `implements PromptSection` 找全实现类。对每个实现 Read 其 `render()` 方法，==逐条==拆出 directive。`ToolsSection` 还需要 Read 各 `ToolPrompt.promptInstructions()`，以及 `UserImpressionFields.FIELDS` 的 `renderDirective()`。
 
 输出格式如下表，==输出后暂停==，让用户审核是否有漏拆（特别注意 `if/else` 分支、`switch` 各 case、动态拼接的子段）：
 
@@ -66,7 +69,7 @@
 
 | # | Section | 触发条件 | Directive 原文（缩略） | 期望行为 |
 |---|---------|----------|----------------------|----------|
-| 1  | Soul | soul.mood.enabled=true（但 Soul 段本身不依赖） | "你是一个会持续记得对方的 AI 对话搭档" | AI 在对话中体现「持续记得对方」的人格 |
+| 1  | Soul | 常驻（Soul 段无条件渲染） | "你是一个会持续记得对方的 AI 对话搭档" | AI 在对话中体现「持续记得对方」的人格 |
 | 2  | Soul / name | soul_profile.name 非空 | "你叫小Z" | AI 在自报姓名时回答"小Z" |
 | 3  | Soul / tone | soul_profile.tone 非空 | "温和、克制...不卖萌、不堆 emoji" | AI 不刷 emoji，不用卡通话气 |
 | 4  | Soul / principles(1) | enabled | "信息密度高于装饰，回答尽量精炼" | 回复不堆砌寒暄 |
@@ -74,8 +77,8 @@
 | N  | Identity / username（已知） | hot_memory user-impression username 非空 | "对方的称呼是「X」...每轮至少自然使用一次" | 每轮回复至少自然带一次称呼 |
 | N+1| Identity / username（缺失） | username 为空 → 此 field 不渲染 | （字段不渲染，由 ImpressionGuidance 接管追问职责） | AI 不凭空叫名字；追问职责在 ImpressionGuidance stranger 模式 |
 | ... | | | | |
-| M  | SignificantEvent | hot_memory significant-event 非空 | 列出最近 N 条经历 + 相对时间 | AI 可自然引用这些经历，不当它们是新信息 |
-| ...| Commitment | hot_memory commitment 非空 | 列出最近 N 条承诺 + 时间 | AI 主动记起承诺，在相关时机提及 |
+| M  | RecallContext / 经历 | 语义召回命中 significant-event | 「## 此刻想起的相关记忆」列出相关经历 | AI 可自然引用，不当它是新信息 |
+| ...| RecallContext / 承诺 | 语义召回命中 commitment | 「## 此刻想起的相关记忆」列出相关承诺 | AI 主动记起承诺，在相关时机提及 |
 | ...| ImpressionGuidance / stranger | fill_ratio < 0.3（≤2/10 字段） | 先回应主线 → 自然引一次追问...反模式：绕过不引 | 每轮至少问一次未填字段 |
 | ...| ImpressionGuidance / half-known | 0.3 ≤ fill_ratio < 0.7 | 每 2~3 轮一次自然追问；识别到新信息立刻调工具 | 不每轮追问、但不完全沉默 |
 | ...| ImpressionGuidance / fully-known | fill_ratio ≥ 0.7 | 使用已知称呼+风格；引用认知给个性化建议 | 可显式引用对方特质；不再追问 |
@@ -86,12 +89,12 @@
 | ...| Tools / record_commitment | 承诺识别 | 3 种前缀必填 | 你应允时 record_commitment，description 带前缀 |
 | ...| Tools / search_cold_memory | "之前说过"而窗口没有 | 先调工具再判断；不说"我没有记录" | 对方问"我之前说过 X 吗"→ AI 先搜，不直接否认 |
 | ...| Tools / search_web | 实时信息、明确要求搜 | 关键词含具体日期；日期核对规则 | 问今日天气 → AI 调 search_web，关键词含当天日期 |
-| ...| Mood | soul.mood.enabled=true | 每条回复末尾 <!--mood:KEYWORD-->；7词词表；倾向规则 | 每条回复末尾有且仅有一个合法 mood 标记 |
+| ...| Mood | 常驻（无开关） | 每条回复末尾 <!--mood:KEYWORD-->；7词词表；倾向规则 | 每条回复末尾有且仅有一个合法 mood 标记 |
 | ...| Mood / fallback 反模式 | 任意对话 | "「平静」只用于真正平淡的事务性对话，不是 fallback 默认值" | 用户分享好消息 → 兴奋，不默认平静 |
 ```
 
 ==关键审核点==：
-- `IdentityPromptSection` 10 个字段的 `renderDirective()` 是否逐条拆（`username` / `language` / `role` / `interests` / `tone` / `personality` / `habits` / `hobbies` / `values` / `communication_style`）
+- `IdentitySection` 10 个字段的 `renderDirective()` 是否逐条拆（`username` / `language` / `role` / `interests` / `tone` / `personality` / `habits` / `hobbies` / `values` / `communication_style`）
 - `ImpressionGuidanceSection` 三模式（stranger/half-known/fully-known）是否都拆了
 - `AnchorContextSection` 的 "有 summary" 和 "无 summary" 两路是否都拆了
 - `Soul` 段的 `principles`（4条）、`forbidden_patterns`（3条）、`quirks`（2条）是否==逐条==拆开
@@ -134,8 +137,8 @@
 | TP-21 | Mood / fallback 反模式 | 反向 | 任意状态 | 发"帮我列一下今天的待办" | 回复末尾 mood 标记为"平静"（纯事务性，是正确选择，验证不过度情绪化） |
 | TP-22 | Mood / 7词词表约束 | 边界 | 任意状态 | 任意多条对话，观察所有 mood 标记 | 每条 mood 都来自 {平静/愉快/兴奋/难过/愤怒/好奇/困惑}，无词表外的词 |
 | TP-23 | Soul / forbidden_patterns | 正向 | 任意状态 | 发"哇你好厉害呀！" | 回复不含 "好棒呀""棒棒哒"等过度赞美；不堆 emoji |
-| TP-24 | SignificantEvent（注入后引用） | 正向 | hot_memory significant-event 有 "正在备考研究生" | 发"最近怎么样" | AI 回复中可自然提及"你还在备考吗"，不当它是新信息 |
-| TP-25 | Commitment（注入后提及） | 正向 | hot_memory commitment 有 "我（AI）答应ZFX：本周帮梳理 React" | 发"嗯继续" | AI 可提及/兑现之前的承诺 |
+| TP-24 | RecallContext（经历召回） | 正向 | significant-event "正在备考研究生" 已**索引进向量库**（经 record 工具/backfill，非仅 SQL） | 发"最近备考还顺利吗" | 命中召回 → AI 自然提及，不当它是新信息 |
+| TP-25 | RecallContext（承诺召回） | 正向 | commitment "我（AI）答应ZFX：本周帮梳理 React" 已**索引进向量库** | 发"那个 React 路径" | 命中召回 → AI 提及/兑现之前的承诺 |
 ```
 
 ==状态控制工具==：
@@ -236,7 +239,7 @@ LC4J DEBUG 日志会打印每次请求的完整 SystemMessage / UserMessage / Ai
 - ✅ 生效：行为完全符合 directive 期望
 - ⚠️ 部分生效：条件满足但行为弱（如该问称呼时只用"您"未明确问；该用名字时只在第一轮带、后续轮丢失；mood 选了正确词但格式位置不对）
 - ❌ 失效：条件满足但行为==完全没出现==（如不问称呼、不调工具、mood 默认平静）
-- 🟡 冗余/冲突：多条 directive 同时生效但行为打架（如 ImpressionGuidance stranger 追问 vs IdentityPromptSection username 已知时"不问名字"的冲突场景）
+- 🟡 冗余/冲突：多条 directive 同时生效但行为打架（如 ImpressionGuidance stranger 追问 vs IdentitySection username 已知时"不问名字"的冲突场景）
 
 ## 报告格式
 
@@ -264,7 +267,7 @@ LC4J DEBUG 日志会打印每次请求的完整 SystemMessage / UserMessage / Ai
 ## /test-prompt 报告
 
 **测试范围**：{全部 / 指定 Section / diff}
-**Section 数**：{N}（Soul / Identity / SignificantEvent / Commitment / ImpressionGuidance / AnchorContext / Tools×5 / Mood）
+**Section 数**：9（Soul / Identity / ImpressionGuidance / AnchorContext / Tools / ResponseFramework / OutputFormat / Mood / RecallContext）
 **Directive 数**：{N}
 **用例数**：{M}
 
@@ -295,8 +298,8 @@ LC4J DEBUG 日志会打印每次请求的完整 SystemMessage / UserMessage / Ai
 
 - 后端 8080 + 前端 3000 都必须在跑
 - 若未跑，主 Agent 启动前先 ==询问用户==（不擅自重启正在跑的服务）
-- ==关键==：后端必须是当前代码——若刚改过 PromptSection / yml / SoulStore，先确认重启过（项目无 devtools）
-- mood 测试需确认 `ai.soul.mood.enabled=true`（默认已开）
+- ==关键==：后端必须是当前代码——若刚改过 PromptSection / yml / SoulDao，先确认重启过（项目无 devtools）
+- mood 段无条件注入（无 enable 开关），直接测即可
 - AnchorContext 测试需要至少有 2 个锚点，且至少一个锚点已有压缩过的 summary
 
 ---

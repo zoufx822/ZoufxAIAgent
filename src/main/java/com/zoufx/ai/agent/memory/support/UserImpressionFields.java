@@ -7,7 +7,7 @@ import java.util.Map;
 /**
  * user-impression type 的字段 schema——外表 5 + 内在 5，硬编码为单一来源。
  *
- * <p>声明顺序决定 IdentityPromptSection 渲染顺序和 stranger 模式追问优先级。
+ * <p>声明顺序决定 IdentitySection 渲染顺序和 stranger 模式追问优先级。
  * 不放 yml 是因为字段集是 schema 层面设计而非运行期配置，
  * 且 LC4J {@code @Tool} / {@code @P} 要求编译期常量，yml 动态化会与注解冲突。
  *

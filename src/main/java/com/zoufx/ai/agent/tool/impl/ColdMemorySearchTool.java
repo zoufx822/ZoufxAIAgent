@@ -1,9 +1,9 @@
 package com.zoufx.ai.agent.tool.impl;
 
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
-import com.zoufx.ai.agent.recall.api.RecallService;
-import com.zoufx.ai.agent.recall.model.RecallResult;
-import com.zoufx.ai.agent.recall.support.VectorPayload;
+import com.zoufx.ai.agent.vector.api.RecallService;
+import com.zoufx.ai.agent.vector.model.RecallResult;
+import com.zoufx.ai.agent.vector.support.VectorPayload;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;

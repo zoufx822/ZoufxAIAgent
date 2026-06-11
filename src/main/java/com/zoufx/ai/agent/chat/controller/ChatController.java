@@ -1,12 +1,12 @@
 package com.zoufx.ai.agent.chat.controller;
 
-import com.zoufx.ai.agent.chat.api.LlmCapabilities;
+import com.zoufx.ai.agent.llm.api.LlmCapabilities;
 import com.zoufx.ai.agent.chat.model.AnchorContextView;
 import com.zoufx.ai.agent.chat.model.AnchorTitleUpdateRequest;
 import com.zoufx.ai.agent.chat.model.ChatRequest;
 import com.zoufx.ai.agent.chat.service.ChatService;
 import com.zoufx.ai.agent.chat.service.AnchorService;
-import com.zoufx.ai.agent.chat.support.ChatMessageHelper;
+import com.zoufx.ai.agent.chat.support.ChatMessageMapper;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
 import com.zoufx.ai.agent.memory.api.HotMemoryDao;
@@ -93,7 +93,7 @@ public class ChatController {
     public Mono<List<Map<String, String>>> messages(@PathVariable String anchorId) {
         return chatMemoryDao.loadByAnchorIdAsync(anchorId)
                 .map(list -> list.stream()
-                        .map(ChatMessageHelper::toMessageView)
+                        .map(ChatMessageMapper::toMessageView)
                         .toList());
     }
 

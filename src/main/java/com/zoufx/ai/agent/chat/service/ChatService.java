@@ -2,25 +2,26 @@ package com.zoufx.ai.agent.chat.service;
 
 import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
-import com.zoufx.ai.agent.chat.api.LlmCapabilities;
+import com.zoufx.ai.agent.llm.api.LlmCapabilities;
 import com.zoufx.ai.agent.chat.property.ChatProperties;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
 import com.zoufx.ai.agent.memory.api.ColdMemoryDao;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import com.zoufx.ai.agent.chat.model.ChatPrepared;
-import com.zoufx.ai.agent.chat.impl.RecallContextSection;
-import com.zoufx.ai.agent.chat.support.MoodEventProcessor;
-import com.zoufx.ai.agent.chat.support.RecallContextHolder;
+import com.zoufx.ai.agent.prompt.impl.RecallContextSection;
+import com.zoufx.ai.agent.mood.support.MoodEventProcessor;
+import com.zoufx.ai.agent.vector.support.RecallContextHolder;
 import com.zoufx.ai.agent.chat.support.RetryableExceptions;
-import com.zoufx.ai.agent.chat.support.WebSearchEvents;
-import com.zoufx.ai.agent.recall.api.MemoryIndexer;
-import com.zoufx.ai.agent.recall.api.RecallService;
-import com.zoufx.ai.agent.recall.model.RecallResult;
-import com.zoufx.ai.agent.recall.property.RecallProperties;
-import com.zoufx.ai.agent.recall.support.VectorPayload;
-import com.zoufx.ai.agent.chat.support.ToolNameMap;
+import com.zoufx.ai.agent.tool.support.WebSearchEvents;
+import com.zoufx.ai.agent.vector.api.IndexerService;
+import com.zoufx.ai.agent.vector.api.RecallService;
+import com.zoufx.ai.agent.vector.model.RecallResult;
+import com.zoufx.ai.agent.vector.property.RecallProperties;
+import com.zoufx.ai.agent.vector.support.VectorPayload;
+import com.zoufx.ai.agent.tool.support.ToolNameMap;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
+import com.zoufx.ai.agent.mood.service.MoodService;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import lombok.RequiredArgsConstructor;
@@ -81,7 +82,7 @@ public class ChatService {
      * prepare() 写入，SystemPromptProvider.compose() 读取，流结束/取消时清理。
      */
     private final RecallContextHolder recallContextHolder;
-    private final MemoryIndexer memoryIndexer;
+    private final IndexerService indexer;
     private final EmbeddingModel embeddingModel;
     private final RecallProperties recallProperties;
     private final ToolNameMap toolNameMap;
@@ -131,7 +132,7 @@ public class ChatService {
             recallContextHolder.set(anchorId, RecallContextSection.format(recalled));
 
             // 4. fire-and-forget 索引（先召回后索引，避免本次消息把自己召回）
-            memoryIndexer.indexAsync(userId, VectorPayload.COLD, String.valueOf(coldUserId),
+            indexer.indexAsync(userId, VectorPayload.COLD, String.valueOf(coldUserId),
                     prompt, "user", System.currentTimeMillis(), emb).subscribe();
         } catch (Exception e) {
             log.warn("Prepare failed, skip auto-association [anchorId={}]: {}", anchorId, e.toString());
@@ -314,7 +315,7 @@ public class ChatService {
             // 3b. 持久化 assistant 原文：先 append 拿行 id 作向量 docId，再异步嵌入+索引
             String assistantText = buffer.toString();
             Blocking.call(() -> coldMemoryDao.append(userId, "assistant", assistantText, null, moodTrail))
-                    .flatMap(id -> memoryIndexer.indexTextAsync(userId, VectorPayload.COLD, String.valueOf(id),
+                    .flatMap(id -> indexer.indexTextAsync(userId, VectorPayload.COLD, String.valueOf(id),
                             assistantText, "assistant", System.currentTimeMillis()))
                     .onErrorResume(err -> {
                         log.warn("Failed to append/index assistant message to cold_memory [userId={}]: {}",

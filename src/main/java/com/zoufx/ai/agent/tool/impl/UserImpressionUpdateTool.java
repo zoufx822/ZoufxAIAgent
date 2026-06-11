@@ -4,8 +4,8 @@ import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields;
-import com.zoufx.ai.agent.recall.api.MemoryIndexer;
-import com.zoufx.ai.agent.recall.support.VectorPayload;
+import com.zoufx.ai.agent.vector.api.IndexerService;
+import com.zoufx.ai.agent.vector.support.VectorPayload;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -30,7 +30,7 @@ public class UserImpressionUpdateTool implements ToolPrompt {
 
     private final HotMemoryDao hotMemoryDao;
     private final AnchorMemoryDao anchorMemoryDao;
-    private final MemoryIndexer memoryIndexer;
+    private final IndexerService indexer;
 
     @Override
     public String section() {
@@ -98,7 +98,7 @@ public class UserImpressionUpdateTool implements ToolPrompt {
         // 画像向量索引 fire-and-forget：embed 带字段语义的短句（如「你做什么的：Java 后端」），
         // UPSERT 由确定性 id 保证；embed+Qdrant 写都在异步链路（不阻塞工具返回）
         String embedText = UserImpressionFields.embedText(trimmedKey, trimmedValue);
-        memoryIndexer.indexTextAsync(userId, VectorPayload.USER_IMPRESSION, trimmedKey, embedText, null,
+        indexer.indexTextAsync(userId, VectorPayload.USER_IMPRESSION, trimmedKey, embedText, null,
                 System.currentTimeMillis()).subscribe();
         return "已记下：" + trimmedKey + "=" + trimmedValue;
     }

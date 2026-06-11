@@ -3,8 +3,8 @@ package com.zoufx.ai.agent.tool.impl;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
-import com.zoufx.ai.agent.recall.api.MemoryIndexer;
-import com.zoufx.ai.agent.recall.support.VectorPayload;
+import com.zoufx.ai.agent.vector.api.IndexerService;
+import com.zoufx.ai.agent.vector.support.VectorPayload;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
@@ -30,7 +30,7 @@ public class CommitmentRecordTool implements ToolPrompt {
 
     private final HotMemoryDao hotMemoryDao;
     private final AnchorMemoryDao anchorMemoryDao;
-    private final MemoryIndexer memoryIndexer;
+    private final IndexerService indexer;
 
     @Override
     public String section() {
@@ -95,7 +95,7 @@ public class CommitmentRecordTool implements ToolPrompt {
         log.info("📝 record_commitment [userId={}] uuid={} description={}", userId, key, trimmed);
         hotMemoryDao.set(userId, HotMemoryType.COMMITMENT, key, trimmed);
         // 向量索引 fire-and-forget：embed+Qdrant 写都在异步链路（不阻塞工具返回）
-        memoryIndexer.indexTextAsync(userId, VectorPayload.COMMITMENT, key, trimmed, null,
+        indexer.indexTextAsync(userId, VectorPayload.COMMITMENT, key, trimmed, null,
                 System.currentTimeMillis()).subscribe();
         return "已记下承诺：" + trimmed;
     }
