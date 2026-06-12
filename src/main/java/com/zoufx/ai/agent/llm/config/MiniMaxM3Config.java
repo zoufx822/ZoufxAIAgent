@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.llm.config;
 
 import com.zoufx.ai.agent.llm.model.Features;
-import com.zoufx.ai.agent.llm.property.MiniMaxM3Properties;
+import com.zoufx.ai.agent.llm.property.MiniMaxM3Props;
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.anthropic.AnthropicStreamingChatModel;
 import dev.langchain4j.model.chat.ChatModel;
@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * MiniMax M3 profile：把项目的三个模型角色映射到 MiniMax 实现——三档同模型，靠 thinking 参数分档。
  *
- * <p>仅在 {@code ai.llm.profile.active=MiniMax-M3} 时激活。配置来自 {@link MiniMaxM3Properties}。
+ * <p>仅在 {@code ai.llm.profile.active=MiniMax-M3} 时激活。配置来自 {@link MiniMaxM3Props}。
  * 走 Anthropic 兼容协议，profile 名对齐官方模型 ID（连的是 MiniMax 不是真 Claude）。
  * 角色映射（官方语义）：思考档 = {@code adaptive}（等同于开启 thinking）；快档 = {@code disabled}。
  * M3 默认关闭 thinking（与 M2.x 的无法关闭不同）。
@@ -27,11 +27,11 @@ import org.springframework.context.annotation.Configuration;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@EnableConfigurationProperties(MiniMaxM3Properties.class)
+@EnableConfigurationProperties(MiniMaxM3Props.class)
 @ConditionalOnProperty(name = "ai.llm.profile.active", havingValue = "MiniMax-M3")
 public class MiniMaxM3Config {
 
-    private final MiniMaxM3Properties props;
+    private final MiniMaxM3Props props;
 
     /** 思考模型（流式）：前端开启思考模式时的对话主路。 */
     @Bean("thinkingStreamingChatModel")

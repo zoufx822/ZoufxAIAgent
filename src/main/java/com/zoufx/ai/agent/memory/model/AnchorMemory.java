@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  * {@code ChatService.onStreamComplete} 从 {@code MoodEventProcessor} 取最后一次 mood 写入。
  * 无 mood 事件本轮维持旧值（COALESCE 语义），让前端"AI 还记得上次跟你聊时的情绪"。
  */
-public record AnchorMemoryEntry(
+public record AnchorMemory(
         String id,
         String userId,
         @Nullable String title,

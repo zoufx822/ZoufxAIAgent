@@ -15,7 +15,7 @@ import java.time.Duration;
  */
 @Data
 @ConfigurationProperties(prefix = "ai.llm.minimax-m3")
-public class MiniMaxM3Properties {
+public class MiniMaxM3Props {
 
     private String baseUrl;
     private String apiKey;

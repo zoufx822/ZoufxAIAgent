@@ -2,7 +2,7 @@ package com.zoufx.ai.agent.prompt.impl;
 
 import com.zoufx.ai.agent.prompt.api.PromptSection;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
-import com.zoufx.ai.agent.memory.model.AnchorMemoryEntry;
+import com.zoufx.ai.agent.memory.model.AnchorMemory;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
@@ -36,14 +36,14 @@ public class AnchorContextSection implements PromptSection {
     public String render(@Nullable String userId, @Nullable String anchorId) {
         if (userId == null || anchorId == null) return null;
 
-        List<AnchorMemoryEntry> others = anchorMemoryDao.listOtherAnchors(userId, anchorId);
+        List<AnchorMemory> others = anchorMemoryDao.listOtherAnchors(userId, anchorId);
         if (others.isEmpty()) {
             return "## 你与对方的其他对话窗口\n\n当前没有其他对话窗口的摘要——**不要**凭空说「我们之前聊过 X」或「你之前提到过 Y」。\n\n";
         }
 
         StringBuilder sb = new StringBuilder();
         int rendered = 0;
-        for (AnchorMemoryEntry a : others) {
+        for (AnchorMemory a : others) {
             if (rendered >= INJECT_LIMIT) break;
             String summary = a.summary();
             if (summary == null || summary.isBlank()) continue;

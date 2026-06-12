@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.chat.model;
 
-import com.zoufx.ai.agent.memory.model.AnchorMemoryEntry;
+import com.zoufx.ai.agent.memory.model.AnchorMemory;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -27,13 +27,13 @@ public record AnchorContextView(
     private static final int MID_LIMIT = 15;
     private static final int MID_BODY_TRUNCATE = 50;
 
-    public static AnchorContextView from(List<AnchorMemoryEntry> others) {
+    public static AnchorContextView from(List<AnchorMemory> others) {
         List<AnchorSummary> near = new ArrayList<>();
         List<AnchorSummary> mid = new ArrayList<>();
         int farCount = 0;
         List<AnchorSummary> farTitles = new ArrayList<>();
         for (int i = 0; i < others.size(); i++) {
-            AnchorMemoryEntry a = others.get(i);
+            AnchorMemory a = others.get(i);
             if (i < NEAR_LIMIT) {
                 near.add(AnchorSummary.fullBody(a));
             } else if (i < NEAR_LIMIT + MID_LIMIT) {
@@ -64,11 +64,11 @@ public record AnchorContextView(
             @Nullable String mood,
             long lastActiveAt
     ) {
-        static AnchorSummary fullBody(AnchorMemoryEntry a) {
+        static AnchorSummary fullBody(AnchorMemory a) {
             return new AnchorSummary(a.id(), a.title(), a.summary(), a.lastMood(), a.lastActiveAt());
         }
 
-        static AnchorSummary truncatedBody(AnchorMemoryEntry a, int max) {
+        static AnchorSummary truncatedBody(AnchorMemory a, int max) {
             String body = a.summary();
             if (body != null && body.length() > max) {
                 body = body.substring(0, max) + "…";

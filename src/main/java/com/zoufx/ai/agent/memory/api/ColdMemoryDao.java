@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.memory.api;
 
 import org.jspecify.annotations.Nullable;
-import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
+import com.zoufx.ai.agent.memory.model.ColdMemory;
 
 import java.util.Collection;
 import java.util.List;
@@ -34,7 +34,7 @@ public interface ColdMemoryDao {
      * 按 id 批量取原文——召回 hydration 用（Qdrant 只存指针，正文回这里取）。
      * 同步签名：调用方 {@code RecallServiceImpl} 在 boundedElastic 上。带 userId 过滤防跨用户。
      */
-    List<ColdMemoryEntry> fetchByIds(String userId, Collection<Long> ids);
+    List<ColdMemory> fetchByIds(String userId, Collection<Long> ids);
 
     /**
      * 该用户第 {@code windowSize} 近一条经历的 created_at——作为召回排除"工作窗口内已可见"cold 条目的下界。

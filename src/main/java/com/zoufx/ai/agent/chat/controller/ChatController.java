@@ -10,7 +10,7 @@ import com.zoufx.ai.agent.chat.support.ChatMessageMapper;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
 import com.zoufx.ai.agent.memory.api.HotMemoryDao;
-import com.zoufx.ai.agent.memory.model.AnchorMemoryEntry;
+import com.zoufx.ai.agent.memory.model.AnchorMemory;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -84,7 +84,7 @@ public class ChatController {
 
     /** 列出该用户全部锚点，按 last_active_at desc。 */
     @GetMapping("/anchors")
-    public Mono<List<AnchorMemoryEntry>> listAnchors(@RequestParam String userId) {
+    public Mono<List<AnchorMemory>> listAnchors(@RequestParam String userId) {
         return anchorMemoryDao.listByUserAsync(userId);
     }
 

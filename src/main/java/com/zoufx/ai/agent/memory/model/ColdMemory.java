@@ -9,5 +9,5 @@ import org.jspecify.annotations.Nullable;
  * {@code ⟦mood:KEYWORD⟧} 由 {@code MoodEventProcessor} 提取并随 cold_memory 一同持久化。
  * user 消息无 mood，恒为 null。
  */
-public record ColdMemoryEntry(long id, String role, String content,
+public record ColdMemory(long id, String role, String content,
                               @Nullable String mood, long createdAt) {}

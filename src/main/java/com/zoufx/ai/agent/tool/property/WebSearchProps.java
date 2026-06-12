@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @Data
 @ConfigurationProperties(prefix = "ai.tools.web-search")
-public class WebSearchProperties {
+public class WebSearchProps {
 
     private boolean enabled = true;
     private String type = "tavily";

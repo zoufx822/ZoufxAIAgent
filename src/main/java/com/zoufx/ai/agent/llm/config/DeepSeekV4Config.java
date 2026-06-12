@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.llm.config;
 
 import com.zoufx.ai.agent.llm.model.Features;
-import com.zoufx.ai.agent.llm.property.DeepSeekV4Properties;
+import com.zoufx.ai.agent.llm.property.DeepSeekV4Props;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -19,7 +19,7 @@ import java.util.Map;
 /**
  * DeepSeek v4 profile：把项目的三个模型角色映射到 DeepSeek 实现。
  *
- * <p>仅在 {@code ai.llm.profile.active=deepseek-v4} 时激活。配置来自 {@link DeepSeekV4Properties}。
+ * <p>仅在 {@code ai.llm.profile.active=deepseek-v4} 时激活。配置来自 {@link DeepSeekV4Props}。
  * 角色映射：思考档 = pro + thinking enabled + reasoning_effort max；快档 = flash + thinking disabled。
  *
  * <p>thinking 控制：{@code thinking.type} 是 DeepSeek 私有扩展字段（非标准 OpenAI 协议），
@@ -33,11 +33,11 @@ import java.util.Map;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@EnableConfigurationProperties(DeepSeekV4Properties.class)
+@EnableConfigurationProperties(DeepSeekV4Props.class)
 @ConditionalOnProperty(name = "ai.llm.profile.active", havingValue = "deepseek-v4")
 public class DeepSeekV4Config {
 
-    private final DeepSeekV4Properties props;
+    private final DeepSeekV4Props props;
 
     /** DeepSeek 私有 thinking 字段，序列化为请求体根级 {@code "thinking": {"type": ...}}。 */
     private static Map<String, Object> thinkingParam(String type) {

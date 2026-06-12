@@ -2,7 +2,7 @@ package com.zoufx.ai.agent.memory.impl;
 
 import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
-import com.zoufx.ai.agent.memory.model.AnchorMemoryEntry;
+import com.zoufx.ai.agent.memory.model.AnchorMemory;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -78,14 +78,14 @@ public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
     }
 
     @Override
-    public List<AnchorMemoryEntry> listOtherAnchors(String userId, String excludeAnchorId) {
+    public List<AnchorMemory> listOtherAnchors(String userId, String excludeAnchorId) {
         return jdbc.query("""
                 SELECT id, user_id, title, summary, last_mood, created_at, last_active_at
                 FROM anchor_memory
                 WHERE user_id = ? AND id != ?
                 ORDER BY last_active_at DESC
                 """,
-                (rs, i) -> new AnchorMemoryEntry(
+                (rs, i) -> new AnchorMemory(
                         rs.getString("id"),
                         rs.getString("user_id"),
                         rs.getString("title"),
@@ -110,7 +110,7 @@ public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
     }
 
     @Override
-    public Mono<List<AnchorMemoryEntry>> listByUserAsync(String userId) {
+    public Mono<List<AnchorMemory>> listByUserAsync(String userId) {
         return Blocking.call(() -> listByUser(userId));
     }
 
@@ -154,14 +154,14 @@ public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
         jdbc.update("UPDATE anchor_memory SET title = ? WHERE id = ?", title, anchorId);
     }
 
-    private List<AnchorMemoryEntry> listByUser(String userId) {
+    private List<AnchorMemory> listByUser(String userId) {
         return jdbc.query("""
                 SELECT id, user_id, title, summary, last_mood, created_at, last_active_at
                 FROM anchor_memory
                 WHERE user_id = ?
                 ORDER BY last_active_at DESC
                 """,
-                (rs, i) -> new AnchorMemoryEntry(
+                (rs, i) -> new AnchorMemory(
                         rs.getString("id"),
                         rs.getString("user_id"),
                         rs.getString("title"),

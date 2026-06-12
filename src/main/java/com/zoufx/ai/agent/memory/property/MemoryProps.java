@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @Data
 @ConfigurationProperties(prefix = "ai.memory")
-public class MemoryProperties {
+public class MemoryProps {
 
     /** SQLite 数据库文件路径 */
     private String dbPath = "./data/zoufx-ai.db";

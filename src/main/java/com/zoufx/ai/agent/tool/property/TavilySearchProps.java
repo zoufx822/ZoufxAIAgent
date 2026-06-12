@@ -11,7 +11,7 @@ import java.time.Duration;
  */
 @Data
 @ConfigurationProperties(prefix = "ai.tools.web-search.tavily")
-public class TavilySearchProperties {
+public class TavilySearchProps {
 
     private String apiKey;
     private String searchDepth = "basic";

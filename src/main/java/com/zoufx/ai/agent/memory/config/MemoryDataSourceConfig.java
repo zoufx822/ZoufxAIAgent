@@ -2,7 +2,7 @@ package com.zoufx.ai.agent.memory.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import com.zoufx.ai.agent.memory.property.MemoryProperties;
+import com.zoufx.ai.agent.memory.property.MemoryProps;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -30,7 +30,7 @@ import java.nio.file.Paths;
 public class MemoryDataSourceConfig {
 
     @Bean("memoryDataSource")
-    public DataSource memoryDataSource(MemoryProperties props) throws IOException {
+    public DataSource memoryDataSource(MemoryProps props) throws IOException {
         // 确保 SQLite 文件父目录存在
         Path path = Paths.get(props.getDbPath());
         Path parent = path.toAbsolutePath().getParent();

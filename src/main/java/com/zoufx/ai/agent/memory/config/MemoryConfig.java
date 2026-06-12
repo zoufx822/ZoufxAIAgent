@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.memory.config;
 
-import com.zoufx.ai.agent.chat.property.ChatProperties;
+import com.zoufx.ai.agent.chat.property.ChatProps;
 import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
 import dev.langchain4j.memory.chat.ChatMemoryProvider;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
@@ -18,13 +18,13 @@ import org.springframework.context.annotation.Configuration;
 @RequiredArgsConstructor
 public class MemoryConfig {
 
-    private final ChatProperties chatProperties;
+    private final ChatProps ChatProps;
 
     @Bean
     public ChatMemoryProvider chatMemoryProvider(ChatMemoryDao chatMemoryDao) {
         return memoryId -> MessageWindowChatMemory.builder()
                 .id(memoryId)
-                .maxMessages(chatProperties.getLoadMessage())
+                .maxMessages(ChatProps.getLoadMessage())
                 .chatMemoryStore(chatMemoryDao)
                 // 强制 system 消息位于 messages[0]：LC4J 默认 false 会把 system 追加到末尾，
                 // 导致后续轮次 system 卡在历史中间，违反 OpenAI/Anthropic API 期望

@@ -2,7 +2,7 @@ package com.zoufx.ai.agent.chat.service;
 
 import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
-import com.zoufx.ai.agent.chat.property.ChatProperties;
+import com.zoufx.ai.agent.chat.property.ChatProps;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
 import com.zoufx.ai.agent.memory.api.ColdMemoryDao;
@@ -16,7 +16,7 @@ import com.zoufx.ai.agent.tool.support.WebSearchEvents;
 import com.zoufx.ai.agent.vector.api.IndexerService;
 import com.zoufx.ai.agent.vector.api.RecallService;
 import com.zoufx.ai.agent.vector.model.RecallResult;
-import com.zoufx.ai.agent.vector.property.RecallProperties;
+import com.zoufx.ai.agent.vector.property.RecallProps;
 import com.zoufx.ai.agent.vector.support.VectorPayload;
 import com.zoufx.ai.agent.tool.support.ToolNameMap;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
@@ -77,7 +77,7 @@ public class ChatService {
     /** 长期对话原文归档，按 userId 顺序追加；向量索引的数据源。 */
     private final ColdMemoryDao coldMemoryDao;
     private final MoodService moodService;
-    private final ChatProperties chatProperties;
+    private final ChatProps ChatProps;
     /** 所有 @Tool 实现类，启动时反射扫描方法名 → section（中文名）映射。 */
     private final List<ToolPrompt> tools;
     private final RecallService recallService;
@@ -88,7 +88,7 @@ public class ChatService {
     private final RecallContextHolder recallContextHolder;
     private final IndexerService indexer;
     private final EmbeddingModel embeddingModel;
-    private final RecallProperties recallProperties;
+    private final RecallProps RecallProps;
     private final ToolNameMap toolNameMap;
 
     /**
@@ -129,8 +129,8 @@ public class ChatService {
             Embedding emb = embeddingModel.embed(prompt).content();
 
             // 3. 语义召回注入 holder，SystemPromptProvider.compose() 会在 LC4J 构建 prompt 时同步读取
-            Long windowSince = coldMemoryDao.windowLowerBound(userId, chatProperties.getLoadMessage());
-            List<RecallResult> recalled = recallService.recall(userId, emb, recallProperties.getLimit(), windowSince);
+            Long windowSince = coldMemoryDao.windowLowerBound(userId, ChatProps.getLoadMessage());
+            List<RecallResult> recalled = recallService.recall(userId, emb, RecallProps.getLimit(), windowSince);
             recallContextHolder.set(anchorId, RecallContextSection.format(recalled));
 
             // 4. fire-and-forget 索引（先召回后索引，避免本次消息把自己召回）
@@ -339,7 +339,7 @@ public class ChatService {
      * {@code hasEmitted} 由 startTokenStream 任一回调置位，避免流开始后重试（已部分发送的内容无法回滚）。
      */
     private Retry buildRetrySpec(AtomicBoolean hasEmitted) {
-        ChatProperties.Retry r = chatProperties.getRetry();
+        ChatProps.Retry r = ChatProps.getRetry();
         return Retry.backoff(r.getMaxAttempts(), r.getMinBackoff())
                 .maxBackoff(r.getMaxBackoff())
                 .filter(err -> !hasEmitted.get() && RetryableExceptions.isRetryable(err))

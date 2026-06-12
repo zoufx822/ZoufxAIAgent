@@ -1,7 +1,7 @@
 package com.zoufx.ai.agent.tool.config;
 
-import com.zoufx.ai.agent.tool.property.TavilySearchProperties;
-import com.zoufx.ai.agent.tool.property.WebSearchProperties;
+import com.zoufx.ai.agent.tool.property.TavilySearchProps;
+import com.zoufx.ai.agent.tool.property.WebSearchProps;
 import com.zoufx.ai.agent.tool.impl.TavilySearchTool;
 import dev.langchain4j.web.search.WebSearchEngine;
 import dev.langchain4j.web.search.tavily.TavilyWebSearchEngine;
@@ -22,8 +22,8 @@ import org.springframework.util.StringUtils;
 public class TavilySearchConfig {
 
     @Bean
-    public TavilySearchTool tavilySearchTool(WebSearchProperties webProps, TavilySearchProperties tavilyProps) {
-        TavilySearchProperties.Retry retry = tavilyProps.getRetry();
+    public TavilySearchTool tavilySearchTool(WebSearchProps webProps, TavilySearchProps tavilyProps) {
+        TavilySearchProps.Retry retry = tavilyProps.getRetry();
         if (!webProps.isEnabled()) {
             log.warn("Web search 已禁用（ai.tools.web-search.enabled=false）");
             return new TavilySearchTool(null, tavilyProps.getMaxResults(), retry.getMaxAttempts(), retry.getBackoff().toMillis());

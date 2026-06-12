@@ -2,11 +2,11 @@ package com.zoufx.ai.agent.vector.impl;
 
 import com.zoufx.ai.agent.memory.api.ColdMemoryDao;
 import com.zoufx.ai.agent.memory.api.HotMemoryDao;
-import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
+import com.zoufx.ai.agent.memory.model.ColdMemory;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.vector.api.RecallService;
 import com.zoufx.ai.agent.vector.model.RecallResult;
-import com.zoufx.ai.agent.vector.property.RecallProperties;
+import com.zoufx.ai.agent.vector.property.RecallProps;
 import com.zoufx.ai.agent.vector.support.VectorPayload;
 import com.zoufx.ai.agent.vector.support.RecallRanker;
 import dev.langchain4j.data.document.Metadata;
@@ -41,7 +41,7 @@ public class RecallServiceImpl implements RecallService {
 
     private final EmbeddingStore<TextSegment> embeddingStore;
     private final RecallRanker ranker;
-    private final RecallProperties props;
+    private final RecallProps props;
     private final ColdMemoryDao coldMemoryDao;
     private final HotMemoryDao hotMemoryDao;
 
@@ -92,7 +92,7 @@ public class RecallServiceImpl implements RecallService {
 
     /** MMR 多样性选择；归一化 finalScore 后与候选间余弦相似度按 λ 混合。 */
     private List<Candidate> selectTopN(List<Candidate> ranked, int limit) {
-        RecallProperties.Mmr mmr = props.getMmr();
+        RecallProps.Mmr mmr = props.getMmr();
         if (!mmr.isEnabled() || ranked.size() <= limit) {
             return ranked.size() <= limit ? ranked : new ArrayList<>(ranked.subList(0, limit));
         }
@@ -131,7 +131,7 @@ public class RecallServiceImpl implements RecallService {
                 .toList();
         Map<Long, String> coldContent = new HashMap<>();
         if (!coldIds.isEmpty()) {
-            for (ColdMemoryEntry e : coldMemoryDao.fetchByIds(userId, coldIds)) {
+            for (ColdMemory e : coldMemoryDao.fetchByIds(userId, coldIds)) {
                 coldContent.put(e.id(), e.content());
             }
         }

@@ -13,7 +13,7 @@ import java.time.Duration;
  */
 @Data
 @ConfigurationProperties(prefix = "ai.embedding")
-public class EmbeddingProperties {
+public class EmbeddingProps {
 
     private String baseUrl;
     private String apiKey;

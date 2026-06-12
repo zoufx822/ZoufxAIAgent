@@ -11,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @Data
 @ConfigurationProperties(prefix = "ai.vector")
-public class VectorStoreProperties {
+public class VectorStoreProps {
 
     private String host = "localhost";
     /** gRPC 端口（LC4J QdrantEmbeddingStore 走 gRPC）。 */

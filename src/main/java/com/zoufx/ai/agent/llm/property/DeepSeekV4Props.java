@@ -16,7 +16,7 @@ import java.time.Duration;
  */
 @Data
 @ConfigurationProperties(prefix = "ai.llm.deepseek-v4")
-public class DeepSeekV4Properties {
+public class DeepSeekV4Props {
 
     private String baseUrl;
     private String apiKey;

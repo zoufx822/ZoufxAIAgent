@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.memory.api;
 
-import com.zoufx.ai.agent.memory.model.AnchorMemoryEntry;
+import com.zoufx.ai.agent.memory.model.AnchorMemory;
 import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Mono;
 
@@ -26,7 +26,7 @@ public interface AnchorMemoryDao {
      * 同步加载该用户的其他锚点（排除当前 anchorId），按 last_active_at desc。
      * 供 {@code AnchorContextSection.render} 用。
      */
-    List<AnchorMemoryEntry> listOtherAnchors(String userId, String excludeAnchorId);
+    List<AnchorMemory> listOtherAnchors(String userId, String excludeAnchorId);
 
     /**
      * 同步读取锚点当前 last_active_at——供 {@link com.zoufx.ai.agent.chat.service.AnchorService#compress}
@@ -43,7 +43,7 @@ public interface AnchorMemoryDao {
     /**
      * 列出该用户全部锚点，按 last_active_at desc。给前端 sidebar 用。
      */
-    Mono<List<AnchorMemoryEntry>> listByUserAsync(String userId);
+    Mono<List<AnchorMemory>> listByUserAsync(String userId);
 
     /**
      * 标记锚点为活跃——更新 last_active_at = now，同时把 summary 置 NULL（回访场景，旧摘要作废），

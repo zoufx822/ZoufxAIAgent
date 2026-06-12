@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @Data
 @ConfigurationProperties(prefix = "ai.recall")
-public class RecallProperties {
+public class RecallProps {
 
     private Weights weights = new Weights();
     /** 时近性 exp(-Δt/τ) 的 τ（天）。 */

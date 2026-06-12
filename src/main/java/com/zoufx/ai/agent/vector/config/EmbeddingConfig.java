@@ -1,8 +1,8 @@
 package com.zoufx.ai.agent.vector.config;
 
-import com.zoufx.ai.agent.vector.property.EmbeddingProperties;
-import com.zoufx.ai.agent.vector.property.RecallProperties;
-import com.zoufx.ai.agent.vector.property.VectorStoreProperties;
+import com.zoufx.ai.agent.vector.property.EmbeddingProps;
+import com.zoufx.ai.agent.vector.property.RecallProps;
+import com.zoufx.ai.agent.vector.property.VectorStoreProps;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
@@ -24,11 +24,11 @@ import org.springframework.context.annotation.Configuration;
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties({EmbeddingProperties.class, VectorStoreProperties.class, RecallProperties.class})
+@EnableConfigurationProperties({EmbeddingProps.class, VectorStoreProps.class, RecallProps.class})
 public class EmbeddingConfig {
 
     @Bean
-    public EmbeddingModel embeddingModel(EmbeddingProperties p) {
+    public EmbeddingModel embeddingModel(EmbeddingProps p) {
         log.info("Creating embeddingModel baseUrl={} model={} dim={}", p.getBaseUrl(), p.getModel(), p.getDimension());
         return OpenAiEmbeddingModel.builder()
                 .baseUrl(p.getBaseUrl())
@@ -42,7 +42,7 @@ public class EmbeddingConfig {
 
     /** Qdrant gRPC 客户端；AutoCloseable，Spring 关闭时自动 close。 */
     @Bean(destroyMethod = "close")
-    public QdrantClient qdrantClient(VectorStoreProperties p) {
+    public QdrantClient qdrantClient(VectorStoreProps p) {
         QdrantGrpcClient.Builder b = QdrantGrpcClient.newBuilder(p.getHost(), p.getPort(), p.isUseTls());
         if (p.getApiKey() != null && !p.getApiKey().isBlank()) {
             b.withApiKey(p.getApiKey());
@@ -52,7 +52,7 @@ public class EmbeddingConfig {
     }
 
     @Bean
-    public EmbeddingStore<TextSegment> embeddingStore(QdrantClient client, VectorStoreProperties p) throws Exception {
+    public EmbeddingStore<TextSegment> embeddingStore(QdrantClient client, VectorStoreProps p) throws Exception {
         ensureCollection(client, p);
         return QdrantEmbeddingStore.builder()
                 .client(client)
@@ -64,7 +64,7 @@ public class EmbeddingConfig {
      * 幂等确保 collection 存在：不存在则按维度 + cosine 建；已存在则沿用。
      * 不做维度回查——换维度须先手动删除 collection 后重启重建。
      */
-    private void ensureCollection(QdrantClient client, VectorStoreProperties p) throws Exception {
+    private void ensureCollection(QdrantClient client, VectorStoreProps p) throws Exception {
         if (Boolean.TRUE.equals(client.collectionExistsAsync(p.getCollection()).get())) {
             log.info("Qdrant collection '{}' already exists", p.getCollection());
             return;

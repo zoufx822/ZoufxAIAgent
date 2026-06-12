@@ -1,18 +1,18 @@
 package com.zoufx.ai.agent.vector.support;
 
-import com.zoufx.ai.agent.vector.property.RecallProperties;
+import com.zoufx.ai.agent.vector.property.RecallProps;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * 召回打分原语（无状态，只读 {@link RecallProperties} 配置）：时近性衰减、三维加权、余弦相似度。
+ * 召回打分原语（无状态，只读 {@link RecallProps} 配置）：时近性衰减、三维加权、余弦相似度。
  * MMR 选择循环在 {@code RecallServiceImpl} 里用这些原语实现。
  */
 @Component
 @RequiredArgsConstructor
 public class RecallRanker {
 
-    private final RecallProperties props;
+    private final RecallProps props;
 
     /** 时近性 exp(-age/τ)，age 为毫秒；τ 取配置天数。 */
     public double recency(long ageMillis) {
@@ -22,7 +22,7 @@ public class RecallRanker {
 
     /** score = α·recency + β·importance + γ·relevance。 */
     public double finalScore(double relevance, double recency, double importance) {
-        RecallProperties.Weights w = props.getWeights();
+        RecallProps.Weights w = props.getWeights();
         return w.getAlpha() * recency + w.getBeta() * importance + w.getGamma() * relevance;
     }
 

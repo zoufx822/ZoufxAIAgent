@@ -9,7 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import com.zoufx.ai.agent.memory.api.ColdMemoryDao;
-import com.zoufx.ai.agent.memory.model.ColdMemoryEntry;
+import com.zoufx.ai.agent.memory.model.ColdMemory;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -75,7 +75,7 @@ public class ColdMemoryDaoImpl implements ColdMemoryDao {
     }
 
     @Override
-    public List<ColdMemoryEntry> fetchByIds(String userId, Collection<Long> ids) {
+    public List<ColdMemory> fetchByIds(String userId, Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) return List.of();
         String placeholders = String.join(",", java.util.Collections.nCopies(ids.size(), "?"));
         List<Object> args = new ArrayList<>(ids.size() + 1);
@@ -83,7 +83,7 @@ public class ColdMemoryDaoImpl implements ColdMemoryDao {
         args.addAll(ids);
         return jdbc.query(
                 "SELECT id, role, content, mood, created_at FROM cold_memory WHERE user_id = ? AND id IN (" + placeholders + ")",
-                (rs, i) -> new ColdMemoryEntry(
+                (rs, i) -> new ColdMemory(
                         rs.getLong("id"), rs.getString("role"), rs.getString("content"),
                         rs.getString("mood"), rs.getLong("created_at")),
                 args.toArray());
