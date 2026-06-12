@@ -51,5 +51,3 @@ application-local.properties
 .env
 .env.local
 .env.*.local
-
-# Qdrant 向量库本地数据（docker volume）
