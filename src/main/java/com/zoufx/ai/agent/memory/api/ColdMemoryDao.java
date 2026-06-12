@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * 冷内存（Cold Archive）业务接口——经历流存储。
  *
- * 与 {@link ChatMemoryDao}（工作记忆，继承 LC4J ChatMemoryDao）并行：
+ * 与 {@link ChatMemoryDao}（工作记忆，继承 LC4J ChatMemoryStore）并行：
  * - {@link ChatMemoryDao}：滑窗 20 条，全量替换语义
  * - {@link ColdMemoryDao}：所有用户/AI 消息按时间序==只追加==，无上限
  *

@@ -6,7 +6,7 @@ import org.jspecify.annotations.Nullable;
  * System prompt 的可组合段——SPI 契约。
  *
  * <p>各业务模块实现本接口并注册为 Spring Bean，由 {@code PromptComposer} 按
- * {@link #order()} 升序串行调用 {@link #render(String)} 拼接为完整 system prompt。
+ * {@link #order()} 升序串行调用 {@link #render(String, String)} 拼接为完整 system prompt。
  * 实现一律放 {@code prompt/impl/}，业务模块只通过 api/property 暴露数据源。
  *
  * <p><b>契约</b>：

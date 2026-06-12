@@ -6,7 +6,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * 聊天请求 DTO。
  *
- * <p>{@code anchorId} 非空时指向已存在的对话锚点；为空时表示新对话，Controller 自动创建。
+ * <p>{@code anchorId} 非空时指向已存在的对话锚点；为空时表示新对话，由 ChatService.prepare 自动创建。
  * {@code userId} 必传——后端不再反查 anchor→user 映射。
  *
  * <p>{@code prevAnchorId} 仅在客户端发生"锚点切换"时携带（即上一条消息所在锚点 ≠ 本次 anchorId）。

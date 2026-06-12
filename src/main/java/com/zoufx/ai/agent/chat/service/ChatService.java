@@ -53,7 +53,8 @@ import java.util.concurrent.atomic.AtomicReference;
  *           ├── doOnNext          收集 assistant 全文
  *           ├── onErrorResume     错误兜底成 error 事件（保持 SSE 流不断）
  *           ├── doOnComplete      触发 onStreamComplete（touch + title + 持久化 + 索引）
- *           └── doOnCancel        客户端断开时清理召回上下文 + 孤儿消息
+ *           ├── doOnCancel        客户端断开时清理孤儿消息
+ *           └── doFinally         终态（complete/error/cancel）统一清理召回上下文
  * </pre>
  */
 @Slf4j
@@ -77,7 +78,7 @@ public class ChatService {
     /** 长期对话原文归档，按 userId 顺序追加；向量索引的数据源。 */
     private final ColdMemoryDao coldMemoryDao;
     private final MoodService moodService;
-    private final ChatProps ChatProps;
+    private final ChatProps chatProps;
     /** 所有 @Tool 实现类，启动时反射扫描方法名 → section（中文名）映射。 */
     private final List<ToolPrompt> tools;
     private final RecallService recallService;
@@ -88,7 +89,7 @@ public class ChatService {
     private final RecallContextHolder recallContextHolder;
     private final IndexerService indexer;
     private final EmbeddingModel embeddingModel;
-    private final RecallProps RecallProps;
+    private final RecallProps recallProps;
     private final ToolNameMap toolNameMap;
 
     /**
@@ -129,8 +130,8 @@ public class ChatService {
             Embedding emb = embeddingModel.embed(prompt).content();
 
             // 3. 语义召回注入 holder，SystemPromptProvider.compose() 会在 LC4J 构建 prompt 时同步读取
-            Long windowSince = coldMemoryDao.windowLowerBound(userId, ChatProps.getLoadMessage());
-            List<RecallResult> recalled = recallService.recall(userId, emb, RecallProps.getLimit(), windowSince);
+            Long windowSince = coldMemoryDao.windowLowerBound(userId, chatProps.getLoadMessage());
+            List<RecallResult> recalled = recallService.recall(userId, emb, recallProps.getLimit(), windowSince);
             recallContextHolder.set(anchorId, RecallPieceImpl.format(recalled));
 
             // 4. fire-and-forget 索引（先召回后索引，避免本次消息把自己召回）
@@ -188,17 +189,19 @@ public class ChatService {
                 })
                 // 流正常完成：触发 touch / title / cold_memory / 向量索引等持久化副作用
                 .doOnComplete(() -> onStreamComplete(anchorId, userId, prompt, assistantBuffer, instantMood.get(), inlineMoods))
-                // 客户端断开（关页面 / 取消请求）：清理召回 holder + 孤儿消息，避免内存泄漏
+                // 客户端断开（关页面 / 取消请求）：清理孤儿消息
                 .doOnCancel(() -> {
                     log.info("Stream cancelled [anchorId={}, userId={}]", anchorId, userId);
-                    recallContextHolder.remove(anchorId);
                     chatMemoryDao.cleanupOrphansAsync(anchorId)
                             .onErrorResume(err -> {
                                 log.warn("Post-cancel sanitize failed [anchorId={}]: {}", anchorId, err.toString());
                                 return Mono.empty();
                             })
                             .subscribe();
-                });
+                })
+                // 召回 holder 统一在终态清理（complete / error / cancel 全覆盖）；
+                // 不能在 onError 回调里提前 remove——重试会重新 compose system prompt，召回段必须还在
+                .doFinally(signal -> recallContextHolder.remove(anchorId));
 
         // anchor_created 必须是首条事件（前端靠它更新 URL 中的 anchorId）；concatWith 保证 stream 在其后发射
         return prepared.newAnchor()
@@ -249,15 +252,11 @@ public class ChatService {
                     log.info("Tool call done [anchorId={}] {} ({}) count={}", anchorId, name, chineseName, count);
                     sink.next(new ChatEvent("tool_result", WebSearchEvents.toolResultPayload(name, chineseName, count, result)));
                 })
-                // LLM 出错：清理 holder 防止脏召回上下文，再向上传播触发外层 retryWhen 判断
-                .onError(err -> {
-                    recallContextHolder.remove(anchorId);
-                    sink.error(err);
-                })
+                // LLM 出错：向上传播触发外层 retryWhen 判断（召回 holder 留给外层 doFinally 统一清理）
+                .onError(sink::error)
                 // 流正常结束：flush 处理末尾残留的未完整情绪标签，导出情绪列表供 onStreamComplete 持久化
                 .onCompleteResponse(r -> {
                     log.info("Stream completed [anchorId={}]", anchorId);
-                    recallContextHolder.remove(anchorId);
                     moodStripper.flush();
                     inlineMoods.addAll(moodStripper.getMoods());
                     sink.complete();
@@ -339,7 +338,7 @@ public class ChatService {
      * {@code hasEmitted} 由 startTokenStream 任一回调置位，避免流开始后重试（已部分发送的内容无法回滚）。
      */
     private Retry buildRetrySpec(AtomicBoolean hasEmitted) {
-        ChatProps.Retry r = ChatProps.getRetry();
+        ChatProps.Retry r = chatProps.getRetry();
         return Retry.backoff(r.getMaxAttempts(), r.getMinBackoff())
                 .maxBackoff(r.getMaxBackoff())
                 .filter(err -> !hasEmitted.get() && RetryableExceptions.isRetryable(err))

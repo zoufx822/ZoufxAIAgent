@@ -30,9 +30,8 @@ import java.util.Map;
  *
  * <p>端点：
  * <ul>
- *   <li>{@code POST   /ai/chat}：SSE 流式聊天（按 anchorId 隔离）</li>
+ *   <li>{@code POST   /ai/chat}：SSE 流式聊天（按 anchorId 隔离；anchorId 为空时懒创建锚点）</li>
  *   <li>{@code GET    /ai/features}：LLM 能力声明</li>
- *   <li>{@code POST   /ai/anchors}：创建新对话锚点</li>
  *   <li>{@code GET    /ai/anchors?userId=X}：列出该用户全部锚点（sidebar）</li>
  *   <li>{@code GET    /ai/anchors/{anchorId}/messages}：加载锚点消息历史（滑动窗口，默认 20 条）</li>
  *   <li>{@code GET    /ai/anchors/{anchorId}/context}：其他锚点三层衰减视图（near/mid/far）</li>

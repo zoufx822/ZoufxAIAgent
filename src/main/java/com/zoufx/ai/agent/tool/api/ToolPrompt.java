@@ -16,7 +16,7 @@ public interface ToolPrompt {
 
     /**
      * 本工具所有 @Tool 方法名 → 显示名映射（LC4J 回调只能拿到 Java 方法名）。
-     * 默认用 section() 作所有方法的显示名——单方法工具无需覆盖。
+     * 默认空映射——未声明的方法由 {@code ToolNameMap} 回退显示原 Java 方法名。
      */
     default Map<String, String> methodSections() { return Map.of(); }
 }

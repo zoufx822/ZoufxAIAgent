@@ -89,7 +89,7 @@
 | ...| Tools / record_commitment | 承诺识别 | 3 种前缀必填 | 你应允时 record_commitment，description 带前缀 |
 | ...| Tools / search_cold_memory | "之前说过"而窗口没有 | 先调工具再判断；不说"我没有记录" | 对方问"我之前说过 X 吗"→ AI 先搜，不直接否认 |
 | ...| Tools / search_web | 实时信息、明确要求搜 | 关键词含具体日期；日期核对规则 | 问今日天气 → AI 调 search_web，关键词含当天日期 |
-| ...| Mood | 常驻（无开关） | 每条回复末尾 <!--mood:KEYWORD-->；7词词表；倾向规则 | 每条回复末尾有且仅有一个合法 mood 标记 |
+| ...| Mood | 常驻（无开关） | 情绪转折处就地插 ⟦mood:KEYWORD⟧（0~N 个）；7词词表；倾向规则 | 情绪有起伏时回复内出现合法 mood 标记（被后端剥离为 mood 事件），平淡时可无 |
 | ...| Mood / fallback 反模式 | 任意对话 | "「平静」只用于真正平淡的事务性对话，不是 fallback 默认值" | 用户分享好消息 → 兴奋，不默认平静 |
 ```
 
@@ -132,9 +132,9 @@
 | TP-16 | Tools/record_commitment（前缀验证） | 边界 | username=ZFX | 对方说"我下周把代码 review 完发给你" | AI 调 record_commitment("ZFX答应我：下周 review 完代码") |
 | TP-17 | Tools/search_cold_memory（必触发）| 正向 | cold_memory 有历史；当前锚点无该内容 | 发"我之前说过我最喜欢喝什么吗" | AI 先调 search_cold_memory，再回答；不直接说"我没有记录" |
 | TP-18 | Tools/search_web（实时信息） | 正向 | 任意状态 | 发"今天北京天气怎么样" | AI 调 search_web，关键词包含当日日期 |
-| TP-19 | Mood / 情绪共情 | 正向 | 任意状态 | 发"今天面试失败了，心情很差" | 回复末尾 mood 标记为"难过"，不是"平静" |
-| TP-20 | Mood / 正向共鸣 | 正向 | 任意状态 | 发"我终于拿到 offer 了！" | 回复末尾 mood 标记为"兴奋"，不是"平静" |
-| TP-21 | Mood / fallback 反模式 | 反向 | 任意状态 | 发"帮我列一下今天的待办" | 回复末尾 mood 标记为"平静"（纯事务性，是正确选择，验证不过度情绪化） |
+| TP-19 | Mood / 情绪共情 | 正向 | 任意状态 | 发"今天面试失败了，心情很差" | mood 事件含"难过"，不是"平静" |
+| TP-20 | Mood / 正向共鸣 | 正向 | 任意状态 | 发"我终于拿到 offer 了！" | mood 事件含"兴奋"，不是"平静" |
+| TP-21 | Mood / fallback 反模式 | 反向 | 任意状态 | 发"帮我列一下今天的待办" | 无 mood 标记或为"平静/愉快"（纯事务性，验证不过度情绪化） |
 | TP-22 | Mood / 7词词表约束 | 边界 | 任意状态 | 任意多条对话，观察所有 mood 标记 | 每条 mood 都来自 {平静/愉快/兴奋/难过/愤怒/好奇/困惑}，无词表外的词 |
 | TP-23 | Soul / forbidden_patterns | 正向 | 任意状态 | 发"哇你好厉害呀！" | 回复不含 "好棒呀""棒棒哒"等过度赞美；不堆 emoji |
 | TP-24 | RecallContext（经历召回） | 正向 | significant-event "正在备考研究生" 已**索引进向量库**（经 record 工具/backfill，非仅 SQL） | 发"最近备考还顺利吗" | 命中召回 → AI 自然提及，不当它是新信息 |

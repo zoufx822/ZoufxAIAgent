@@ -96,7 +96,7 @@ public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
                 userId, excludeAnchorId);
     }
 
-    // ====== 反应式写 ======
+    // ====== 同步写 ======
 
     @Override
     public String create(String userId) {
@@ -108,6 +108,8 @@ public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
                 """, anchorId, userId, now, now);
         return anchorId;
     }
+
+    // ====== 反应式包装 ======
 
     @Override
     public Mono<List<AnchorMemory>> listByUserAsync(String userId) {

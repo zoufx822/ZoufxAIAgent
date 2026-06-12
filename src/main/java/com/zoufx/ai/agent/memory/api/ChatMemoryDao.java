@@ -1,6 +1,7 @@
 package com.zoufx.ai.agent.memory.api;
 
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.store.memory.chat.ChatMemoryStore;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -15,7 +16,7 @@ import java.util.List;
  *
  * <p>反应式方法返回 Mono，阻塞 JDBC 在 boundedElastic 调度。
  */
-public interface ChatMemoryDao extends dev.langchain4j.store.memory.chat.ChatMemoryStore {
+public interface ChatMemoryDao extends ChatMemoryStore {
 
     /** 同步加载某锚点全部消息（按写入顺序）——供已在 boundedElastic 上的阻塞流水线使用。 */
     List<ChatMessage> loadByAnchorId(String anchorId);

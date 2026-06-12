@@ -68,7 +68,7 @@ public class ChatMemoryDaoImpl implements ChatMemoryDao {
         log.info("ChatMemoryDaoImpl schema ready (chat_memory)");
     }
 
-    // ====== LC4J ChatMemoryDao 同步契约（框架线程调用；memoryId == anchorId）======
+    // ====== LC4J ChatMemoryStore 同步契约（框架线程调用；memoryId == anchorId）======
 
     @Override
     public List<ChatMessage> getMessages(Object memoryId) {

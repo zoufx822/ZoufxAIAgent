@@ -18,13 +18,13 @@ import org.springframework.context.annotation.Configuration;
 @RequiredArgsConstructor
 public class MemoryConfig {
 
-    private final ChatProps ChatProps;
+    private final ChatProps chatProps;
 
     @Bean
     public ChatMemoryProvider chatMemoryProvider(ChatMemoryDao chatMemoryDao) {
         return memoryId -> MessageWindowChatMemory.builder()
                 .id(memoryId)
-                .maxMessages(ChatProps.getLoadMessage())
+                .maxMessages(chatProps.getLoadMessage())
                 .chatMemoryStore(chatMemoryDao)
                 // 强制 system 消息位于 messages[0]：LC4J 默认 false 会把 system 追加到末尾，
                 // 导致后续轮次 system 卡在历史中间，违反 OpenAI/Anthropic API 期望

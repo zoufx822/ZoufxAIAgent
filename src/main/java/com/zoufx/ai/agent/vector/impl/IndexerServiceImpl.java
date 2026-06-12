@@ -24,8 +24,9 @@ import java.util.UUID;
 /**
  * {@link IndexerService} 的 Qdrant 实现。
  *
- * <p>写入 = 组装 {@link TextSegment}（==空正文：用 sourceId 占位、不放 content==）
- * + 6 个指针元数据 → {@code addAll(id, emb, seg)}。pointId 确定性派生保证幂等/覆盖。
+ * <p>写入 = 组装 {@link TextSegment} + 指针元数据 → {@code addAll(id, emb, seg)}。
+ * text 字段==只放 sourceId 占位，不放正文==——正文留在 SQLite 正本，召回时按指针回查。
+ * pointId 由 (userId|memType|sourceId) 确定性派生，重复索引覆盖同一 point（幂等 / 天然 UPSERT）。
  * 失败吞掉仅记日志的语义在同步本体内实现（try/catch），异步包装天然继承。
  */
 @Slf4j

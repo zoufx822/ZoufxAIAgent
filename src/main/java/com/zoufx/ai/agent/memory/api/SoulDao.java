@@ -3,7 +3,7 @@ package com.zoufx.ai.agent.memory.api;
 import java.util.Map;
 
 /**
- * SOUL Store——AI 自身人格的全局单例存储（无 userId 维度）。
+ * SOUL 存储——AI 自身人格的全局单例存储（无 userId 维度）。
  *
  * <p>与 HotMemoryDao（按 userId 存储用户认知）对偶。每次请求开始时由
  * {@code PromptComposer} 读取 snapshot 注入 system prompt。
