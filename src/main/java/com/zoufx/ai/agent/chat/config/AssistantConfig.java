@@ -10,29 +10,46 @@ import com.zoufx.ai.agent.tool.impl.UserImpressionUpdateTool;
 import dev.langchain4j.memory.chat.ChatMemoryProvider;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.service.AiServices;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 装配单一 {@link ChatAssistant} Bean，绑定当前激活 profile 的 streaming chatModel。
+ * 装配两个 {@link ChatAssistant} Bean，分别绑定当前激活 profile 的流式模型角色：
+ * thinkingStreamingChatModel（思考档，前端开思考）/ fastStreamingChatModel（快档，前端关思考）。
+ *
+ * <p>LC4J AiServices 不支持 per-call 参数覆盖，thinking 策略只能在模型 builder 期固定，
+ * 因此每档一个 assistant，由 ChatService 按请求的 thinking 开关路由。两个 assistant 共享同一
+ * ChatMemoryProvider（同 anchorId 同记忆），切档不丢上下文。
  *
  * <p>System prompt 由 {@link PromptComposer} 按 PromptSection 序列动态组装。
- * thinking 行为由模型自身决定（DeepSeek v4 always-on 自适应、MiniMax builder 期固定开启），
- * 不做 Java 层 per-call 覆盖（LC4J 1.13.1 langchain4j-anthropic 限制）。
  */
 @Configuration
+@RequiredArgsConstructor
 public class AssistantConfig {
 
-    @Bean
-    public ChatAssistant chatAssistant(
-            StreamingChatModel chatModel,
-            ChatMemoryProvider chatMemoryProvider,
-            TavilySearchTool tavilySearchTool,
-            ColdMemorySearchTool coldMemorySearchTool,
-            UserImpressionUpdateTool userImpressionUpdateTool,
-            SignificantEventRecordTool significantEventRecordTool,
-            CommitmentRecordTool commitmentRecordTool,
-            PromptComposer composer) {
+    private final ChatMemoryProvider chatMemoryProvider;
+    private final TavilySearchTool tavilySearchTool;
+    private final ColdMemorySearchTool coldMemorySearchTool;
+    private final UserImpressionUpdateTool userImpressionUpdateTool;
+    private final SignificantEventRecordTool significantEventRecordTool;
+    private final CommitmentRecordTool commitmentRecordTool;
+    private final PromptComposer composer;
+
+    @Bean("thinkingAssistant")
+    public ChatAssistant thinkingAssistant(
+            @Qualifier("thinkingStreamingChatModel") StreamingChatModel thinkingStreamingChatModel) {
+        return build(thinkingStreamingChatModel);
+    }
+
+    @Bean("fastAssistant")
+    public ChatAssistant fastAssistant(
+            @Qualifier("fastStreamingChatModel") StreamingChatModel fastStreamingChatModel) {
+        return build(fastStreamingChatModel);
+    }
+
+    private ChatAssistant build(StreamingChatModel chatModel) {
         return AiServices.builder(ChatAssistant.class)
                 .streamingChatModel(chatModel)
                 .chatMemoryProvider(chatMemoryProvider)

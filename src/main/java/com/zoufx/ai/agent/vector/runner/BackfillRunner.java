@@ -4,6 +4,7 @@ import com.zoufx.ai.agent.memory.support.UserImpressionFields;
 import com.zoufx.ai.agent.vector.api.IndexerService;
 import com.zoufx.ai.agent.vector.support.VectorPayload;
 import dev.langchain4j.model.embedding.EmbeddingModel;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -23,19 +24,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 @ConditionalOnProperty(name = "ai.recall.backfill-on-start", havingValue = "true")
 public class BackfillRunner implements ApplicationRunner {
 
+    @Qualifier("memoryJdbcTemplate")
     private final JdbcTemplate jdbc;
     private final IndexerService indexer;
     private final EmbeddingModel embeddingModel;
-
-    public BackfillRunner(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc, IndexerService indexer,
-                                      EmbeddingModel embeddingModel) {
-        this.jdbc = jdbc;
-        this.indexer = indexer;
-        this.embeddingModel = embeddingModel;
-    }
 
     @Override
     public void run(ApplicationArguments args) {

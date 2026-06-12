@@ -2,6 +2,7 @@ package com.zoufx.ai.agent.memory.impl;
 
 import com.zoufx.ai.agent.base.support.Blocking;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -32,13 +33,11 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class HotMemoryDaoImpl implements HotMemoryDao {
 
+    @Qualifier("memoryJdbcTemplate")
     private final JdbcTemplate jdbc;
-
-    public HotMemoryDaoImpl(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
-    }
 
     @PostConstruct
     public void init() {

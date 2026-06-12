@@ -2,7 +2,6 @@ package com.zoufx.ai.agent.chat.service;
 
 import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.chat.api.ChatAssistant;
-import com.zoufx.ai.agent.llm.model.Features;
 import com.zoufx.ai.agent.chat.property.ChatProperties;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
@@ -27,6 +26,7 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
@@ -64,8 +64,12 @@ public class ChatService {
     /** 自动 backfill title 时取首条用户消息的最大字符数。 */
     private static final int AUTO_TITLE_MAX_LEN = 20;
 
-    private final ChatAssistant chatAssistant;
-    private final Features features;
+    /** 思考档（如 DeepSeek pro+max / MiniMax adaptive）：前端开启思考时的对话主路。 */
+    @Qualifier("thinkingAssistant")
+    private final ChatAssistant thinkingAssistant;
+    /** 快档（thinking 关闭）：前端关闭思考时的对话主路。 */
+    @Qualifier("fastAssistant")
+    private final ChatAssistant fastAssistant;
     /** LC4J AiServices 管理的会话消息历史（按 anchorId 分桶）。 */
     private final ChatMemoryDao chatMemoryDao;
     /** 锚点（对话会话）的 CRUD——创建、touch、title backfill。 */
@@ -94,13 +98,11 @@ public class ChatService {
      * 前端收到后更新 URL 中的 anchorId。
      */
     public Flux<ChatEvent> chat(@Nullable String anchorId, String prompt, boolean thinking, String userId) {
-        if (thinking && !features.thinkingToggle()) {
-            log.warn("Request asks thinking=true but profile [{}] does not support thinkingToggle; ignored",
-                    features.profile());
-        }
+        // 前端思考开关直接映射模型档位：开 → 思考档、关 → 快档（档位内 thinking 策略 builder 期固定）
+        ChatAssistant assistant = thinking ? thinkingAssistant : fastAssistant;
         // prepare 含同步 DB + embedding 操作，必须离开 event loop
         return Blocking.call(() -> prepare(userId, anchorId, prompt))
-                .flatMapMany(p -> buildStream(chatAssistant, p, userId, prompt))
+                .flatMapMany(p -> buildStream(assistant, p, userId, prompt))
                 // 兜底 prepare 阶段的硬错误（如锚点创建失败）——buildStream 内部的 onErrorResume 罩不到这里；
                 // 不转 error 事件的话 SSE 会以原始异常断连，前端只能看到连接错误
                 .onErrorResume(err -> {

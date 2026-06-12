@@ -4,6 +4,7 @@ import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.model.AnchorMemoryEntry;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -27,13 +28,11 @@ import java.util.List;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
 
+    @Qualifier("memoryJdbcTemplate")
     private final JdbcTemplate jdbc;
-
-    public AnchorMemoryDaoImpl(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
-    }
 
     @PostConstruct
     public void init() {

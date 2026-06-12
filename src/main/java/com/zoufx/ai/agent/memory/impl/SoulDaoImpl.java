@@ -1,6 +1,7 @@
 package com.zoufx.ai.agent.memory.impl;
 
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,6 +23,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class SoulDaoImpl implements SoulDao {
 
     static final Map<String, String> DEFAULT_SEED;
@@ -69,11 +71,8 @@ public class SoulDaoImpl implements SoulDao {
         DEFAULT_SEED = m;
     }
 
+    @Qualifier("memoryJdbcTemplate")
     private final JdbcTemplate jdbc;
-
-    public SoulDaoImpl(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc) {
-        this.jdbc = jdbc;
-    }
 
     @PostConstruct
     public void init() {

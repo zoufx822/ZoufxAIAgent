@@ -11,6 +11,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code prevAnchorId} 仅在客户端发生"锚点切换"时携带（即上一条消息所在锚点 ≠ 本次 anchorId）。
  * 后端据此 fire-and-forget 触发对前一锚点消息流的 LLM 摘要压缩，写入 anchor.summary 缓存。
+ *
+ * <p>{@code thinking} 是前端思考模式开关：true 走思考档 assistant、false/null 走快档。
  */
 public record ChatRequest(
         @NotBlank(message = "不能为空") String prompt,

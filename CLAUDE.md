@@ -2,15 +2,15 @@
 
 ## 项目
 
-Spring Boot 4.0.6 + LangChain4J 1.13.1，支持 `deepseek-v4` / `minimax` 双 LLM profile 切换：DeepSeek 走 OpenAI 兼容协议，MiniMax 走 Anthropic 兼容协议。带会话记忆的流式聊天与思考模式。
+Spring Boot 4.0.6 + LangChain4J 1.13.1，支持 `deepseek-v4` / `MiniMax-M3` 双 LLM profile 切换：DeepSeek 走 OpenAI 兼容协议，MiniMax 走 Anthropic 兼容协议。带会话记忆的流式聊天与思考模式。
 
 Hot Memory 含三种 type（v0.14）：`user-impression`（用户画像，UPSERT）/ `significant-event`（重要经历，append-only）/ `commitment`（双方承诺，append-only）。情绪谱 7 词：平静 / 愉快 / 兴奋 / 难过 / 愤怒 / 好奇 / 困惑。
 
 ## 架构
 
 **后端：** Spring WebFlux + Reactor Netty（已移除 `spring-boot-starter-web`，对齐 LangChain4J 官方姿势）。HTTP 入口集中在 `ChatController`：
-- `POST /ai/chat`（SSE）—— 单一 ChatAssistant 流式聊天，事件类型 `thinking` / `content` / `tool_call` / `tool_result` / `mood` / `error`
-- `GET /ai/features` —— 当前 profile LLM 能力声明（profile / thinkingToggle）
+- `POST /ai/chat`（SSE）—— 流式聊天，事件类型 `thinking` / `content` / `tool_call` / `tool_result` / `mood` / `error`；请求携带 `thinking` 布尔开关，true 走思考档、false 走快档
+- `GET /ai/features` —— 当前 profile 标识（预留扩展点，前端暂不消费）
 - `GET /ai/memory/hot?userId=X&type=Y` —— Hot Memory snapshot
 
 配置见 `application.yml`。
@@ -19,14 +19,24 @@ Hot Memory 含三种 type（v0.14）：`user-impression`（用户画像，UPSERT
 
 ## LLM Profile 切换
 
-当前激活 profile 由 `ai.llm.profile` 决定（v0.135 起替代旧 `ai.llm.provider`）：
+当前激活 profile 由 `ai.llm.profile.active` 决定，profile 名与模型官方命名一致（`deepseek-v4` / `MiniMax-M3`）。切换 profile = 改这一行 + 重启。每个模型版本独立 profile（`deepseek-v3` 与 `deepseek-v4` 视同不同厂商），独立 `@ConfigurationProperties` 命名空间（`ai.llm.deepseek-v4.*` / `ai.llm.minimax-m3.*`），由 `@ConditionalOnProperty` 路由对应 `XxxConfig`。
 
-- `deepseek-v4`：DeepSeek v4 hybrid 模型，always-on 自适应 reasoning，无 thinking 开关
-- `minimax`：MiniMax 模型（M1/M2 等），走 Anthropic 兼容协议，builder 期固定开启 thinking
+### 模型 Bean 角色（按项目需求定义，跨 profile 统一命名）
 
-切换 profile = 改 `application.yml` 一行 `ai.llm.profile` + 重启。每个 profile 独立 `@ConfigurationProperties` 命名空间（`ai.llm.deepseek-v4.*` / `ai.llm.minimax.*`），由 `@ConditionalOnProperty` 路由对应 `XxxConfig` 装配 `chatModel` + `LlmCapabilities` Bean。
+模型角色按项目业务需求定义（而非映射各厂商参数空间），每个 profile Config 负责把角色映射到自家实现：
 
-> 已知限制：LC4J 1.13.1 langchain4j-anthropic 未提供 `AnthropicChatRequestParameters` per-call 子类，thinking 参数无法 per-call 覆盖。minimax profile 的 `thinkingToggle` 暂声明 false（降级），按钮在所有 profile 下统一仅控显示。详见 `obsidian-vaults/tech/Agent开发/拟人化AI Agent-总设计方案.md` 的"已知技术债"章节。
+| 角色 Bean | 用途 | deepseek-v4 | MiniMax-M3 |
+|---|---|---|---|
+| `thinkingStreamingChatModel`（流式） | 前端开思考 | pro + thinking enabled + effort max | adaptive |
+| `fastStreamingChatModel`（流式） | 前端关思考 | flash + thinking disabled | disabled |
+| `fastSyncChatModel`（同步） | 情绪分类 + 摘要压缩 | flash + thinking disabled | disabled |
+
+每档模型 ID 由 `ai.llm.<profile>.chat.thinking-model / fast-model` 配置（MiniMax M3 两档同模型同值，靠 thinking 参数区分）。
+
+`AssistantConfig` 据此装配两个 `ChatAssistant`（thinking / fast），共享同一 ChatMemoryProvider，切档不丢上下文。前端思考开关 on→thinking、off→fast，纯布尔透传。
+
+> 已知限制：LC4J 1.13.1 AiServices 不支持 per-call `ChatRequestParameters`，thinking 参数只能 builder 期固定——这是"每档一个 assistant"的根因，也是前端只做布尔开关、不做模型参数级控件的原因。上游支持后可收敛为单 assistant + per-call 参数。
+> 注意：所有模型 Bean 统一开 `returnThinking + sendThinking`——多档共享会话记忆，上一轮思考档产出的 reasoning/thinking 内容必须在后续轮次（即使走快档）原样回传，否则 DeepSeek API 拒绝、MiniMax 工具调用行为异常。
 
 ## 后端开发约束（WebFlux）
 

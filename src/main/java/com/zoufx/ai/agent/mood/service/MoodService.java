@@ -6,6 +6,7 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -19,7 +20,7 @@ import java.util.List;
  * 抢在主推理流之前判出小Z 的"第一反应情绪"，让前端头像立刻变脸（开口前先把情绪挂脸上）。
  *
  * <p>判断带上本锚点最近的对话窗口：新消息放进上下文里理解（上一句还在倾诉、这句只回「嗯」时
- * 不会被孤立判成平静）。复用 {@code chatModelFast}（flash 轻量同步），整条调用包在 boundedElastic
+ * 不会被孤立判成平静）。复用 {@code fastSyncChatModel}（快档轻量同步），整条调用包在 boundedElastic
  * 上，绝不碰 event loop。窗口加载与主流并行，不进主流关键路径，首次变脸仍早于主流 TTFT。
  *
  * <p>失败语义有别：模型有响应但输出杂乱 → {@link Moods#normalize} 回落「平静」；
@@ -27,6 +28,7 @@ import java.util.List;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class MoodService {
 
     /** 注入 prompt 的最近对话条数上界——第一反应只取近因，过长既稀释判断又涨延迟。 */
@@ -60,11 +62,8 @@ public class MoodService {
             ---
             """;
 
+    @Qualifier("fastSyncChatModel")
     private final ChatModel chatModel;
-
-    public MoodService(@Qualifier("chatModelFast") ChatModel chatModel) {
-        this.chatModel = chatModel;
-    }
 
     /** 异常/超时吞掉为 empty，不发情绪事件、不影响主流。 */
     public Mono<String> classifyAsync(String userMessage, List<ChatMessage> history) {

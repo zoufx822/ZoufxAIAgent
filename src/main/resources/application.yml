@@ -56,28 +56,30 @@ ai:
     backfill-on-start: false
 
   llm:
-    # 当前激活的 LLM profile：deepseek-v4 | minimax
-    profile: deepseek-v4
+    # 当前激活的 LLM profile（与模型官方命名一致）：deepseek-v4 | MiniMax-M3
+    profile:
+      active: deepseek-v4
 
     deepseek-v4:
       base-url: https://api.deepseek.com
       api-key: ${OPENAI_API_KEY:}
       timeout: 60s
       chat:
-        core-model: deepseek-v4-pro
+        thinking-model: deepseek-v4-pro
         fast-model: deepseek-v4-flash
         max-tokens: 2048
 
-    minimax:
+    minimax-m3:
       base-url: https://api.minimaxi.com/anthropic/v1
       api-key: ${ANTHROPIC_API_KEY:}
       version: 2023-06-01
       timeout: 60s
       chat:
-        core-model: MiniMax-M2.5
+        # M3 无快慢模型分层，两档同模型靠 thinking 参数区分；上游放出快速变体后改 fast-model
+        thinking-model: MiniMax-M3
+        fast-model: MiniMax-M3
         max-tokens: 16384
       thinking:
-        type: enabled
         budget-tokens: 8192
 
   tools:

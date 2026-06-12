@@ -1,6 +1,7 @@
 package com.zoufx.ai.agent.memory.impl;
 
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -23,16 +24,13 @@ import java.util.List;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ColdMemoryDaoImpl implements ColdMemoryDao {
 
+    @Qualifier("memoryJdbcTemplate")
     private final JdbcTemplate jdbc;
+    @Qualifier("memoryTxTemplate")
     private final TransactionTemplate tx;
-
-    public ColdMemoryDaoImpl(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc,
-                                 @Qualifier("memoryTxTemplate") TransactionTemplate tx) {
-        this.jdbc = jdbc;
-        this.tx = tx;
-    }
 
     @PostConstruct
     public void init() {

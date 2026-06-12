@@ -8,6 +8,7 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ import java.util.List;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class AnchorService {
 
     /** 摘要 prompt 模板——%s 处填入格式化好的对话文本。 */
@@ -43,17 +45,10 @@ public class AnchorService {
     /** 摘要超过此字符数被截断——防止个别极端 LLM 输出撑爆 prompt 注入预算。 */
     private static final int SUMMARY_MAX_CHARS = 400;
 
+    @Qualifier("fastSyncChatModel")
     private final ChatModel chatModel;
     private final ChatMemoryDao chatMemoryDao;
     private final AnchorMemoryDao anchorMemoryDao;
-
-    public AnchorService(@Qualifier("chatModelFast") ChatModel chatModel,
-                         ChatMemoryDao chatMemoryDao,
-                         AnchorMemoryDao anchorMemoryDao) {
-        this.chatModel = chatModel;
-        this.chatMemoryDao = chatMemoryDao;
-        this.anchorMemoryDao = anchorMemoryDao;
-    }
 
     public Mono<Void> compressAsync(String anchorId) {
         return Blocking.run(() -> compress(anchorId))
@@ -78,7 +73,7 @@ public class AnchorService {
             log.info("Skip compression [anchorId={}]: empty transcript", anchorId);
             return;
         }
-        String summary = callLlm(transcript);
+        String summary = callLLM(transcript);
         anchorMemoryDao.updateSummaryIfUnchanged(anchorId, summary, snapshotAt);
         log.info("Anchor summary saved [anchorId={}] len={}", anchorId, summary.length());
     }
@@ -97,7 +92,7 @@ public class AnchorService {
         return AnchorContextView.from(anchorMemoryDao.listOtherAnchors(userId, anchorId));
     }
 
-    private String callLlm(String transcript) {
+    private String callLLM(String transcript) {
         String prompt = String.format(SUMMARY_PROMPT_TEMPLATE, transcript);
         String raw = chatModel.chat(UserMessage.from(prompt)).aiMessage().text();
         if (raw == null) return "";

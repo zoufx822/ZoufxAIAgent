@@ -9,6 +9,7 @@ import dev.langchain4j.data.message.ChatMessageDeserializer;
 import dev.langchain4j.data.message.ChatMessageSerializer;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
@@ -40,19 +41,14 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ChatMemoryDaoImpl implements ChatMemoryDao {
 
+    @Qualifier("memoryJdbcTemplate")
     private final JdbcTemplate jdbc;
+    @Qualifier("memoryTxTemplate")
     private final TransactionTemplate tx;
     private final AnchorMemoryDao anchorMemoryDao;
-
-    public ChatMemoryDaoImpl(@Qualifier("memoryJdbcTemplate") JdbcTemplate jdbc,
-                                 @Qualifier("memoryTxTemplate") TransactionTemplate tx,
-                                 AnchorMemoryDao anchorMemoryDao) {
-        this.jdbc = jdbc;
-        this.tx = tx;
-        this.anchorMemoryDao = anchorMemoryDao;
-    }
 
     @PostConstruct
     public void init() {
