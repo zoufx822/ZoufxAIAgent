@@ -45,7 +45,7 @@ public class RecallPieceImpl implements Piece {
     public static String format(List<RecallResult> hits) {
         if (hits == null || hits.isEmpty()) return "";
         StringBuilder sb = new StringBuilder("## 此刻想起的相关记忆\n\n");
-        sb.append("（以下是你自然想起的、与当前对话相关的过往记忆——自然融入回应，不要生硬罗列或复述）\n");
+        sb.append("（以下是你自然想起的、与当前对话相关的过往记忆——直接当作你记得的事实使用，自然融入回应，不要生硬罗列；其中已有的内容==不要==再调用记忆检索去查一遍）\n");
         for (RecallResult r : hits) {
             sb.append("- ").append(label(r.memType())).append(truncate(r.content())).append("\n");
         }

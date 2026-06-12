@@ -19,7 +19,7 @@
 | 10  | `SoulPieceImpl` | `## 关于你自己` | `SoulDaoImpl.DEFAULT_SEED`（role/name/tone/principles/forbidden_patterns/quirks） |
 | 20  | `UserImprPieceImpl` | `## 关于对方` | `UserImpressionFields.FIELDS` 10 字段的 `renderDirective()`（非空字段才出现） |
 | 20  | `UserImprPieceImpl` | `## 你对对方的了解程度` | stranger/half-known/fully-known 三模式（fill_ratio 阈值：0.3/0.7；10 字段共 100%) |
-| 28  | `AnchorPieceImpl` | `## 你与对方的其他对话窗口` | `anchor_memory` 其他锚点已有 summary 的条目，按 last_active_at desc，最多 5 条 |
+| 28  | `AnchorPieceImpl` | `## 你与对方此前的其他交谈` | `anchor_memory` 其他锚点已有 summary 的条目，按 last_active_at desc，最多 5 条 |
 | 30  | `ToolsPieceImpl` | `## 可用工具` | 5 个 `ToolPrompt` Bean 的 promptInstructions 拼接（见下表） |
 | 35  | `ExpressionPieceImpl` | `## 回复框架` | 静态文案——回复结构与详略框架 |
 | 35  | `ExpressionPieceImpl` | `## 输出格式` | 静态文案——Markdown 输出形态约束（禁止整段裹进代码围栏等） |
@@ -35,7 +35,7 @@
 | `UserImpressionUpdateTool` | `update_user_impression` | 识别到任何画像属性（10 字段白名单） |
 | `SignificantEventRecordTool` | `record_significant_event` | 情绪显著人生事件 / 长期处境 / 带时间标记经历 |
 | `CommitmentRecordTool` | `record_commitment` | 双方做出承诺（3 种前缀之一） |
-| `ColdMemorySearchTool` | `search_cold_memory` | 对方暗示"之前聊过"而当前窗口没有时 |
+| `ColdMemorySearchTool` | `search_cold_memory` | 对方提到过往而此刻已想起的内容（召回段/交谈摘要/当前对话）里都没有时；召回段已有答案则==不得==调用 |
 | `TavilySearchTool` | `search_web` | 实时/最新信息、用户明确要求搜索 |
 
 ---
@@ -87,7 +87,7 @@
 | ...| Tools / update_user_impression | 识别到画像属性 | "识别到...立刻调...不能只口头确认而不调工具" | 对方报名时 AI 调工具，不只说"好的我记下了" |
 | ...| Tools / record_significant_event | 情绪显著事件 | 命中信号...调用规则 | 父母去世等事件立刻 record，临时事实不写 |
 | ...| Tools / record_commitment | 承诺识别 | 3 种前缀必填 | 你应允时 record_commitment，description 带前缀 |
-| ...| Tools / search_cold_memory | "之前说过"而窗口没有 | 先调工具再判断；不说"我没有记录" | 对方问"我之前说过 X 吗"→ AI 先搜，不直接否认 |
+| ...| Tools / search_cold_memory | 对方提到过往，且此刻已想起的内容（召回段/交谈摘要/当前对话）里都没有 | 先回想、再检索、最后才能下结论；不说"我没有记录" | 召回段已有答案 → 直接答==不调工具==；都没有 → 先搜，不直接否认 |
 | ...| Tools / search_web | 实时信息、明确要求搜 | 关键词含具体日期；日期核对规则 | 问今日天气 → AI 调 search_web，关键词含当天日期 |
 | ...| Mood | 常驻（无开关） | 情绪转折处就地插 ⟦mood:KEYWORD⟧（0~N 个）；7词词表；倾向规则 | 情绪有起伏时回复内出现合法 mood 标记（被后端剥离为 mood 事件），平淡时可无 |
 | ...| Mood / fallback 反模式 | 任意对话 | "「平静」只用于真正平淡的事务性对话，不是 fallback 默认值" | 用户分享好消息 → 兴奋，不默认平静 |
@@ -130,7 +130,8 @@
 | TP-14 | Tools/record_significant_event（临时性排除） | 反向 | 全新 anchorId | 发"今天迟到了" | AI 不调 record_significant_event |
 | TP-15 | Tools/record_commitment（AI 承诺） | 正向 | username=ZFX | 对方说"你这周帮我梳理 React 路径吧"，AI 应允 | AI 调 record_commitment("我（AI）答应ZFX：本周帮其梳理 React 学习路径") |
 | TP-16 | Tools/record_commitment（前缀验证） | 边界 | username=ZFX | 对方说"我下周把代码 review 完发给你" | AI 调 record_commitment("ZFX答应我：下周 review 完代码") |
-| TP-17 | Tools/search_cold_memory（必触发）| 正向 | cold_memory 有历史；当前锚点无该内容 | 发"我之前说过我最喜欢喝什么吗" | AI 先调 search_cold_memory，再回答；不直接说"我没有记录" |
+| TP-17a | Tools/search_cold_memory（召回命中→不得调用）| 反向 | "喜欢美式咖啡"已索引进向量库；新锚点（自动召回会命中注入召回段） | 发"我之前说过我最喜欢喝什么吗" | AI 直接答出美式咖啡，==不调== search_cold_memory（无工具卡片） |
+| TP-17b | Tools/search_cold_memory（想不起来→必触发）| 正向 | 向量库无相关内容（问从未提过的话题） | 发"你还记得我说过我养了什么宠物吗" | AI 先调 search_cold_memory，空结果后如实说想不起来；不直接说"我没有记录" |
 | TP-18 | Tools/search_web（实时信息） | 正向 | 任意状态 | 发"今天北京天气怎么样" | AI 调 search_web，关键词包含当日日期 |
 | TP-19 | Mood / 情绪共情 | 正向 | 任意状态 | 发"今天面试失败了，心情很差" | mood 事件含"难过"，不是"平静" |
 | TP-20 | Mood / 正向共鸣 | 正向 | 任意状态 | 发"我终于拿到 offer 了！" | mood 事件含"兴奋"，不是"平静" |
