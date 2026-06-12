@@ -20,7 +20,7 @@ ai:
       max-backoff: 2s
 
   memory:
-    db-path: ./data/zoufx-ai.db
+    db-path: ./data/sqlite/zoufx-ai.db
 
   # 语义召回 Embedding（OpenAI 兼容 BGE-M3，与 LLM profile 解耦）
   embedding:

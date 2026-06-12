@@ -19,7 +19,7 @@
     { "name": "ai.chat.retry.min-backoff", "type": "java.time.Duration" },
     { "name": "ai.chat.retry.max-backoff", "type": "java.time.Duration" },
     { "name": "ai.memory.max-messages", "type": "java.lang.Integer", "description": "Chat memory max messages per session" },
-    { "name": "ai.memory.store.db-path", "type": "java.lang.String", "description": "SQLite database file path (default: ./data/zoufx-ai.db)" },
+    { "name": "ai.memory.store.db-path", "type": "java.lang.String", "description": "SQLite database file path (default: ./data/sqlite/zoufx-ai.db)" },
     { "name": "ai.tools.web-search.enabled", "type": "java.lang.Boolean", "description": "Enable web search" },
     { "name": "ai.tools.web-search.type", "type": "java.lang.String", "description": "Search engine type: tavily | google | bing" },
     { "name": "ai.tools.web-search.tavily.api-key", "type": "java.lang.String" },

@@ -6,5 +6,5 @@ services:
       - "6333:6333"    # HTTP + Web 控制台
       - "6334:6334"    # gRPC（后端连这个）
     volumes:
-      - ./qdrant_storage:/qdrant/storage   # 数据持久化
+      - ./data/qdrant:/qdrant/storage   # 数据持久化
     restart: unless-stopped

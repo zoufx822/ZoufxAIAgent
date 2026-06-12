@@ -147,7 +147,7 @@
 - 全新 userId + anchorId：`browser_evaluate('() => { localStorage.clear(); location.reload(); }')` → 前端新建对话调 `POST /ai/anchors` 拿 anchorId
 - 直接调 API 创建锚点：`curl -X POST http://localhost:8080/ai/anchors -H 'Content-Type: application/json' -d '{"userId":"zfx","title":"测试锚点"}'`
 
-**SQL 状态注入**（`sqlite3 ./data/zoufx-ai.db`）：
+**SQL 状态注入**（`sqlite3 ./data/sqlite/zoufx-ai.db`）：
 ```sql
 -- 设置 hot_memory 用户画像字段（UPSERT）
 INSERT OR REPLACE INTO hot_memory (user_id, type, key, value, updated_at)

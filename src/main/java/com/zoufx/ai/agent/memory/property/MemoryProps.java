@@ -11,5 +11,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class MemoryProps {
 
     /** SQLite 数据库文件路径 */
-    private String dbPath = "./data/zoufx-ai.db";
+    private String dbPath = "./data/sqlite/zoufx-ai.db";
 }
