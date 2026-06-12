@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.prompt.impl;
 
-import com.zoufx.ai.agent.prompt.api.PromptSection;
+import com.zoufx.ai.agent.prompt.api.Piece;
 import com.zoufx.ai.agent.tool.api.ToolPrompt;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
  */
 @Component
 @RequiredArgsConstructor
-public class ToolsSection implements PromptSection {
+public class ToolsPieceImpl implements Piece {
 
     private final List<ToolPrompt> tools;
 

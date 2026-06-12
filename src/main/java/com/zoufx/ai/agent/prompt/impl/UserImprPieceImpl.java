@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.prompt.impl;
 
-import com.zoufx.ai.agent.prompt.api.PromptSection;
+import com.zoufx.ai.agent.prompt.api.Piece;
 import com.zoufx.ai.agent.memory.api.HotMemoryDao;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.memory.support.UserImpressionFields;
@@ -13,9 +13,11 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 
 /**
- * 「## 你对对方的了解程度」段（order=26）——基于画像完备度引导主动了解。
+ * 用户画像段（order=20）——同一份 user-impression snapshot 渲染两段：
+ * 「## 关于对方」（已识别字段套 {@link FieldSpec#renderDirective()} 模板）+
+ * 「## 你对对方的了解程度」（按 fill_ratio 引导主动了解）。
  *
- * <p>按 fill_ratio 落入三档：stranger（ratio &lt; 0.3 → 追问一个字段 + 深度话题拒答）、
+ * <p>了解程度按 fill_ratio 落入三档：stranger（ratio &lt; 0.3 → 追问一个字段 + 深度话题拒答）、
  * half-known（0.3~0.7 → 适度追问 + 保留意见）、fully-known（≥ 0.7 → 不追问，引用已知）。
  * stranger 模式下按 FIELDS 声明顺序找未填字段第 1 名，动态拼接追问指令替换
  * {@code {fieldQuestion}} 占位。
@@ -23,9 +25,9 @@ import java.util.Map;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class ImpressionGuidanceSection implements PromptSection {
+public class UserImprPieceImpl implements Piece {
 
-    private static final String SECTION_HEADER = "## 你对对方的了解程度\n\n";
+    private static final String CLOSENESS_HEADER = "## 你对对方的了解程度\n\n";
     private static final String STRANGER = "stranger";
     private static final String HALF_KNOWN = "half-known";
     private static final String FULLY_KNOWN = "fully-known";
@@ -61,7 +63,7 @@ public class ImpressionGuidanceSection implements PromptSection {
 
     @Override
     public int order() {
-        return 26;
+        return 20;
     }
 
     @Override
@@ -70,8 +72,33 @@ public class ImpressionGuidanceSection implements PromptSection {
         if (userId == null) return null;
         Map<String, String> snap = hotMemoryDao.snapshot(userId, HotMemoryType.USER_IMPRESSION);
 
+        StringBuilder sb = new StringBuilder();
+        renderImpression(sb, snap);
+        renderCloseness(sb, snap);
+        return sb.isEmpty() ? null : sb.toString();
+    }
+
+    /** 「## 关于对方」——按 FIELDS 声明顺序渲染非空字段，全空则段不出现。 */
+    private void renderImpression(StringBuilder sb, Map<String, String> snap) {
+        int start = sb.length();
+        sb.append("## 关于对方\n\n");
+        boolean any = false;
+        for (Map.Entry<String, FieldSpec> e : UserImpressionFields.FIELDS.entrySet()) {
+            String value = snap.get(e.getKey());
+            if (value == null || value.isBlank()) continue;
+            any = true;
+            String directive = e.getValue().renderDirective();
+            sb.append(directive.replace("{}", value));
+            if (!directive.endsWith("\n")) sb.append("\n");
+            sb.append("\n");
+        }
+        if (!any) sb.setLength(start);
+    }
+
+    /** 「## 你对对方的了解程度」——fill_ratio 三档引导。 */
+    private void renderCloseness(StringBuilder sb, Map<String, String> snap) {
         int total = UserImpressionFields.FIELDS.size();
-        if (total == 0) return null;
+        if (total == 0) return;
         int filled = 0;
         for (String key : UserImpressionFields.FIELDS.keySet()) {
             String v = snap.get(key);
@@ -82,16 +109,16 @@ public class ImpressionGuidanceSection implements PromptSection {
         String mode = resolveMode(fillRatio);
         String template = promptForMode(mode);
         if (template == null) {
-            log.warn("ImpressionGuidanceSection skipped: no prompt for mode={} (fillRatio={})",
+            log.warn("UserImprPieceImpl closeness skipped: no prompt for mode={} (fillRatio={})",
                     mode, fillRatio);
-            return null;
+            return;
         }
 
         String rendered = template;
         if (STRANGER.equals(mode) && rendered.contains(FIELD_QUESTION_PLACEHOLDER)) {
             rendered = rendered.replace(FIELD_QUESTION_PLACEHOLDER, buildFieldQuestion(snap));
         }
-        return SECTION_HEADER + rendered;
+        sb.append(CLOSENESS_HEADER).append(rendered);
     }
 
     private String promptForMode(String mode) {
@@ -123,6 +150,6 @@ public class ImpressionGuidanceSection implements PromptSection {
             }
         }
         throw new IllegalStateException(
-                "ImpressionGuidanceSection.buildFieldQuestion 在 stranger mode 下未找到未填字段，请检查 UserImpressionFields.FIELDS 定义");
+                "UserImprPieceImpl.buildFieldQuestion 在 stranger mode 下未找到未填字段，请检查 UserImpressionFields.FIELDS 定义");
     }
 }

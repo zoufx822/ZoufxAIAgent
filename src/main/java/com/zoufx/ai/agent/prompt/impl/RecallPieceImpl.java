@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.prompt.impl;
 
-import com.zoufx.ai.agent.prompt.api.PromptSection;
+import com.zoufx.ai.agent.prompt.api.Piece;
 import com.zoufx.ai.agent.vector.support.RecallContextHolder;
 import com.zoufx.ai.agent.vector.model.RecallResult;
 import com.zoufx.ai.agent.vector.support.VectorPayload;
@@ -18,7 +18,7 @@ import java.util.List;
  */
 @Component
 @RequiredArgsConstructor
-public class RecallContextSection implements PromptSection {
+public class RecallPieceImpl implements Piece {
 
     /** 单条内容截断上限（受限即驱动，控常驻注意力）。 */
     private static final int MAX_ITEM_LEN = 120;

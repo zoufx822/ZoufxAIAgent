@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.prompt.impl;
 
-import com.zoufx.ai.agent.prompt.api.PromptSection;
+import com.zoufx.ai.agent.prompt.api.Piece;
 import com.zoufx.ai.agent.memory.api.SoulDao;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -12,12 +12,11 @@ import java.util.Map;
  * 「## 关于你自己」段（order=10）——注入 AI 自身人格 / 风格 / 原则 / 反模式 / 一致性原则 / 小习惯。
  *
  * <p>渲染顺序硬编码：role → name/tone → principles → forbidden_patterns → consistency_principles → quirks，
- * 直接从 {@code SoulDao.snapshot()} 取值，缺值字段自然跳过。与 {@code IdentitySection}
- * 对偶——前者是"我是谁"，后者是"对方是谁"。
+ * 直接从 {@code SoulDao.snapshot()} 取值，缺值字段自然跳过。
  */
 @Component
 @RequiredArgsConstructor
-public class SoulSection implements PromptSection {
+public class SoulPieceImpl implements Piece {
 
     private final SoulDao soulDao;
 

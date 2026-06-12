@@ -1,6 +1,6 @@
 package com.zoufx.ai.agent.prompt.impl;
 
-import com.zoufx.ai.agent.prompt.api.PromptSection;
+import com.zoufx.ai.agent.prompt.api.Piece;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.model.AnchorMemory;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +19,7 @@ import java.util.List;
  */
 @Component
 @RequiredArgsConstructor
-public class AnchorContextSection implements PromptSection {
+public class AnchorPieceImpl implements Piece {
 
     /** 最多注入的其他锚点条数——按 last_active_at desc 取头部。 */
     private static final int INJECT_LIMIT = 5;

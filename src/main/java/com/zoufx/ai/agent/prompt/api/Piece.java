@@ -7,7 +7,7 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>各业务模块实现本接口并注册为 Spring Bean，由 {@code PromptComposer} 按
  * {@link #order()} 升序串行调用 {@link #render(String)} 拼接为完整 system prompt。
- * 实现一律放 {@code chat/impl/}，业务模块只通过 api/property 暴露数据源。
+ * 实现一律放 {@code prompt/impl/}，业务模块只通过 api/property 暴露数据源。
  *
  * <p><b>契约</b>：
  * <ul>
@@ -17,7 +17,7 @@ import org.jspecify.annotations.Nullable;
  *   <li>实现必须无状态——状态藏在注入的 Store 里</li>
  * </ul>
  */
-public interface PromptSection {
+public interface Piece {
 
     /** 注入顺序（升序）。建议保留间隔（如 10/20/30/...）方便未来插入新 Section。 */
     int order();

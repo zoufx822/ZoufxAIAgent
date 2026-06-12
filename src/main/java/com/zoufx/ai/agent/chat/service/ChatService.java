@@ -8,7 +8,7 @@ import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
 import com.zoufx.ai.agent.memory.api.ColdMemoryDao;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import com.zoufx.ai.agent.chat.model.ChatPrepared;
-import com.zoufx.ai.agent.prompt.impl.RecallContextSection;
+import com.zoufx.ai.agent.prompt.impl.RecallPieceImpl;
 import com.zoufx.ai.agent.mood.support.MoodEventProcessor;
 import com.zoufx.ai.agent.vector.support.RecallContextHolder;
 import com.zoufx.ai.agent.chat.support.RetryableExceptions;
@@ -131,7 +131,7 @@ public class ChatService {
             // 3. 语义召回注入 holder，SystemPromptProvider.compose() 会在 LC4J 构建 prompt 时同步读取
             Long windowSince = coldMemoryDao.windowLowerBound(userId, ChatProps.getLoadMessage());
             List<RecallResult> recalled = recallService.recall(userId, emb, RecallProps.getLimit(), windowSince);
-            recallContextHolder.set(anchorId, RecallContextSection.format(recalled));
+            recallContextHolder.set(anchorId, RecallPieceImpl.format(recalled));
 
             // 4. fire-and-forget 索引（先召回后索引，避免本次消息把自己召回）
             indexer.indexAsync(userId, VectorPayload.COLD, String.valueOf(coldUserId),
