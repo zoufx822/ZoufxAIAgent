@@ -69,10 +69,9 @@ pnpm dev                             # 前端 :3000
 
 ## 五、当前状态快照（2026-10-21 复核）
 
-- 后端 `main` 最新提交：`446eba3`（2026-10-21）chore: 归档补入 .claude/settings.local.json —— 已推送，本地与 `origin/main` 一致
-- 前端 `main` 最新提交：`6c978b0`（2026-10-21）chore: 移除 CLAUDE.md —— 已推送，本地与 `origin/main` 一致
-- 后端工作区：干净，仅剩未跟踪的 `deepseekharness/`（本 DSH 目录）；`pom.xml` 为 `0.2.5-SNAPSHOT`
-- 前端工作区：干净，仅剩未跟踪的 `claudedesign/`（原型 + 设计文档，约 6.6 MB）
+- 后端 `main`：DSH 目录（`deepseekharness/`，5 文件）已随 `chore: 迁入 DSH 会话目录与工作区规则` 提交并推送，工作区干净
+- 前端 `main`：`claudedesign/`（149 文件 / 6.6 MB）已随 `chore: 归档 Claude Design 原型与交接文档` 提交并推送，工作区干净
+- 两库 `pom.xml` / `package.json` 版本未变（`0.2.5-SNAPSHOT` / `0.1.0`）
 - 服务均未启动：8080 / 3000 / 6333 / 6334 无监听，Docker daemon 未运行
 - 存量数据：`data/sqlite/zoufx-ai.db` 5.7 MB；`data/qdrant/collections/memory_vectors` 存在（上次运行留下的索引）
 
@@ -115,6 +114,5 @@ DSH 的加载规则（读自 app.asar 内的包文档，非推测）：
 
 ### 当前待处理（2026-10-21）
 
-- `deepseekharness/`（后端仓库内）与 `claudedesign/`（前端仓库内）都**未被 git 跟踪**，会一直出现在两侧 `git status` 里。两种处理方式：加进各自 `.gitignore`，或把目录移出仓库——等你决定，我不自行动手。
-- `claudedesign/project/_inspect/` 是历史截图/探针产物（约几十张 png），需要时单独清理，不影响原型与交接文档。
-- 历史项已闭环：原「6 个删除未提交 + `claudecode/` 未跟踪」已由 `e4d6bad` / `d2f3804` / `446eba3` 三个提交处理完。
+- 无未处理项。`deepseekharness/` 与 `claudedesign/` 均已入库，两库工作区干净。
+- 唯一可选的清理：`claudedesign/project/_inspect/`（41 个文件 / 0.4 MB，历史截图与探针产物）已随归档提交进历史，删掉只能减少工作区体积，不会从 history 移除；需要时再单独处理。
