@@ -1,16 +1,8 @@
-# Compiled class file
+# ── Java / Maven 构建产物 ──
 *.class
+target/
 
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
+# ── 依赖包归档 ──
 *.jar
 *.war
 *.nar
@@ -19,33 +11,21 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# ── 日志与 JVM 崩溃转储 ──
+*.log
 hs_err_pid*
 replay_pid*
 
-# Node
-node_modules/
-
-# IDE
-.idea/
-
-# Playwright MCP
-.playwright-mcp/
-
-# Maven build output
-target/
-
-# Worktrees
-.worktrees/
-
-# Local config（含 API keys）
+# ── 本地配置（含 API keys，不进版本库）──
 application-local.yml
 application-local.properties
-
-# SQLite 持久化数据
-/data/
-.codegraph/
-.reasonix/
-
-# env files (can opt-in for committing if needed)
 .env*
+
+# ── 运行时数据：SQLite 正本 + Qdrant 向量 ──
+/data/
+
+# ── IDE ──
+.idea/
+
+# ── Playwright MCP 临时目录（测试截图，由 .claude 钩子自动清理）──
+.playwright-mcp/
