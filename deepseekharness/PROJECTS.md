@@ -42,7 +42,7 @@ mvn spring-boot:run                  # 后端 :8080
 - **主要文件**（按 LOC）：`app/globals.css`(2293) > `components/chat-window.tsx`(631) > `components/eyes.tsx`(398) > `components/message-item.tsx`(338) > `lib/store.ts`(331) > `hooks/use-chat-stream.ts`(306) > `components/ui/stream-markdown.tsx`(298) > `components/memory-anchor-drawer.tsx`(253) > `lib/chat-stream.ts`(232)
 - **架构**：`components/layout.tsx` 三段工作台 = `rail.tsx`（左 56px）+ 主区（`chat-window` + `presence-float`）+ `state-panel/`（右 280px，四个子面板：用户印象 / 记忆锚点 / 事件 / 承诺）
 - **消息不持久化**：localStorage 键 `zoufx-chat-sessions` 只存 `userId / anchors / currentAnchorId`，切锚时 `useAnchorMessages` 从后端拉窗口消息
-- **项目规则文件**：本仓库 `CLAUDE.md` 已于 2026-10-21 删除；规则看后端仓库内 `deepseekharness\AGENTS.md`（DSH）或 `claudecode\CLAUDE.md`（归档）
+- **项目规则文件**：本仓库 `CLAUDE.md` 已于 2026-10-21 删除；规则只维护 `deepseekharness\AGENTS.md`（`claudecode\CLAUDE.md` 已冻结，不再同步）
 
 ```powershell
 pnpm dev                             # 前端 :3000
@@ -60,7 +60,7 @@ pnpm dev                             # 前端 :3000
 | `ZoufxAIAgent-Web\claudedesign\project\uploads\拟人化AI Agent-v0.xx.md`（产品/技术规格） | 后端 `com.zoufx.ai.agent.*` 各模块 |
 | `ZoufxAIAgent-Web\claudedesign\project\CLAUDE_CODE_交接_*.md`（逐轮交接提示词） | 前后端两侧的落地改动说明 |
 | `ZoufxAIAgent-Web\claudedesign\project\design_handoff*/`（设计 token / 布局 / 数据契约） | 前端样式与右栏数据契约 |
-| `ZoufxAIAgent\claudecode\`（`CLAUDE.md` + `.claude/`） | Claude Code 时代的规则/命令/技能归档，只读参考 |
+| `ZoufxAIAgent\claudecode\`（`CLAUDE.md` + `.claude/`） | Claude Code 时代的规则/命令/技能归档，已冻结不维护，换工具时再同步 |
 | `ZoufxAIAgent\deepseekharness\`（本目录） | DSH 的规则 `AGENTS.md`、索引 `PROJECTS.md`、技能 `.dsh/skills/` |
 
 `claudedesign/` 是 Claude Design 的导出包（`README.md` 仍是导出自带的说明，里面写的 `zoufx-ai/project/...` 指的就是本目录下的 `project/`）。其中 `_inspect/` 是历史截图与探针产物，可随时清掉。
@@ -79,7 +79,7 @@ pnpm dev                             # 前端 :3000
 
 1. **不要动** `claudedesign/project/Zoufx AI (xx备份).html` 这类原型备份；代码库的 git 提交/推送需用户明确下令，只读 git 命令不受限。
 2. 后端 WebFlux 红线：Controller/Service 内禁止阻塞 API（JDBC / RestTemplate / Thread.sleep / 同步 IO）。
-3. 代码库文档有滞后处：Skill 里的技术栈版本以 `pom.xml` / `package.json` 为准（`.dsh/skills/tech-stack/SKILL.md` 已于 2026-10-21 校正为 Spring Boot 4.1.0 / LC4J 1.17.2；归档的旧副本 `ZoufxAIAgent\claudecode\.claude\skills\tech-stack\SKILL.md` 仍写 4.0.6 / 1.11.0，别照抄）。
+3. 代码库文档有滞后处：技术栈版本以 `pom.xml` / `package.json` 为准（`.dsh/skills/tech-stack/SKILL.md` 已于 2026-10-21 校正为 Spring Boot 4.1.0 / LC4J 1.17.2；归档旧副本 `ZoufxAIAgent\claudecode\.claude\skills\tech-stack\SKILL.md` 仍写 4.0.6 / 1.11.0——归档已冻结，换回 Claude Code 时再同步，别照抄）。
 4. `claudedesign/project/打磨清单_TODO.md` 也严重滞后（多项其实已在代码库落地），以代码和最新交接文档为准。
 5. 后端仓库已于 2026-10-21 清理 AI 工具残留：删掉 `.codegraph`（代码图索引）、`.playwright-mcp`（测试脚本 + 消息快照）、`.reasonix`（桌面端状态）与空目录 `.worktrees`，约 8.3 MB；`.gitignore` 同步从 51 行精简到 31 行——去掉上述已删目录的规则和 BlueJ / J2ME / Node 模板噪声，保留 `/data/`、`application-local.*`、`.env*`、`target/`、`*.class`、`*.log`、`.idea/`、`.playwright-mcp/`（后者仍被 `/test` 流程使用）。以上改动已随 `a6bf181` 提交。
 6. 后端仓库换行符已于 2026-10-21 全库统一为 CRLF：105 个被跟踪文本文件全部 CRLF（原 76 LF / 29 CRLF 混合），内容零改动。注意该仓库 `core.autocrlf=true` + `.gitattributes` 为 `* text=auto`，批量改 EOL 后 `git status` 会误报一批「已修改」，需 `git add --renormalize .`（或排除真实改动文件）刷新索引 stat 缓存才会恢复正常。`git ls-files --eol` 现在全部是 `i/lf w/crlf`。
@@ -90,7 +90,7 @@ pnpm dev                             # 前端 :3000
 
 在本工作区按 DSH 的加载约定重建了一套，替代原先由 Claude Code 生成的 `.claude/` + `CLAUDE.md`。**原件已归档**到后端仓库的 `claudecode/`（2026-10-21 由用户移出仓库根），并已随 `e4d6bad` / `d2f3804` / `446eba3` 提交。
 
-2026-10-21 另做了一次合并：前端仓库 `ZoufxAIAgent-Web/CLAUDE.md` 的内容已并入 `claudecode/CLAUDE.md` 的「前端（ZoufxAIAgent-Web）」一节，并同步进本目录 `AGENTS.md`；前端仓库那份原件随后删除（`6c978b0`）。**此后维护两份即可**（Claude Code 看归档那份，DSH 看 `AGENTS.md`）。
+2026-10-21 另做了一次合并：前端仓库 `ZoufxAIAgent-Web/CLAUDE.md` 的内容已并入 `claudecode/CLAUDE.md` 的「前端（ZoufxAIAgent-Web）」一节，并同步进本目录 `AGENTS.md`；前端仓库那份原件随后删除（`6c978b0`）。**此后只维护 `AGENTS.md` 一份**：`claudecode/` 归档自 2026-10-21 起冻结，将来换回 Claude Code 工具时再从 `AGENTS.md` 同步过去。
 
 | DSH 资产 | 本目录路径 | 来自 Claude Code（归档位置） |
 |---|---|---|

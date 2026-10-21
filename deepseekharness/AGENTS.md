@@ -1,6 +1,6 @@
 # AGENTS.md · Zoufx AI 工作区规则
 
-> 内容由 Claude Code 时代的 `CLAUDE.md` 平移而来，并已把前端仓库 `CLAUDE.md` 的内容并入本文件「前端（ZoufxAIAgent-Web）」一节；原件（含 `.claude/`）归档在 `E:\ZoufxDemo\ZoufxAIAgent\claudecode\`，不再参与 DSH 加载；前端仓库那份原件已于 2026-10-21 删除（`6c978b0`）。
+> 内容由 Claude Code 时代的 `CLAUDE.md` 平移而来，并已把前端仓库 `CLAUDE.md` 的内容并入本文件「前端（ZoufxAIAgent-Web）」一节；原件（含 `.claude/`）归档在 `E:\ZoufxDemo\ZoufxAIAgent\claudecode\`，不再参与 DSH 加载，且自 2026-10-21 起**冻结不维护**（将来换回 Claude Code 工具时再同步）；前端仓库那份原件已于 2026-10-21 删除（`6c978b0`）。
 > 本文件位于 DSH 会话目录 `E:\ZoufxDemo\ZoufxAIAgent\deepseekharness`（在后端仓库内，未被 git 跟踪），由 `dsh-agent-instructions` 随会话加载，对本会话全局生效。
 
 ## 代码库位置（重要：本工作区不含源码）
@@ -9,13 +9,13 @@
 |---|---|
 | 后端（Spring Boot + LangChain4J） | `E:\ZoufxDemo\ZoufxAIAgent` |
 | 前端（Next.js 16） | `E:\ZoufxDemo\ZoufxAIAgent-Web` |
-| Claude Code 资产归档 | `E:\ZoufxDemo\ZoufxAIAgent\claudecode\`（`CLAUDE.md` + `.claude/`，只读参考） |
+| Claude Code 资产归档 | `E:\ZoufxDemo\ZoufxAIAgent\claudecode\`（`CLAUDE.md` + `.claude/`，2026-10-21 起冻结不维护） |
 | 本工作区（DSH 会话目录） | `E:\ZoufxDemo\ZoufxAIAgent\deepseekharness` —— 只放规则 `AGENTS.md`、索引 `PROJECTS.md` 与 `.dsh/skills/`，**没有**可构建的代码工程；原型与设计/交接文档在前端仓库 `ZoufxAIAgent-Web\claudedesign\` |
 
 下文出现的 `src/main/java/...`、`../ZoufxAIAgent-Web` 等路径，一律相对**后端 / 前端仓库根**。
 配套技能在本目录 `.dsh/skills/`：`/test`（功能测试）、`/test-prompt`（提示词行为测试）、`tech-stack`（选型备忘）。
 
-> 注意：前端仓库根的 `CLAUDE.md` 已于 2026-10-21 删除，前端架构说明现只存在于本文件与 `claudecode\CLAUDE.md`（Claude Code 用）。`claudedesign/` 是 Claude Design 导出的原型 handoff bundle，DSH 不自动加载，需要时按需读取。
+> 注意：前端仓库根的 `CLAUDE.md` 已于 2026-10-21 删除，前端架构说明现只存在于本文件；`claudecode\CLAUDE.md` 是冻结的旧副本（版本已滞后），换回 Claude Code 时再同步。`claudedesign/` 是 Claude Design 导出的原型 handoff bundle，DSH 不自动加载，需要时按需读取。
 
 ## 项目
 
@@ -42,7 +42,7 @@ Hot Memory 含三种 type：`user-impression`（用户画像，UPSERT）/ `signi
 
 ## 前端（ZoufxAIAgent-Web）
 
-前端是**独立仓库、独立部署**的 Next.js 应用，不在后端仓库里；两侧只通过 SSE + REST 契约耦合，**契约改动必须两侧同步**。本节由前端仓库的 `CLAUDE.md` 合并而来（2026-10-21）；该原件已删除，现两处同源：本文件与 `ZoufxAIAgent\claudecode\CLAUDE.md`。
+前端是**独立仓库、独立部署**的 Next.js 应用，不在后端仓库里；两侧只通过 SSE + REST 契约耦合，**契约改动必须两侧同步**。本节由前端仓库的 `CLAUDE.md` 合并而来（2026-10-21）；该原件已删除，本文件是唯一维护源，`claudecode\CLAUDE.md` 已冻结不再更新。
 
 ### 技术栈
 
