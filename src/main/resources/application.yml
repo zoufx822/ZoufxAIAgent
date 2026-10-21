@@ -66,7 +66,7 @@ ai:
       timeout: 60s
       chat:
         thinking-model: deepseek-v4-pro
-        fast-model: deepseek-v4-flash
+        fast-model: deepseek-flash
         max-tokens: 2048
 
     minimax-m3:
