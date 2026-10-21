@@ -29,3 +29,6 @@ application-local.properties
 
 # ── Playwright MCP 临时目录（测试截图，由 .claude 钩子自动清理）──
 .playwright-mcp/
+
+# ── DSH 会话临时文件（截图 / 脚本 / 浏览器 profile，按需清理）──
+/deepseekharness/.dsh/tmp/
