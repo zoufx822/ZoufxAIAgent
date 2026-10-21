@@ -127,7 +127,7 @@ MiniMax 无模型分层，单一 `ai.llm.minimax-m3.chat.model` 配置（M3 官�
 
 **前端思考开关 → 后端路由：** ChatService 只依赖 `StreamingChatPort.stream(anchorId, prompt, thinking)`，profile 间的 per-call 能力差异被端口屏蔽。`AssistantFactory`（`chat/support`）从一个 `StreamingChatModel` 装一个 `ChatAssistant`（共享 ChatMemoryProvider + 动态 system prompt + 工具集），profile-agnostic 部分集中于此。两 profile 均为单模型 + 单 assistant，per-call 参数由各自端口现场拼装：
 
-- **DeepSeek（OpenAI 协议）**：`OpenAiChatRequestParameters` 覆盖 modelName + `reasoningEffort` + `thinking` 私有字段（经 `customParameters` 注入请求体根级）。effort 前端两档（标准/极致），映射到 API 值 high/max（实测 low/medium/high 行为等价，故不设中间档）。
+- **DeepSeek（OpenAI 协议）**：`OpenAiChatRequestParameters` 覆盖 modelName + `reasoningEffort` + `thinking` 私有字段（经 `customParameters` 注入请求体根级）。effort 前端两档（标准/极致），映射到 API 值 high/max；官方当前支持 low/high/max（默认 high），low 未暴露。
 - **MiniMax（Anthropic 协议，LC4J 1.17+）**：`AnthropicChatRequestParameters` 原生覆盖 `thinkingType` + `thinkingBudgetTokens`；effort 对 Anthropic 协议无业务分档需求，`Features` 声明 unsupported。
 
 > 注意：所有模型 Bean 统一开 `returnThinking + sendThinking`——思考/快档共享会话记忆，上一轮思考档产出的 reasoning/thinking 内容必须在后续轮次（即使走快档）原样回传，否则 DeepSeek API 拒绝、MiniMax 工具调用行为异常。

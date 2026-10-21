@@ -47,9 +47,8 @@ public class DeepSeekV4Config {
     private final DeepSeekV4Props props;
 
     /**
-     * 前端档位值。DeepSeek API 可传 5 值（low/medium/high/max/xhigh）但实测行为仅两档：
-     * 非 max 全等价（官方档名 high，含不传）；max/xhigh 等价（服务端注入增强思考指令）。
-     * 故前端只设两档，映射见 {@link #apiEffort}。
+     * 前端档位值。官方当前支持 low/high/max 三档（默认 high）；项目按业务只区分
+     * 标准/极致两档，low 不暴露。映射见 {@link #apiEffort}。
      */
     private static final String EFFORT_NORMAL = "normal";
     private static final String EFFORT_MAX = "max";
