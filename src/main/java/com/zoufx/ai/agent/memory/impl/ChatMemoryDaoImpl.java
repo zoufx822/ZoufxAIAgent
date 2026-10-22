@@ -21,7 +21,6 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * SQLite 实现——纯落库，只实现 {@link ChatMemoryDao}。业务缓存/LC4J ChatMemoryStore 契约
@@ -55,7 +54,6 @@ public class ChatMemoryDaoImpl implements ChatMemoryDao {
                     anchor_id   TEXT    NOT NULL,
                     role        TEXT    NOT NULL,
                     content     TEXT    NOT NULL,
-                    mood        TEXT,
                     created_at  INTEGER NOT NULL
                 )
                 """);
@@ -79,17 +77,14 @@ public class ChatMemoryDaoImpl implements ChatMemoryDao {
     }
 
     /**
-     * 从 AiMessage 文本提取完整 mood 轨迹（逗号连接，语义与 cold_memory.mood 对齐），返回剥离标记后的干净消息。
-     * 非 AiMessage、文本无标记、或标记均非法时轨迹为 null。
+     * 剥离 AiMessage 文本里的情绪标记后返回干净消息——标记只用于驱动表情，不落库、不展示。
+     * 非 AiMessage 或文本无标记时原样返回。
      */
-    private static ChatMessage stripMoodAndClean(ChatMessage msg, Consumer<String> moodTrailSink) {
+    private static ChatMessage stripMood(ChatMessage msg) {
         if (msg instanceof AiMessage a && a.text() != null && MoodTags.TAG.matcher(a.text()).find()) {
-            List<String> moods = MoodTags.extractValid(a.text());
             String clean = MoodTags.stripAll(a.text());
-            moodTrailSink.accept(moods.isEmpty() ? null : String.join(",", moods));
             return a.hasToolExecutionRequests() ? AiMessage.from(clean, a.toolExecutionRequests()) : AiMessage.from(clean);
         }
-        moodTrailSink.accept(null);
         return msg;
     }
 
@@ -100,29 +95,26 @@ public class ChatMemoryDaoImpl implements ChatMemoryDao {
             throw new IllegalStateException("Unknown anchorId: " + anchorId
                     + " — anchor row must exist before chat_memory writes");
         }
-        // 持久化前剥离 AiMessage 文本中的 mood 标签到独立 mood 列
-        List<String> moods = new ArrayList<>(messages.size());
+        // 持久化前剥离 AiMessage 文本中的情绪标记（标记不进库）
         List<ChatMessage> cleaned = new ArrayList<>(messages.size());
         for (ChatMessage msg : messages) {
-            cleaned.add(stripMoodAndClean(msg, moods::add));
+            cleaned.add(stripMood(msg));
         }
         long base = System.currentTimeMillis();
         jdbc.update("DELETE FROM chat_memory WHERE anchor_id = ?", anchorId);
         if (cleaned.isEmpty()) return;
         jdbc.batchUpdate(
-                "INSERT INTO chat_memory (user_id, anchor_id, role, content, mood, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO chat_memory (user_id, anchor_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
                 new BatchPreparedStatementSetter() {
                     @Override
                     public void setValues(PreparedStatement ps, int i) throws SQLException {
                         ChatMessage msg = cleaned.get(i);
-                        // 预留：冗余兜底，当前无按 user_id 查询场景；索引已删，需要时按 user_id 建查询再补
+                        // 冗余兜底，当前无按 user_id 查询场景；索引已删，需要时按 user_id 建查询再补
                         ps.setString(1, userId);
                         ps.setString(2, anchorId);
                         ps.setString(3, msg.type().name());
                         ps.setString(4, ChatMessageSerializer.messageToJson(msg));
-                        // 预留：窗口消息按条渲染情绪用；语义与 cold_memory.mood 对齐（逗号连接完整轨迹）
-                        ps.setString(5, moods.get(i));
-                        ps.setLong(6, base + i);
+                        ps.setLong(5, base + i);
                     }
 
                     @Override

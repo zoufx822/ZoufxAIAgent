@@ -55,11 +55,11 @@ public record AnchorContextView(
             String id,
             @Nullable String title,
             @Nullable String body,
-            @Nullable String mood,
+            @Nullable String lastExpression,
             long lastActiveAt
     ) {
         static AnchorSummary fullBody(AnchorMemory a) {
-            return new AnchorSummary(a.id(), a.title(), a.summary(), a.lastMood(), a.lastActiveAt());
+            return new AnchorSummary(a.id(), a.title(), a.summary(), a.lastExpression(), a.lastActiveAt());
         }
 
         static AnchorSummary truncatedBody(AnchorMemory a, int max) {
@@ -67,7 +67,7 @@ public record AnchorContextView(
             if (body != null && body.length() > max) {
                 body = body.substring(0, max) + "…";
             }
-            return new AnchorSummary(a.id(), a.title(), body, a.lastMood(), a.lastActiveAt());
+            return new AnchorSummary(a.id(), a.title(), body, a.lastExpression(), a.lastActiveAt());
         }
     }
 

@@ -5,9 +5,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * 冷内存（ColdMemoryDao）中的单条记录。
  *
- * <p>{@code mood} 仅 assistant 消息可能有值——LLM 在回复转折处追加的
- * {@code ⟦mood:KEYWORD⟧} 由 {@code MoodEventProcessor} 提取并随 cold_memory 一同持久化。
- * user 消息无 mood，恒为 null。
+ * <p>{@code emotion} / {@code intensity} 记录这条消息对应的用户情绪（1–5）——
+ * 情绪阶段由分类器写入，当前阶段恒为 null。assistant 行可空。
  */
 public record ColdMemory(long id, String role, String content,
-                              @Nullable String mood, long createdAt) {}
+                              @Nullable String emotion, @Nullable Integer intensity, long createdAt) {}

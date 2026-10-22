@@ -41,7 +41,8 @@ public class ColdMemoryDaoImpl implements ColdMemoryDao {
                     user_id    TEXT    NOT NULL,
                     role       TEXT    NOT NULL,
                     content    TEXT    NOT NULL,
-                    mood       TEXT,
+                    emotion    TEXT,
+                    intensity  INTEGER,
                     created_at INTEGER NOT NULL
                 )
                 """);
@@ -66,13 +67,14 @@ public class ColdMemoryDaoImpl implements ColdMemoryDao {
     }
 
     @Override
-    public long append(String userId, String role, String content, @Nullable String mood) {
+    public long append(String userId, String role, String content,
+                       @Nullable String emotion, @Nullable Integer intensity) {
         // 内层事务双保险：唯一调用方 ChatService.persistTurn 已在外层事务（REQUIRED join，本层无实际起停），
         // 但保证一旦脱离外层事务被误调，INSERT 与 last_insert_rowid() 仍落同一连接、取到正确自增 id
         return tx.execute(status -> {
             jdbc.update(
-                    "INSERT INTO cold_memory (user_id, role, content, mood, created_at) VALUES (?, ?, ?, ?, ?)",
-                    userId, role, content, mood, System.currentTimeMillis());
+                    "INSERT INTO cold_memory (user_id, role, content, emotion, intensity, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    userId, role, content, emotion, intensity, System.currentTimeMillis());
             Long id = jdbc.queryForObject("SELECT last_insert_rowid()", Long.class);
             return id == null ? -1L : id;
         });
@@ -95,10 +97,10 @@ public class ColdMemoryDaoImpl implements ColdMemoryDao {
         args.add(userId);
         args.addAll(ids);
         return jdbc.query(
-                "SELECT id, role, content, mood, created_at FROM cold_memory WHERE user_id = ? AND id IN (" + placeholders + ")",
+                "SELECT id, role, content, emotion, intensity, created_at FROM cold_memory WHERE user_id = ? AND id IN (" + placeholders + ")",
                 (rs, i) -> new ColdMemory(
                         rs.getLong("id"), rs.getString("role"), rs.getString("content"),
-                        rs.getString("mood"), rs.getLong("created_at")),
+                        rs.getString("emotion"), (Integer) rs.getObject("intensity"), rs.getLong("created_at")),
                 args.toArray());
     }
 

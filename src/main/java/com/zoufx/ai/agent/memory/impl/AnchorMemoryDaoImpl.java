@@ -21,12 +21,12 @@ import java.util.UUID;
  *
  * <p>schema：
  * <pre>
- *   anchor_memory(id PK, user_id, title, summary, mood, created_at, last_active_at, summarized_at)
+ *   anchor_memory(id PK, user_id, title, summary, last_expression, created_at, last_active_at, summarized_at)
  *   INDEX (user_id, last_active_at DESC)
  * </pre>
- * {@code mood} 存本轮完整情绪轨迹（逗号连接，语义与 chat_memory.mood / cold_memory.mood 对齐）；
- * {@link AnchorMemory#lastMood()} 只读取轨迹末尾一个词——JSON 契约不变，前端零改动。
- * {@code summarized_at} 是滚动摘要的水位：summary 覆盖到的 last_active_at；小于当前 last_active_at 即有新内容待压。
+ * {@code last_expression} 存该对话最近一次显示的表情词（单个词），供前端刷新后恢复表情；
+ * 不存整轮轨迹。{@code summarized_at} 是滚动摘要的水位：summary 覆盖到的 last_active_at；
+ * 小于当前 last_active_at 即有新内容待压。
  *
  * <p>同步读 / 反应式写——见 {@link AnchorMemoryDao} 接口文档。
  */
@@ -46,22 +46,17 @@ public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
                     user_id        TEXT    NOT NULL,
                     title          TEXT,
                     summary        TEXT,
-                    mood           TEXT,
+                    last_expression TEXT,
                     created_at     INTEGER NOT NULL,
                     last_active_at INTEGER NOT NULL,
                     summarized_at  INTEGER
                 )
                 """);
         jdbc.execute("CREATE INDEX IF NOT EXISTS idx_anchor_memory_user_active ON anchor_memory(user_id, last_active_at DESC)");
-        // 存量表迁移：补 summarized_at 水位列（SQLite 无 ADD COLUMN IF NOT EXISTS，先探列再加）
+        // 存量库迁移：补 summarized_at 水位列（SQLite 无 ADD COLUMN IF NOT EXISTS，先探列再加）
         if (!columnExists("anchor_memory", "summarized_at")) {
             jdbc.execute("ALTER TABLE anchor_memory ADD COLUMN summarized_at INTEGER");
             log.info("Migrated anchor_memory: added summarized_at column");
-        }
-        // 存量表迁移：last_mood → mood 改名（幂等：只在旧列存在且新列不存在时执行）
-        if (!columnExists("anchor_memory", "mood") && columnExists("anchor_memory", "last_mood")) {
-            jdbc.execute("ALTER TABLE anchor_memory RENAME COLUMN last_mood TO mood");
-            log.info("Migrated anchor_memory: renamed last_mood column to mood");
         }
         log.info("AnchorMemoryDaoImpl schema ready (anchor_memory)");
     }
@@ -121,7 +116,7 @@ public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
     @Override
     public List<AnchorMemory> listOtherAnchors(String userId, String excludeAnchorId) {
         return jdbc.query("""
-                SELECT id, user_id, title, summary, mood, created_at, last_active_at
+                SELECT id, user_id, title, summary, last_expression, created_at, last_active_at
                 FROM anchor_memory
                 WHERE user_id = ? AND id != ?
                 ORDER BY last_active_at DESC
@@ -131,7 +126,7 @@ public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
                         rs.getString("user_id"),
                         rs.getString("title"),
                         rs.getString("summary"),
-                        lastMoodOf(rs.getString("mood")),
+                        rs.getString("last_expression"),
                         rs.getLong("created_at"),
                         rs.getLong("last_active_at")),
                 userId, excludeAnchorId);
@@ -144,7 +139,7 @@ public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
         String anchorId = UUID.randomUUID().toString();
         long now = System.currentTimeMillis();
         jdbc.update("""
-                INSERT INTO anchor_memory (id, user_id, title, summary, mood, created_at, last_active_at)
+                INSERT INTO anchor_memory (id, user_id, title, summary, last_expression, created_at, last_active_at)
                 VALUES (?, ?, NULL, NULL, NULL, ?, ?)
                 """, anchorId, userId, now, now);
         return anchorId;
@@ -195,23 +190,16 @@ public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
     }
 
     @Override
-    public void touch(String anchorId, @Nullable String moodTrail) {
+    public void touch(String anchorId, @Nullable String lastExpression) {
         // last_active_at 推到 now；summary 是滚动摘要不动它（last_active_at 推进后 summarized_at 落后 → 下次扫描重压）
-        // mood 存本轮完整轨迹（非跨轮累积）、走 COALESCE：本轮无 mood 事件时保留上一轮轨迹，不被 null 覆盖
-        jdbc.update("UPDATE anchor_memory SET last_active_at = ?, mood = COALESCE(?, mood) WHERE id = ?",
-                System.currentTimeMillis(), moodTrail, anchorId);
-    }
-
-    /** 逗号连接轨迹取末尾一个词——供 {@link AnchorMemory#lastMood()} 只读契约，空/null 原样返回。 */
-    private static @Nullable String lastMoodOf(@Nullable String trail) {
-        if (trail == null || trail.isBlank()) return trail;
-        int comma = trail.lastIndexOf(',');
-        return comma < 0 ? trail : trail.substring(comma + 1);
+        // last_expression 走 COALESCE：本轮没有表情时保留上一次，不被 null 覆盖
+        jdbc.update("UPDATE anchor_memory SET last_active_at = ?, last_expression = COALESCE(?, last_expression) WHERE id = ?",
+                System.currentTimeMillis(), lastExpression, anchorId);
     }
 
     private List<AnchorMemory> listByUser(String userId) {
         return jdbc.query("""
-                SELECT id, user_id, title, summary, mood, created_at, last_active_at
+                SELECT id, user_id, title, summary, last_expression, created_at, last_active_at
                 FROM anchor_memory
                 WHERE user_id = ?
                 ORDER BY last_active_at DESC
@@ -221,7 +209,7 @@ public class AnchorMemoryDaoImpl implements AnchorMemoryDao {
                         rs.getString("user_id"),
                         rs.getString("title"),
                         rs.getString("summary"),
-                        lastMoodOf(rs.getString("mood")),
+                        rs.getString("last_expression"),
                         rs.getLong("created_at"),
                         rs.getLong("last_active_at")),
                 userId);

@@ -107,8 +107,8 @@ public final class Turn implements TurnHandle {
         return assistant.toString();
     }
 
-    /** 逗号连接的完整轨迹 → 写 cold_memory.mood / anchor_memory.mood。 */
-    public @Nullable String moodTrail() {
-        return inlineMoods.isEmpty() ? null : String.join(",", inlineMoods);
+    /** 本轮最后一个表情词（无则 null）——写 anchor_memory.last_expression。 */
+    public @Nullable String lastExpression() {
+        return inlineMoods.isEmpty() ? null : inlineMoods.get(inlineMoods.size() - 1);
     }
 }

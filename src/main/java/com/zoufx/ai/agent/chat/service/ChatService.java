@@ -326,7 +326,7 @@ public class ChatService {
             log.info("Skip persist, turn claimed by stop [turnId={}, anchorId={}]", turn.turnId, turn.anchorId);
             return;
         }
-        String moodTrail = turn.moodTrail();
+        String lastExpression = turn.lastExpression();
         boolean hasContent = turn.hasContent();
         String assistantText = turn.assistantText();
         String autoTitle = truncate(turn.prompt, AUTO_TITLE_MAX_LEN);
@@ -335,11 +335,12 @@ public class ChatService {
                 chatMemoryService.commit(turn.anchorId);
                 long coldUserId = -1, coldAssistantId = -1;
                 if (hasContent) {
-                    coldUserId = coldMemoryService.append(turn.userId, "user", turn.prompt, null);
-                    coldAssistantId = coldMemoryService.append(turn.userId, "assistant", assistantText, moodTrail);
+                    // 情绪阶段前：emotion/intensity 留空（分类器尚未接入）
+                    coldUserId = coldMemoryService.append(turn.userId, "user", turn.prompt, null, null);
+                    coldAssistantId = coldMemoryService.append(turn.userId, "assistant", assistantText, null, null);
                 }
                 List<HotMemoryService.Entry> hotEntries = hotMemoryService.commit(turn.anchorId);
-                anchorService.touch(turn.anchorId, moodTrail);
+                anchorService.touch(turn.anchorId, lastExpression);
                 if (!autoTitle.isBlank()) anchorService.updateTitleIfBlank(turn.anchorId, autoTitle);
                 return new CommitResult(coldUserId, coldAssistantId, hotEntries);
             });

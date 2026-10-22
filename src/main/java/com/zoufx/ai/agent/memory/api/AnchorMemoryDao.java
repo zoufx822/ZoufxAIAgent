@@ -58,12 +58,12 @@ public interface AnchorMemoryDao {
     Mono<List<AnchorMemory>> listByUserAsync(String userId);
 
     /**
-     * 标记锚点为活跃——更新 last_active_at = now，把本轮完整情绪轨迹（逗号连接）写入 mood 列
-     * （COALESCE 语义：null 不覆盖旧值，保留"上一轮的轨迹"）。
+     * 标记锚点为活跃——更新 last_active_at = now，并记录本轮显示的最后一个表情词
+     * （COALESCE 语义：null 不覆盖旧值，保留上次表情）。
      * summary 是滚动摘要、由定时压缩维护，touch **不动它**（last_active_at 推进后自然让 summarized_at 落后 → 下次扫描重压）。
      * 由 {@code ChatService.persistTurn} 在事务内同步调用。
      */
-    void touch(String anchorId, @Nullable String moodTrail);
+    void touch(String anchorId, @Nullable String lastExpression);
 
     /**
      * CAS 写入压缩摘要 + 推进水位 summarized_at——仅当 last_active_at 与快照一致时才写。
