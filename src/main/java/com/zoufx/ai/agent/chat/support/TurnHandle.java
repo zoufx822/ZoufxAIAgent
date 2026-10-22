@@ -2,7 +2,7 @@ package com.zoufx.ai.agent.chat.support;
 
 /**
  * {@link Turn} 面向 {@link TurnRegistry} 外部消费者（stop/pending 端点）的最小视图——
- * 只收窄出定位 + 停止 + 抢终局这三件事，编译期挡掉 assistant/inlineMoods 等生成期内部状态。
+ * 只收窄出定位 + 停止 + 抢终局这三件事，编译期挡掉 assistant/affect/presence 等生成期内部状态。
  */
 public interface TurnHandle {
 

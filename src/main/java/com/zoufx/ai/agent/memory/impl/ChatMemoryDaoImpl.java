@@ -3,8 +3,6 @@ package com.zoufx.ai.agent.memory.impl;
 import com.zoufx.ai.agent.base.support.Blocking;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
 import com.zoufx.ai.agent.memory.api.ChatMemoryDao;
-import com.zoufx.ai.agent.mood.support.MoodTags;
-import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.ChatMessageDeserializer;
 import dev.langchain4j.data.message.ChatMessageSerializer;
@@ -19,7 +17,6 @@ import reactor.core.publisher.Mono;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -76,18 +73,6 @@ public class ChatMemoryDaoImpl implements ChatMemoryDao {
                 anchorId);
     }
 
-    /**
-     * 剥离 AiMessage 文本里的情绪标记后返回干净消息——标记只用于驱动表情，不落库、不展示。
-     * 非 AiMessage 或文本无标记时原样返回。
-     */
-    private static ChatMessage stripMood(ChatMessage msg) {
-        if (msg instanceof AiMessage a && a.text() != null && MoodTags.TAG.matcher(a.text()).find()) {
-            String clean = MoodTags.stripAll(a.text());
-            return a.hasToolExecutionRequests() ? AiMessage.from(clean, a.toolExecutionRequests()) : AiMessage.from(clean);
-        }
-        return msg;
-    }
-
     @Override
     public void saveByAnchorId(String anchorId, List<ChatMessage> messages) {
         String userId = anchorMemoryDao.findUserId(anchorId);
@@ -95,20 +80,15 @@ public class ChatMemoryDaoImpl implements ChatMemoryDao {
             throw new IllegalStateException("Unknown anchorId: " + anchorId
                     + " — anchor row must exist before chat_memory writes");
         }
-        // 持久化前剥离 AiMessage 文本中的情绪标记（标记不进库）
-        List<ChatMessage> cleaned = new ArrayList<>(messages.size());
-        for (ChatMessage msg : messages) {
-            cleaned.add(stripMood(msg));
-        }
         long base = System.currentTimeMillis();
         jdbc.update("DELETE FROM chat_memory WHERE anchor_id = ?", anchorId);
-        if (cleaned.isEmpty()) return;
+        if (messages.isEmpty()) return;
         jdbc.batchUpdate(
                 "INSERT INTO chat_memory (user_id, anchor_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
                 new BatchPreparedStatementSetter() {
                     @Override
                     public void setValues(PreparedStatement ps, int i) throws SQLException {
-                        ChatMessage msg = cleaned.get(i);
+                        ChatMessage msg = messages.get(i);
                         // 冗余兜底，当前无按 user_id 查询场景；索引已删，需要时按 user_id 建查询再补
                         ps.setString(1, userId);
                         ps.setString(2, anchorId);
@@ -119,7 +99,7 @@ public class ChatMemoryDaoImpl implements ChatMemoryDao {
 
                     @Override
                     public int getBatchSize() {
-                        return cleaned.size();
+                        return messages.size();
                     }
                 });
     }

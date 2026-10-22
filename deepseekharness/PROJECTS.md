@@ -20,9 +20,9 @@
 - **技术栈**：Spring Boot 4.1.0 + Java 21 + Spring WebFlux/Reactor Netty + LangChain4J 1.17.2 + Lombok；SQLite 正本 + Qdrant 派生向量索引
 - **版本**：`pom.xml` 为 `0.2.5-SNAPSHOT`（`a6bf181` 已把版本回退一并提交，远端一致）
 - **入口**：`src/main/java/com/zoufx/ai/agent/ZoufxAIAgentApplication.java`
-- **包结构**（按 LOC）：`memory`(20 文件/1257 行) > `chat`(21/1136) > `vector`(14/683) > `tool`(11/646) > `prompt`(10/542) > `llm`(5/325) > `mood`(3/156) > `base`(5/141)
+- **包结构**（按 LOC）：`memory`(20 文件/1257 行) > `chat`(21/1136) > `vector`(14/683) > `tool`(11/646) > `prompt`(10/542) > `llm`(5/325) > `affect`(3/约250) > `base`(5/141)
 - **HTTP 入口集中在** `chat/controller/ChatController.java`：
-  - `POST /ai/chat`（SSE：`turn_started` / `anchor_created` / `thinking` / `content` / `tool_call` / `tool_result` / `mood` / `error`）
+  - `POST /ai/chat`（SSE：`turn_started` / `anchor_created` / `presence` / `thinking` / `content` / `tool_call` / `tool_result` / `error`）
   - `POST /ai/chat/stop` · `GET /ai/features` · `GET /ai/anchors*` · `GET /ai/memory/hot`
 - **LLM 双 profile**：`deepseek-v4`（OpenAI 兼容）/ `MiniMax-M3`（Anthropic 兼容），由 `ai.llm.profile.active` 切换
 - **配置**：`src/main/resources/application.yml`（profile `local`）；SQLite 在 `./data/sqlite/zoufx-ai.db`，Qdrant 数据在 `./data/qdrant`

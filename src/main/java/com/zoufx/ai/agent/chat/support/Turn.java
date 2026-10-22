@@ -1,5 +1,7 @@
 package com.zoufx.ai.agent.chat.support;
 
+import com.zoufx.ai.agent.affect.model.Affect;
+import com.zoufx.ai.agent.affect.model.Presence;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.model.chat.response.StreamingHandle;
@@ -7,9 +9,7 @@ import lombok.Builder;
 import org.jspecify.annotations.Nullable;
 import reactor.core.Disposable;
 
-import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * 累积字段跨线程访问（LC4J 回调线程写入 + boundedElastic/取消线程读取），故用线程安全类型。
  *
  * <p>实现 {@link TurnHandle}——{@link TurnRegistry} 只按该接口存取，编译期挡掉
- * assistant/inlineMoods/userEmbedding 等生成期内部状态对 stop/pending 等外部读者的暴露。
+ * assistant/affect/presence/userEmbedding 等生成期内部状态对 stop/pending 等外部读者的暴露。
  */
 @Builder(toBuilder = true)
 public final class Turn implements TurnHandle {
@@ -53,9 +53,10 @@ public final class Turn implements TurnHandle {
     /** assistant 全文（LLM 主流写，无并发）。 */
     @Builder.Default
     private final StringBuilder assistant = new StringBuilder();
-    /** 正文内嵌情绪标签，按出现顺序（含开头必打的第一反应）。 */
-    @Builder.Default
-    public final List<String> inlineMoods = new CopyOnWriteArrayList<>();
+    /** 本轮用户情绪识别结果（prepare 阶段赋值）——供 presence 与落库使用。 */
+    public volatile @Nullable Affect affect;
+    /** 本轮要显示的存在状态（由 affect 映射；无高信号情绪时为 null）。 */
+    public volatile @Nullable Presence presence;
 
     @Override
     public String turnId() {
@@ -107,8 +108,8 @@ public final class Turn implements TurnHandle {
         return assistant.toString();
     }
 
-    /** 本轮最后一个表情词（无则 null）——写 anchor_memory.last_expression。 */
+    /** 本轮最后要显示的表情词（无 presence 时 null）——写 anchor_memory.last_expression。 */
     public @Nullable String lastExpression() {
-        return inlineMoods.isEmpty() ? null : inlineMoods.get(inlineMoods.size() - 1);
+        return presence == null ? null : presence.expression();
     }
 }

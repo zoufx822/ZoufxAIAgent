@@ -21,14 +21,14 @@
 
 Spring Boot 4.1.0 + LangChain4J 1.17.2，支持 `deepseek-v4` / `MiniMax-M3` 双 LLM profile 切换：DeepSeek 走 OpenAI 兼容协议，MiniMax 走 Anthropic 兼容协议。带会话记忆的流式聊天与思考模式。
 
-Hot Memory 含三种 type：`user-impression`（用户画像，UPSERT）/ `significant-event`（重要经历，append-only）/ `commitment`（双方承诺，append-only）。情绪谱 7 词：平静 / 愉快 / 兴奋 / 难过 / 愤怒 / 好奇 / 困惑。
+Hot Memory 含三种 type：`user-impression`（用户画像，UPSERT）/ `significant-event`（重要经历，append-only）/ `commitment`（双方承诺，append-only）。情绪谱 6 词：平静 / 愉快 / 好奇 / 难过 / 愤怒 / 困惑。用户情绪由独立 flash 分类器识别（正文不再携带标记），映射为 `presence`（页面表情 + 强度），关系状态存 `relation_state`。
 
 记忆检索走语义召回：SQLite 为正本，Qdrant 只存向量 + 指针元数据（本地 `docker-compose up` 起 Qdrant，gRPC 6334；嵌入用 BGE-M3 走 OpenAI 兼容端点，与 LLM profile 解耦）。每轮对话 prepare 阶段按 userId 自动召回（三维加权 recency/importance/relevance + MMR），注入 system prompt「此刻想起的相关记忆」段，前端无感知；LLM 需要深挖时另有 `search_cold_memory` 工具。配置见 `ai.embedding` / `ai.vector` / `ai.recall`；存量数据回填开 `ai.recall.backfill-on-start`。
 
 ## 架构
 
 **后端：** Spring WebFlux + Reactor Netty。HTTP 入口集中在 `ChatController`：
-- `POST /ai/chat`（SSE）—— 流式聊天，事件类型 `turn_started`（首帧带 turnId）/ `anchor_created` / `thinking` / `content` / `tool_call` / `tool_result` / `mood` / `error`；请求携带 `thinking` 布尔开关，true 走思考档、false 走快档；`anchorId` 为空时懒创建锚点（`turn_started` 作首帧、`anchor_created` 次之）。**consumeStream（生成脱离连接）**：生成挂后端自持订阅、客户端 SSE 只是 `Sinks.replay().all()` 视图——关页/断网/刷新只取消视图，后端跑完仍落库（用户回来轮询到完整回复）。失败不再原地重试，前端改「回填输入框」。
+- `POST /ai/chat`（SSE）—— 流式聊天，事件类型 `turn_started`（首帧带 turnId）/ `anchor_created` / `presence` / `thinking` / `content` / `tool_call` / `tool_result` / `error`；请求携带 `thinking` 布尔开关，true 走思考档、false 走快档；`anchorId` 为空时懒创建锚点（`turn_started` 作首帧、`anchor_created` 次之）。**consumeStream（生成脱离连接）**：生成挂后端自持订阅、客户端 SSE 只是 `Sinks.replay().all()` 视图——关页/断网/刷新只取消视图，后端跑完仍落库（用户回来轮询到完整回复）。失败不再原地重试，前端改「回填输入框」。
 - `POST /ai/chat/stop`（`{turnId}` → `{stopped}`）—— 主动停止一轮。断连≠停止，停止必须独立端点（另一个 HTTP 请求，到不了正在生成的那个请求）；`stopped:false` = 该轮已完成落库/已停，前端保留不删。
 - `GET /ai/features` —— 当前 profile 标识（预留扩展点，前端暂不消费）
 - `GET /ai/anchors?userId=X` / `GET /ai/anchors/{id}/messages` / `GET /ai/anchors/{id}/pending` / `GET /ai/anchors/{id}/context` / `PATCH /ai/anchors/{id}/title` —— 锚点列表 / 窗口消息 / 在建轮问题（consumeStream 轮询用）/ 三层衰减视图 / 重命名
@@ -70,7 +70,7 @@ components/     layout.tsx 三段布局 = rail（左 56px）+ 主区（chat-wind
 lib/            store.ts / chat-stream.ts / pending-poll.ts / api.ts / features.ts / status-labels.ts /
                 utils.ts / flip.ts（FLIP 转场）/ parse-commitment.ts
 hooks/          use-chat-stream / use-smart-scroll / use-anchor-messages / use-ensure-anchor /
-                use-memory-hot / use-intimacy / use-context-detector / use-asleep-detector / use-mood-presence
+                use-memory-hot / use-intimacy / use-context-detector / use-asleep-detector / use-presence
 ```
 
 ### 关键数据结构
@@ -91,9 +91,9 @@ pnpm build; pnpm start         # 生产
 ### 与后端的契约（改一侧必须改另一侧）
 
 - `POST /ai/chat` 请求体：`{ prompt, anchorId, thinking: { enabled, effort }, userId }`；`anchorId` 为空时后端懒建锚点（前端不再传 `prevAnchorId`，锚点摘要由后端定时压缩）
-- SSE 事件顺序：`turn_started`（首帧 turnId）→ `anchor_created` → `thinking` / `content`（默认事件）/ `tool_call` / `tool_result` / `mood` / `error`
+- SSE 事件顺序：`turn_started`（首帧 turnId）→ `anchor_created` → `presence` → `thinking` / `content`（默认事件）/ `tool_call` / `tool_result` / `error`
   - `tool_call`：`{ tool, toolDisplay, query }`；`tool_result`：`{ tool, toolDisplay, count, resultPreview }`
-  - `mood`：后端把 content 里的 `⟦mood:KEYWORD⟧` 就地剥离后独立发送，一轮 1~N 次（回复开头必有「第一反应」情绪）
+  - `presence`：`{ expression, intensity }`，一轮一次；独立 flash 分类器读用户消息后映射，前端按强度决定是否 spotlight（正文不再有情绪标记）
 - 停止：`POST /ai/chat/stop {turnId} → {stopped}`（**断连 ≠ 停止**）；在建轮查询：`GET /ai/anchors/{id}/pending`
 - 其余 REST：`/ai/anchors*`、`/ai/memory/hot`、`/ai/features`
 
@@ -155,7 +155,7 @@ MiniMax 无模型分层，单一 `ai.llm.minimax-m3.chat.model` 配置（M3 官�
 
 - **写设计意图，不写版本变迁**：说明当前为什么这样设计（约束、取舍），删掉"v0.12 是 X，v0.13 改为 Y"等历史叙述
 - **两行说清类/方法的职责**，删掉"归属 xx 包"、"与 xx 对偶"等可从代码结构直接看出的说明
-- **保留**：非显而易见的约束（线程契约、编译期常量限制、fail-fast 不变量）、跨版本遗留问题（如 LC4J 未提供的接口）、seed 语义（已有不覆盖）；有意预留的列/字段在写入处标 `预留：<用途>`，与死代码区分（例：`chat_memory.mood`、`chat_memory.user_id` 的写入处）
+- **保留**：非显而易见的约束（线程契约、编译期常量限制、fail-fast 不变量）、跨版本遗留问题（如 LC4J 未提供的接口）、seed 语义（已有不覆盖）；有意预留的列/字段在写入处标 `预留：<用途>`，与死代码区分（例：`chat_memory.user_id` 的写入处）
 - **删除**：版本号标注（`v0.xx`）、设计文档引用（`详见 xxx.md`）、选型论证（"为何不用枚举"但代码已自解释）、迁移路径（"从 X 迁到 Y"）
 - yml 配置同理——大段 prompt 文案默认值进 Java `@ConfigurationProperties` 字段初始化，yml 只留阈值/开关/环境变量
 - yml 与 `@ConfigurationProperties` 必须保持一一对应：yml 删掉的字段，Props 类里同步删掉，常量内联到调用处；不在 yml 里出现的值不应出现在 Props 类里

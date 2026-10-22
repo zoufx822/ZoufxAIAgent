@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 由管道 doFinally 移除，防泄漏。
  *
  * <p>只按 {@link TurnHandle} 存取——登记的实际是 {@link Turn} 本体，但收窄成接口，
- * 挡掉 assistant/inlineMoods/userEmbedding 等生成期内部状态对外部读者的暴露。
+ * 挡掉 assistant/affect/presence/userEmbedding 等生成期内部状态对外部读者的暴露。
  */
 @Component
 public class TurnRegistry {

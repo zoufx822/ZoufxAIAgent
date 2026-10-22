@@ -1,6 +1,9 @@
 package com.zoufx.ai.agent.chat.service;
 
+import com.zoufx.ai.agent.affect.model.Presence;
+import com.zoufx.ai.agent.affect.support.AffectClassifier;
 import com.zoufx.ai.agent.base.support.Blocking;
+import com.zoufx.ai.agent.base.support.JsonStrings;
 import com.zoufx.ai.agent.chat.api.StreamingChatPort;
 import com.zoufx.ai.agent.chat.property.ChatProps;
 import com.zoufx.ai.agent.memory.api.AnchorMemoryDao;
@@ -10,6 +13,7 @@ import com.zoufx.ai.agent.memory.api.SoulDao;
 import com.zoufx.ai.agent.memory.service.ChatMemoryService;
 import com.zoufx.ai.agent.memory.service.ColdMemoryService;
 import com.zoufx.ai.agent.memory.service.HotMemoryService;
+import com.zoufx.ai.agent.memory.service.RelationStateService;
 import com.zoufx.ai.agent.memory.support.HotMemoryType;
 import com.zoufx.ai.agent.chat.model.ChatEvent;
 import com.zoufx.ai.agent.chat.model.CommitResult;
@@ -17,7 +21,6 @@ import com.zoufx.ai.agent.chat.model.StopResult;
 import com.zoufx.ai.agent.chat.model.Thinking;
 import com.zoufx.ai.agent.prompt.support.PromptContext;
 import com.zoufx.ai.agent.prompt.support.PromptContextHolder;
-import com.zoufx.ai.agent.mood.support.MoodEventProcessor;
 import com.zoufx.ai.agent.chat.support.RetryableExceptions;
 import com.zoufx.ai.agent.chat.support.Turn;
 import com.zoufx.ai.agent.chat.support.TurnHandle;
@@ -67,8 +70,9 @@ import java.util.concurrent.atomic.AtomicReference;
  *             断连 = 取消视图，不动后端订阅（生成继续跑完落库）；错误经 sink 收尾成 error 帧
  * </pre>
  *
- * <p>情绪单一来源：主模型在正文里打 {@code ⟦mood:X⟧} 标记（开头必打第一反应 + 转折按需追加），
- * 由 {@code MoodEventProcessor} 剥离成独立 mood 事件——不再另起一次 LLM 快速分类支。
+ * <p>情绪来源：prepare 阶段调用独立 flash 分类器识别"用户这句话的情绪+强度"，
+ * 映射成 presence（页面表情）。正文不再携带任何标记，主模型也不自报情绪。
+ * 关系状态（熟悉度/信任/基调）在 persistTurn 事务内累计。
  *
  * <p>关键：生成挂在后端自己的订阅上，客户端 SSE 只是 replay sink 的一个视图。关页/断网/刷新只取消视图，
  * 后端订阅照跑到底并落库（用户回来轮询到完整回复）；主动停止走独立端点 {@link #stop}（掐 handle + dispose
@@ -110,6 +114,10 @@ public class ChatService {
     private final EmbeddingModel embeddingModel;
     private final RecallProps recallProps;
     private final ToolNameMap toolNameMap;
+    /** 用户情绪分类器——独立 flash 调用，不依赖主模型打标签。 */
+    private final AffectClassifier affectClassifier;
+    /** 关系状态累计——persistTurn 事务内更新。 */
+    private final RelationStateService relationStateService;
     @Qualifier("memoryTxTemplate")
     private final TransactionTemplate tx;
 
@@ -206,6 +214,9 @@ public class ChatService {
                     anchorMemoryDao.listOtherAnchors(userId, turn.anchorId),
                     recalled
             ));
+            // 用户情绪识别：独立 flash 调用（约 0.7s），只影响 presence 与关系状态，不阻断对话
+            turn.affect = affectClassifier.classify(prompt);
+            turn.presence = Presence.from(turn.affect);
         } catch (RuntimeException e) {
             turnRegistry.remove(turn.turnId);
             throw e;
@@ -222,6 +233,7 @@ public class ChatService {
         Sinks.Many<ChatEvent> sink = Sinks.many().replay().all();
         sink.tryEmitNext(new ChatEvent("turn_started", turn.turnId));
         if (turn.newAnchor) sink.tryEmitNext(new ChatEvent("anchor_created", turn.anchorId));
+        if (turn.presence != null) sink.tryEmitNext(new ChatEvent("presence", presencePayload(turn.presence)));
 
         // 后端自持订阅：驱动生成、把事件转进 sink——与客户端在不在无关（turn 已在 prepare 阶段登记注册表）
         turn.setBackendSub(buildGenerationFlux(thinking, turn).subscribe(
@@ -262,7 +274,6 @@ public class ChatService {
      * LC4J 回调跑在框架线程，与 event loop 隔离；{@code turn.hasEmitted} 首次回调时置位，供重试策略判断。
      */
     private void bridgeTokenStream(FluxSink<ChatEvent> sink, Thinking thinking, Turn turn) {
-        MoodEventProcessor moodStripper = new MoodEventProcessor(sink, turn.userId);
         streamingChatPort.stream(turn.anchorId, turn.prompt, thinking)
                 // WithContext 变体：首个 thinking/content 回调时抓住 StreamingHandle，供取消时掐断上游。
                 // stop 若在首 token 前抢到 claim，此时 handle 还不存在、abort() 的 cancel 落空——
@@ -277,7 +288,7 @@ public class ChatService {
                     turn.handle.compareAndSet(null, ctx.streamingHandle());
                     turn.hasEmitted.set(true);
                     if (cancelIfClaimed(turn, ctx.streamingHandle())) return;
-                    moodStripper.accept(pr.text());
+                    sink.next(new ChatEvent("content", pr.text()));
                 })
                 .beforeToolExecution(evt -> {
                     turn.hasEmitted.set(true);
@@ -298,8 +309,6 @@ public class ChatService {
                 .onError(sink::error)
                 .onCompleteResponse(r -> {
                     log.info("Stream completed [anchorId={}]", turn.anchorId);
-                    moodStripper.flush();
-                    turn.inlineMoods.addAll(moodStripper.getMoods());
                     sink.complete();
                 })
                 .start();
@@ -327,6 +336,8 @@ public class ChatService {
             return;
         }
         String lastExpression = turn.lastExpression();
+        String userEmotion = turn.affect == null ? null : turn.affect.emotion();
+        Integer userIntensity = turn.affect == null ? null : turn.affect.intensity();
         boolean hasContent = turn.hasContent();
         String assistantText = turn.assistantText();
         String autoTitle = truncate(turn.prompt, AUTO_TITLE_MAX_LEN);
@@ -335,11 +346,11 @@ public class ChatService {
                 chatMemoryService.commit(turn.anchorId);
                 long coldUserId = -1, coldAssistantId = -1;
                 if (hasContent) {
-                    // 情绪阶段前：emotion/intensity 留空（分类器尚未接入）
-                    coldUserId = coldMemoryService.append(turn.userId, "user", turn.prompt, null, null);
+                    coldUserId = coldMemoryService.append(turn.userId, "user", turn.prompt, userEmotion, userIntensity);
                     coldAssistantId = coldMemoryService.append(turn.userId, "assistant", assistantText, null, null);
                 }
                 List<HotMemoryService.Entry> hotEntries = hotMemoryService.commit(turn.anchorId);
+                relationStateService.apply(turn.userId, turn.affect);
                 anchorService.touch(turn.anchorId, lastExpression);
                 if (!autoTitle.isBlank()) anchorService.updateTitleIfBlank(turn.anchorId, autoTitle);
                 return new CommitResult(coldUserId, coldAssistantId, hotEntries);
@@ -419,6 +430,12 @@ public class ChatService {
                 .filter(err -> !hasEmitted.get() && RetryableExceptions.isRetryable(err))
                 .doBeforeRetry(rs -> log.warn("LLM retry #{} cause={}",
                         rs.totalRetries() + 1, rs.failure().toString()));
+    }
+
+    /** presence 事件 payload——expression 由后端限定为 6 词，仍做一次转义兜底。 */
+    private static String presencePayload(Presence presence) {
+        return "{\"expression\":\"" + JsonStrings.escape(presence.expression())
+                + "\",\"intensity\":" + presence.intensity() + "}";
     }
 
     private static String truncate(String s, int max) {
