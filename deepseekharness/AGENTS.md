@@ -1,180 +1,71 @@
-# AGENTS.md · Zoufx AI 工作区规则
+# AGENTS.md · 工作区规则
 
-> 内容由 Claude Code 时代的 `CLAUDE.md` 平移而来，并已把前端仓库 `CLAUDE.md` 的内容并入本文件「前端（ZoufxAIAgent-Web）」一节；原件（含 `.claude/`）归档在 `E:\ZoufxDemo\ZoufxAIAgent\claudecode\`，不再参与 DSH 加载，且自 2026-10-21 起**冻结不维护**（将来换回 Claude Code 工具时再同步）；前端仓库那份原件已于 2026-10-21 删除（`6c978b0`）。
-> 本文件位于 DSH 会话目录 `E:\ZoufxDemo\ZoufxAIAgent\deepseekharness`（在后端仓库内，未被 git 跟踪），由 `dsh-agent-instructions` 随会话加载，对本会话全局生效。
+> 由 Claude Code 时代的 `CLAUDE.md` 平移而来；原件（含 `.claude/`）归档在 `E:\ZoufxDemo\ZoufxAIAgent\claudecode\`，2026-10-21 起冻结。
+> 本文件位于 `E:\ZoufxDemo\ZoufxAIAgent\deepseekharness`（后端仓库内，已跟踪），随会话全局加载。
 
-## 代码库位置（重要：本工作区不含源码）
+## 代码库
 
 | 角色 | 路径 |
 |---|---|
-| 后端（Spring Boot + LangChain4J） | `E:\ZoufxDemo\ZoufxAIAgent` |
-| 前端（Next.js 16） | `E:\ZoufxDemo\ZoufxAIAgent-Web` |
-| Claude Code 资产归档 | `E:\ZoufxDemo\ZoufxAIAgent\claudecode\`（`CLAUDE.md` + `.claude/`，2026-10-21 起冻结不维护） |
-| 本工作区（DSH 会话目录） | `E:\ZoufxDemo\ZoufxAIAgent\deepseekharness` —— 只放规则 `AGENTS.md`、索引 `PROJECTS.md` 与 `.dsh/skills/`，**没有**可构建的代码工程；原型与设计/交接文档在前端仓库 `ZoufxAIAgent-Web\claudedesign\` |
+| 后端 | `E:\ZoufxDemo\ZoufxAIAgent`（Spring Boot + LangChain4J） |
+| 前端 | `E:\ZoufxDemo\ZoufxAIAgent-Web`（Next.js 16） |
+| 归档 | `ZoufxAIAgent\claudecode\`（冻结）、`ZoufxAIAgent-Web\claudedesign\`（原型） |
 
-下文出现的 `src/main/java/...`、`../ZoufxAIAgent-Web` 等路径，一律相对**后端 / 前端仓库根**。
-配套技能在本目录 `.dsh/skills/`：`/test`（功能测试）、`/test-prompt`（提示词行为测试）、`tech-stack`（选型备忘）。
+技能在 `.dsh/skills/`：`/test`、`/test-prompt`、`tech-stack`。
 
-> 注意：前端仓库根的 `CLAUDE.md` 已于 2026-10-21 删除，前端架构说明现只存在于本文件；`claudecode\CLAUDE.md` 是冻结的旧副本（版本已滞后），换回 Claude Code 时再同步。`claudedesign/` 是 Claude Design 导出的原型 handoff bundle，DSH 不自动加载，需要时按需读取。
+## 文档分工
 
-## 项目
-
-Spring Boot 4.1.0 + LangChain4J 1.17.2，支持 `deepseek-v4` / `MiniMax-M3` 双 LLM profile 切换：DeepSeek 走 OpenAI 兼容协议，MiniMax 走 Anthropic 兼容协议。带会话记忆的流式聊天与思考模式。
-
-Hot Memory 含三种 type：`user-impression`（用户画像，UPSERT）/ `significant-event`（重要经历，append-only）/ `commitment`（双方承诺，append-only）。情绪谱 6 词：平静 / 愉快 / 好奇 / 难过 / 愤怒 / 困惑。用户情绪由独立 flash 分类器识别（正文不再携带标记），映射为 `presence`（页面表情 + 强度），关系状态存 `relation_state`。
-
-记忆检索走语义召回：SQLite 为正本，Qdrant 只存向量 + 指针元数据（本地 `docker-compose up` 起 Qdrant，gRPC 6334；嵌入用 BGE-M3 走 OpenAI 兼容端点，与 LLM profile 解耦）。每轮对话 prepare 阶段按 userId 自动召回（三维加权 recency/importance/relevance + MMR），注入 system prompt「此刻想起的相关记忆」段，前端无感知；LLM 需要深挖时另有 `search_cold_memory` 工具。配置见 `ai.embedding` / `ai.vector` / `ai.recall`；存量数据回填开 `ai.recall.backfill-on-start`。
-
-## 架构
-
-**后端：** Spring WebFlux + Reactor Netty。HTTP 入口集中在 `ChatController`：
-- `POST /ai/chat`（SSE）—— 流式聊天，事件类型 `turn_started`（首帧带 turnId）/ `anchor_created` / `presence` / `thinking` / `content` / `tool_call` / `tool_result` / `error`；请求携带 `thinking` 布尔开关，true 走思考档、false 走快档；`anchorId` 为空时懒创建锚点（`turn_started` 作首帧、`anchor_created` 次之）。**consumeStream（生成脱离连接）**：生成挂后端自持订阅、客户端 SSE 只是 `Sinks.replay().all()` 视图——关页/断网/刷新只取消视图，后端跑完仍落库（用户回来轮询到完整回复）。失败不再原地重试，前端改「回填输入框」。
-- `POST /ai/chat/stop`（`{turnId}` → `{stopped}`）—— 主动停止一轮。断连≠停止，停止必须独立端点（另一个 HTTP 请求，到不了正在生成的那个请求）；`stopped:false` = 该轮已完成落库/已停，前端保留不删。
-- `GET /ai/features` —— 当前 profile 标识（预留扩展点，前端暂不消费）
-- `GET /ai/anchors?userId=X` / `GET /ai/anchors/{id}/messages` / `GET /ai/anchors/{id}/pending` / `GET /ai/anchors/{id}/context` / `PATCH /ai/anchors/{id}/title` —— 锚点列表 / 窗口消息 / 在建轮问题（consumeStream 轮询用）/ 三层衰减视图 / 重命名
-- `GET /ai/memory/hot?userId=X&type=Y` —— Hot Memory snapshot
-
-**锚点滚动摘要（定时压缩）：** `ChatScheduler` 每 10min 扫描——挑「空闲超 1h（`AnchorService.compactIdleAnchors` 硬编码，当前无调节需求不加配置项）且自上次摘要后有新内容（`summarized_at < last_active_at`）」的锚点，做**增量压缩**（旧摘要 + 最近对话 → 更新后的摘要，覆盖 `anchor.summary` + 推进 `summarized_at`）。不再靠前端传 prevAnchorId、不再「切走即压」。摘要经 `AnchorPromptImpl` 作「其他对话的记忆」注入。
-
-配置见 `application.yml`。
-
-**前端：** 独立仓库 `E:\ZoufxDemo\ZoufxAIAgent-Web`（与后端同级），开发命令 `pnpm dev`（localhost:3000）。启动时拉 `/ai/features` 缓存到 zustand store，UI 行为按 capability 自适应。详见下节。
-
-## 前端（ZoufxAIAgent-Web）
-
-前端是**独立仓库、独立部署**的 Next.js 应用，不在后端仓库里；两侧只通过 SSE + REST 契约耦合，**契约改动必须两侧同步**。本节由前端仓库的 `CLAUDE.md` 合并而来（2026-10-21）；该原件已删除，本文件是唯一维护源，`claudecode\CLAUDE.md` 已冻结不再更新。
-
-### 技术栈
-
-| 层 | 选型 |
+| 文档 | 只负责 |
 |---|---|
-| 框架 | Next.js 16（App Router；`app/` 全量 `'use client'`，`layout.tsx` 负责字体 + Providers） |
-| 语言 / React | TypeScript 5 + React 19.2.4 |
-| 状态 | Zustand（`lib/store.ts`；localStorage 键 `zoufx-chat-sessions`，只持久化 `userId / anchors / currentAnchorId`） |
-| 样式 | Tailwind CSS v4 + @tailwindcss/typography；主题走 CSS 变量（`--bg` `--border` `--t1` `--t2` `--t3`），next-themes 切明暗 |
-| UI 原语 | @base-ui/react（headless）+ shadcn（构建期生成器）；图标 lucide-react |
-| 代码块 | shiki 高亮 + streaming-markdown 增量解析 |
-| 动画 | motion v12 |
-| 轻提示 | 自研 top-toast（`store.topToast` → `components/top-toast.tsx`；失败/停止时用） |
-| 数据 | 原生 fetch：`lib/api.ts`（REST）+ `lib/chat-stream.ts`（SSE）；Hot Memory 由 `useMemoryHot` 自管缓存 |
+| `AGENTS.md` | 规则、红线、工作原则 |
+| `PROJECTS.md` | 仓库地图、启动方式、**API/SSE 契约** |
+| `DESIGN.md` | 产品定位、情绪/对话/记忆的**为什么** |
+| `DATA-MODEL.md` | 表、字段、索引、写入路径 |
+| `TODO.md` | 做什么、优先级、验收 |
 
-### 目录
+实现细节（像素、时长、枚举值、模型名）以代码为准，文档不复述。
 
-```
-app/            page.tsx（渲染 AppLayout）/ layout.tsx / globals.css（主题 token + 动画）
-components/     layout.tsx 三段布局 = rail（左 56px）+ 主区（chat-window + presence-float[Eyes]）+ state-panel（右 280px）
-                message-item.tsx（memo：消息 / Markdown / 工具卡）/ lookback-modal / top-toast / providers
-                rail / memory-anchor-drawer / effort-picker / eyes / presence-float
-                state-panel.tsx + state-panel/{hot-memory,memory-anchors,events,commitments}.tsx
-                ui/ tooltip / textarea / stream-markdown（揭示引擎）
-lib/            store.ts / chat-stream.ts / pending-poll.ts / api.ts / features.ts / status-labels.ts /
-                utils.ts / flip.ts（FLIP 转场）/ parse-commitment.ts
-hooks/          use-chat-stream / use-smart-scroll / use-anchor-messages / use-ensure-anchor /
-                use-memory-hot / use-intimacy / use-context-detector / use-asleep-detector / use-presence
-```
+## 文档更新触发
 
-### 关键数据结构
+| 改动 | 更新 |
+|---|---|
+| SSE 事件 / REST 字段 | `PROJECTS.md` 契约段 |
+| 表 / 字段 / 索引 | `DATA-MODEL.md` |
+| 情绪语义 / 产品原则 | `DESIGN.md` |
+| 范围 / 优先级 | `TODO.md` |
+| 规则 / 红线 | `AGENTS.md` |
 
-- `Message`：role(user/assistant) + content + thinking + toolCalls + isStreaming + isError（+ `isPending` 表示「生成中」占位）
-- `ToolCall`：tool / toolDisplay / query + status(running·completed·failed) + count / resultPreview + expanded
-- `Anchor`：id + title + 创建时间；**messages 不内嵌**，切锚时按需拉取
-- `Store`：锚点元数据 + 消息 + UI/情绪态（+ prefill / pendingTurn / topToast）
+## 项目一句话
 
-### 运行
+Spring Boot 4.1 + LangChain4J 1.17 + WebFlux；SQLite 正本 + Qdrant 向量索引；双 LLM profile（`deepseek-v4` / `MiniMax-M3`）。情绪由独立分类器识别用户消息，映射为 `presence`；正文不携带情绪标记。
 
-```powershell
-pnpm dev                       # http://localhost:3000（工作目录 = E:\ZoufxDemo\ZoufxAIAgent-Web）
-pnpm build; pnpm start         # 生产
-# .env.local: NEXT_PUBLIC_API_URL=http://localhost:8080
-```
+## 硬约束
 
-### 与后端的契约（改一侧必须改另一侧）
-
-- `POST /ai/chat` 请求体：`{ prompt, anchorId, thinking: { enabled, effort }, userId }`；`anchorId` 为空时后端懒建锚点（前端不再传 `prevAnchorId`，锚点摘要由后端定时压缩）
-- SSE 事件顺序：`turn_started`（首帧 turnId）→ `anchor_created` → `presence` → `thinking` / `content`（默认事件）/ `tool_call` / `tool_result` / `error`
-  - `tool_call`：`{ tool, toolDisplay, query }`；`tool_result`：`{ tool, toolDisplay, count, resultPreview }`
-  - `presence`：`{ expression, intensity }`，一轮一次；独立 flash 分类器读用户消息后映射，前端按强度决定是否 spotlight（正文不再有情绪标记）
-- 停止：`POST /ai/chat/stop {turnId} → {stopped}`（**断连 ≠ 停止**）；在建轮查询：`GET /ai/anchors/{id}/pending`
-- 其余 REST：`/ai/anchors*`、`/ai/memory/hot`、`/ai/features`
-
-### 前端侧易踩的点
-
-- **消息不持久化**：localStorage 只存锚点元数据，切锚由 `useAnchorMessages` 拉窗口消息
-- **watchdog**：`reader.read()` 与 90s 定时器 race，超时**不当失败**（consumeStream 语义），改为标「生成中」+ 轮询 `loadMessages`；阈值须大于后端单次工具调用最坏阻塞 ~60s
-- **selector 必须返回稳定引用**：空锚点用模块级 `EMPTY_MESSAGES` 兜底，禁止在 selector 内合成新数组（会无限重渲染）
-- **组件流**：`AppLayout` → `Rail` / `MemoryAnchorDrawer` → `ChatWindow`（`useChatStream` + `PresenceFloat`）→ `MessageItem`（memo）→ `StatePanel` / `LookBackModal`；`Providers` 负责主题 + Zustand 水合 + 能力拉取（必须在客户端）
-- **扩展点**：新增工具类型改 `useStore` + `MessageItem`；新增 SSE 事件改 `chat-stream.ts` 的 `dispatchEvent()` + `use-chat-stream.ts`
-- 中文界面；工具调用内联渲染（展开/折叠 + 状态徽章）；Markdown 走 `stream-markdown`
-
-> 前端仓库根已无 `CLAUDE.md`（2026-10-21 删除）；原型与设计/交接文档收在前端仓库 `claudedesign/`，DSH 不自动加载，以本节为准。
-
-## LLM Profile 切换
-
-当前激活 profile 由 `ai.llm.profile.active` 决定，profile 名与模型官方命名一致（`deepseek-v4` / `MiniMax-M3`）。切换 profile = 改这一行 + 重启。每个模型版本独立 profile（`deepseek-v3` 与 `deepseek-v4` 视同不同厂商），独立 `@ConfigurationProperties` 命名空间（`ai.llm.deepseek-v4.*` / `ai.llm.minimax-m3.*`），由 `@ConditionalOnProperty` 路由对应 `XxxConfig`。
-
-### 模型 Bean 角色（按项目需求定义，跨 profile 统一命名）
-
-模型角色按项目业务需求定义（而非映射各厂商参数空间），每个 profile Config 负责把角色映射到自家实现。每 profile 装两个角色 Bean：
-
-| 角色 Bean | 用途 | deepseek-v4 | MiniMax-M3 |
-|---|---|---|---|
-| `streamingChatModel`（流式） | 对话主路 | 1 个，思考/快档由 per-call 参数切（pro+enabled+effort / flash+disabled） | 1 个，modelName 固定，思考/快档只切 per-call thinkingType（adaptive / disabled） |
-| `syncChatModel`（同步） | 情绪分类 + 摘要压缩 | flash + thinking disabled | model + thinking disabled |
-
-DeepSeek 两档模型 ID 由 `ai.llm.deepseek-v4.chat.thinking-model / fast-model` 配置（pro/flash 是真实不同的模型）；
-MiniMax 无模型分层，单一 `ai.llm.minimax-m3.chat.model` 配置（M3 官方另有 `M3-highspeed` 变体，
-是否支持 thinking 待验证后再评估是否引入分层）。
-
-**前端思考开关 → 后端路由：** ChatService 只依赖 `StreamingChatPort.stream(anchorId, prompt, thinking)`，profile 间的 per-call 能力差异被端口屏蔽。`AssistantFactory`（`chat/support`）从一个 `StreamingChatModel` 装一个 `ChatAssistant`（共享 ChatMemoryProvider + 动态 system prompt + 工具集），profile-agnostic 部分集中于此。两 profile 均为单模型 + 单 assistant，per-call 参数由各自端口现场拼装：
-
-- **DeepSeek（OpenAI 协议）**：`OpenAiChatRequestParameters` 覆盖 modelName + `reasoningEffort` + `thinking` 私有字段（经 `customParameters` 注入请求体根级）。effort 前端两档（标准/极致），映射到 API 值 high/max；官方当前支持 low/high/max（默认 high），low 未暴露。
-- **MiniMax（Anthropic 协议，LC4J 1.17+）**：`AnthropicChatRequestParameters` 原生覆盖 `thinkingType` + `thinkingBudgetTokens`；effort 对 Anthropic 协议无业务分档需求，`Features` 声明 unsupported。
-
-> 注意：所有模型 Bean 统一开 `returnThinking + sendThinking`——思考/快档共享会话记忆，上一轮思考档产出的 reasoning/thinking 内容必须在后续轮次（即使走快档）原样回传，否则 DeepSeek API 拒绝、MiniMax 工具调用行为异常。
-
-## 后端开发约束（WebFlux）
-
-- 接口签名随意写：返回 POJO/Map/`Mono`/`Flux` 都行，Spring 自动适配
-- **红线**：Controller/Service 里禁止直接调 JDBC、`RestTemplate`、`Thread.sleep`、同步文件 IO 等阻塞 API —— 会卡死 Netty event loop
-- 优先选反应式 SDK：HTTP 用 `WebClient`，DB 用 R2DBC
-- 例外：LC4J 的 `@Tool` 方法在框架自己的工具线程跑，不在 event loop，无需特殊处理
-
-### 同步/异步命名与 Mono 收口规范
-
-- **命名**：同步函数按作用命名（如 `compress` / `snapshot`），异步函数 = 同步函数名 + `Async`（如 `compressAsync` / `snapshotAsync`），异步函数内直接调用对应同步函数，消除重复代码
-- **Mono 包装收口**：`Mono.fromCallable / fromRunnable + subscribeOn` 不允许手写，统一走 `base/support/Blocking` 工具类（`Blocking.call` / `Blocking.run`），且只允许出现在两类位置：
-  1. store / 基础设施层的 `xxxAsync` 包装方法（仅在确有反应式调用方时才提供）
-  2. service 自包含阻塞流水线（顺序阻塞 IO + 提前退出，无并发/流式需求）的最外层包一次——先写纯同步私有方法，再在公开边界整体包装，不要在编排链路中段嵌套包装（回调地狱的根源）
-- **Controller 禁止构造 Mono 包装**：要么调 store/service 的 `xxxAsync`，要么逻辑下沉到 service
-
-## 已知瓶颈
-
-唯一阻塞点：`@Tool` 方法（`TavilySearchTool.search_web`）+ Tavily 同步 HTTP client。LC4J 1.x 的 `@Tool` 不支持 `Mono`/`Future` 返回值，是框架边界。最坏 Tavily 全失败时单次工具调用阻塞约 60s（timeout 20s × 3 次请求 = 首发 + `max-attempts: 2` 重试，另加 0.5s / 1s backoff）。低并发场景可接受，不修。
+- **WebFlux 红线**：Controller/Service 禁止 JDBC、`RestTemplate`、`Thread.sleep`、同步文件 IO；会卡死 event loop。
+- **Mono 收口**：`Mono.fromCallable/fromRunnable + subscribeOn` 不手写，统一走 `base/support/Blocking`；只允许在 store 的 `xxxAsync` 或 service 阻塞流水线最外层出现。Controller 不构造 Mono 包装。
+- **契约同步**：SSE/REST 改动必须前后端同改；契约以 `PROJECTS.md` 为准。
+- **LC4J 边界**：`@Tool` 在框架工具线程跑，不在 event loop；`ChatMemoryStore` 是同步契约，靠 write-back 缓冲。
 
 ## 注释原则
 
-- **写设计意图，不写版本变迁**：说明当前为什么这样设计（约束、取舍），删掉"v0.12 是 X，v0.13 改为 Y"等历史叙述
-- **两行说清类/方法的职责**，删掉"归属 xx 包"、"与 xx 对偶"等可从代码结构直接看出的说明
-- **保留**：非显而易见的约束（线程契约、编译期常量限制、fail-fast 不变量）、跨版本遗留问题（如 LC4J 未提供的接口）、seed 语义（已有不覆盖）；有意预留的列/字段在写入处标 `预留：<用途>`，与死代码区分（例：`chat_memory.user_id` 的写入处）
-- **删除**：版本号标注（`v0.xx`）、设计文档引用（`详见 xxx.md`）、选型论证（"为何不用枚举"但代码已自解释）、迁移路径（"从 X 迁到 Y"）
-- yml 配置同理——大段 prompt 文案默认值进 Java `@ConfigurationProperties` 字段初始化，yml 只留阈值/开关/环境变量
-- yml 与 `@ConfigurationProperties` 必须保持一一对应：yml 删掉的字段，Props 类里同步删掉，常量内联到调用处；不在 yml 里出现的值不应出现在 Props 类里
+- 写设计意图，不写版本变迁；两行说清类/方法职责，删掉结构性描述。
+- 保留非显而易见约束（线程契约、编译期常量、fail-fast、seed 语义）；预留列标 `预留：<用途>`。
+- 删除版本号、`详见 xxx.md`、选型论证、迁移路径。
+- yml 与 `@ConfigurationProperties` 一一对应；文案默认值放 Java 字段，yml 只留阈值/开关/环境变量。
 
-## 代码质量与迭代
+## 代码质量
 
-写新代码、改旧代码都适用；这几条针对迭代项目最容易滋生的别扭代码：
-
-- **改功能时回看相邻/上游代码**：新功能常让某段旧写法过时——参数变得可从已有状态推导、触发时机可前移、DTO 变冗余。发现了要么一并改对，要么明确列出来给用户，别放着烂（迭代腐化的主因）。
-- **设计有异味先解决根因，不用变通拖债**：类放错包、参数多余、抽象名不副实这类，一个错误归属会连锁生更多别扭代码（内部成员被迫 public、循环依赖、参数透传只为喂一个判断）。先把归属/职责摆正再往下写，不要用「先放这、以后再说」把债往后拖。
-- **抽函数 / 加结构 ≠ 优雅**：只有真正降低阅读成本才抽；2~3 行的纯委托小方法多是负优化。动手前先问「这样读起来更清楚吗」，答案不明确就不抽。
-- **跨层 / 跨仓库改动先想清终态**：改事件名/契约、挪包、删类这类波及面大的改动，先把最终形态和影响范围想全再动，避免零敲碎打、来回打补丁。
-- **加字段 / 参数先问必要性**：它是否必要？能否从已有状态推导（如 `anchor_memory.last_active_at` 已能定位上一锚点，就不必让前端传 `prevAnchorId`）？能推导的就不新增。
+- 改功能时回看相邻/上游代码，发现过时写法一并改或明确列出。
+- 设计有异味先解决根因（归属、职责、多余参数），不用变通拖债。
+- 抽函数/加结构 ≠ 优雅：只有降低阅读成本才抽。
+- 跨层/跨仓库改动先想清终态和影响面。
+- 加字段/参数先问必要性：能从已有状态推导就不新增。
 
 ## 工作原则
 
-- 目标不清晰时停下来讨论，不做假设
-- 临时文件按需清理，用户主动要求时执行
-- 新功能完成后执行 `/test` 自测
-- 测试需要起服务时（Docker/Qdrant、后端 `mvn spring-boot:run`、前端 `pnpm dev`），直接启动，无需申请——即便后端会真实调用 LLM 烧 token
-- 版本号变更时，`pom.xml` 的 `<version>` 必须同步更新（格式 `major.minor.patch-SNAPSHOT`，如 v0.12 → `0.12.0-SNAPSHOT`）
-- `git commit` / `git push` / 创建 PR 等写操作绝不主动执行，等用户明确发命令再做（只读命令如 `git status` / `git diff` 不受限）
+- 目标不清晰时停下来讨论，不做假设。
+- 临时文件按需清理，用户要求时执行。
+- 新功能完成后执行 `/test`。
+- 测试需要起服务时（Docker/Qdrant、`mvn spring-boot:run`、`pnpm dev`）直接启动，无需申请。
+- 版本号变更时同步 `pom.xml`（`major.minor.patch-SNAPSHOT`）。
+- `git commit` / `push` / PR 等写操作等用户明确下令；只读 git 不受限。
