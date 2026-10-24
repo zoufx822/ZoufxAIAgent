@@ -43,7 +43,7 @@ pnpm dev        # http://localhost:3000
 
 ```json
 { "prompt": "...", "anchorId": "uuid|null",
-  "thinking": { "enabled": true, "effort": "normal|max" },
+  "thinking": { "enabled": true, "effort": "low|normal|max" },
   "userId": "..." }
 ```
 
