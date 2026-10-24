@@ -231,6 +231,7 @@ public class ChatService {
     private Flux<ChatEvent> buildStream(Thinking thinking, Turn turn) {
         // replay().all()：客户端视图是 controller 返回后才订阅（晚一步），靠回放拿到下面先发的开头帧
         Sinks.Many<ChatEvent> sink = Sinks.many().replay().all();
+        turn.setViewCompletion(sink::tryEmitComplete);
         sink.tryEmitNext(new ChatEvent("turn_started", turn.turnId));
         if (turn.newAnchor) sink.tryEmitNext(new ChatEvent("anchor_created", turn.anchorId));
         sink.tryEmitNext(new ChatEvent("presence", presencePayload(turn.presence)));
@@ -380,6 +381,7 @@ public class ChatService {
         if (t == null || !t.claim()) return new StopResult(false);
         log.info("Turn stopped [turnId={}, anchorId={}]", turnId, t.anchorId());
         t.abort();
+        t.completeView();
         return new StopResult(true);
     }
 

@@ -17,4 +17,7 @@ public interface TurnHandle {
 
     /** 停止本轮：掐断上游 LC4J 流 + dispose 后端订阅（后者触发管道 doFinally 清理）。 */
     void abort();
+
+    /** 停止后关闭客户端 SSE 视图，避免连接一直挂着。 */
+    void completeView();
 }

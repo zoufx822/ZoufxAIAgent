@@ -50,6 +50,8 @@ public final class Turn implements TurnHandle {
     private final AtomicBoolean claimed = new AtomicBoolean(false);
     /** 后端自持订阅句柄，stop 时 dispose 触发管道 doFinally 清理。 */
     private volatile @Nullable Disposable backendSub;
+    /** 停止时关闭客户端 SSE 视图（由 buildStream 注入，避免 Turn 依赖 Sinks）。 */
+    private volatile @Nullable Runnable viewCompletion;
     /** assistant 全文（LLM 主流写，无并发）。 */
     @Builder.Default
     private final StringBuilder assistant = new StringBuilder();
@@ -77,6 +79,10 @@ public final class Turn implements TurnHandle {
         this.backendSub = sub;
     }
 
+    public void setViewCompletion(Runnable completion) {
+        this.viewCompletion = completion;
+    }
+
     @Override
     public boolean claim() {
         return claimed.compareAndSet(false, true);
@@ -93,6 +99,12 @@ public final class Turn implements TurnHandle {
         if (h != null && !h.isCancelled()) h.cancel();
         Disposable d = backendSub;
         if (d != null && !d.isDisposed()) d.dispose();
+    }
+
+    @Override
+    public void completeView() {
+        Runnable r = viewCompletion;
+        if (r != null) r.run();
     }
 
     /** doOnNext：累积 assistant 全文（只收 content 事件）。 */
