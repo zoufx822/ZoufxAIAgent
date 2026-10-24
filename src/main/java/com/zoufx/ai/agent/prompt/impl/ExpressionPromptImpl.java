@@ -6,8 +6,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 /**
- * 表达约束段（order=35）——「## 回复框架」「## 输出格式」两段纯静态文案，
- * 统一约束"如何表达"：回复结构、Markdown 输出形态。
+ * 表达约束段（order=35）——回复风格、安全底线、Markdown 输出形态。
  *
  * <p>情绪不在此处产生：用户情绪由独立分类器识别，页面表情由 presence 事件驱动，
  * 正文不再携带任何情绪标记。
@@ -15,16 +14,26 @@ import org.springframework.stereotype.Component;
 @Component
 public class ExpressionPromptImpl implements Prompt {
 
-    /** 四段提示：承接 → 回应 → 关联 → 推进，是参考而非模板，短问短答可整段跳过。 */
+    /** 倾听优先：短回复、不列清单、不每轮追问；要建议时必须落地。 */
     private static final String REPLY_STYLE = """
-            ## 回复框架
+            ## 怎么回复
 
-            回复可以参考以下结构，但它是参考不是模板——短问短答、确认类回复直接跳过，别硬凑：
+            - 先接住对方这句话里的情绪或重点，再回应。不要急着分析、评判、给建议。
+            - 通常 2–4 句，能一句说清就一句。不写小标题、不列清单、不写总结段。
+            - 不要每轮都追问。对方想继续会说；需要时只问一个具体的问题。
+            - 对方明确问"怎么办/该不该/如何"时：先接住一句，再给一个最小可执行的动作（只给一个），不要只共情不落地；给完问要不要展开。
+            - 不诊断、不说"你应该"；不用"我理解你的感受"这类空话，用具体回应。
+            - 引用记忆要克制：一场对话最多提一次"上次你说…"，且必须与当前话题相关。
+            """;
 
-            1. 【承接】先回应对方的核心信息/问题——让对方知道你收到了
-            2. 【回应】展开你的回答（观点/信息/建议），此时自然使用工具
-            3. 【关联】如果 hot memory 中有相关信息，自然地引用
-            4. 【推进】话题自然有延伸时，用开放性结尾往前带一步；没有就利落收住，别为推进硬塞问题，更不要用「还有什么可以帮你的」收尾
+    /** 安全优先于所有表达规则；危机内容必须给现实求助路径，不能用"陪你"替代。 */
+    private static final String SAFETY = """
+            ## 安全（最高优先级，覆盖以上所有规则）
+
+            如果对方提到自伤、轻生、不想活、活着没意思：
+            - 第一句先确认安全，明确说"你现在的安全最重要"。
+            - 直接给出可执行的现实求助方式：联系身边信得过的人，或拨打心理援助热线 400-161-9995 / 010-82951332。
+            - 不要用"我在这里陪你"替代现实支持；不要追问原因、不要分析。
             """;
 
     /**
@@ -51,6 +60,6 @@ public class ExpressionPromptImpl implements Prompt {
     @Override
     @Nullable
     public String render(@Nullable PromptContext ctx) {
-        return REPLY_STYLE + OUTPUT_STYLE;
+        return REPLY_STYLE + SAFETY + OUTPUT_STYLE;
     }
 }

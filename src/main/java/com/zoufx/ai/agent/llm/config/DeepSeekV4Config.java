@@ -47,15 +47,17 @@ public class DeepSeekV4Config {
     private final DeepSeekV4Props props;
 
     /**
-     * 前端档位值。官方当前支持 low/high/max 三档（默认 high）；项目按业务只区分
-     * 标准/极致两档，low 不暴露。映射见 {@link #apiEffort}。
+     * 前端档位值。官方支持 low/high/max 三档，项目暴露为：
+     * 轻量(low) / 标准(high) / 极致(max)。映射见 {@link #apiEffort}。
      */
+    private static final String EFFORT_LOW = "low";
     private static final String EFFORT_NORMAL = "normal";
     private static final String EFFORT_MAX = "max";
     /** 前端默认选档（thinking 开启但未指定时也回落到它）。 */
     private static final String EFFORT_DEFAULT = EFFORT_NORMAL;
-    /** 两档（value=前端档位值，label=前端文案）。 */
+    /** 三档（value=前端档位值，label=前端文案）。 */
     private static final List<Features.EffortOption> EFFORT_OPTIONS = List.of(
+            new Features.EffortOption(EFFORT_LOW, "轻量"),
             new Features.EffortOption(EFFORT_NORMAL, "标准"),
             new Features.EffortOption(EFFORT_MAX, "极致"));
 
@@ -106,9 +108,13 @@ public class DeepSeekV4Config {
                 .build();
     }
 
-    /** 前端档位 → API 值：normal→high（官方默认档，显式钉死防上游默认漂移），max→max。 */
+    /** 前端档位 → API 值：轻量→low，标准→high（显式钉死默认档），极致→max。 */
     private static String apiEffort(String effort) {
-        return EFFORT_NORMAL.equals(effort) ? "high" : EFFORT_MAX;
+        return switch (effort) {
+            case EFFORT_LOW -> "low";
+            case EFFORT_MAX -> "max";
+            default -> "high";
+        };
     }
 
     /** 校验 effort 是否在支持档位内；非法/为空回落默认档。 */

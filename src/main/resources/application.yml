@@ -67,7 +67,7 @@ ai:
       chat:
         thinking-model: deepseek-v4-pro
         fast-model: deepseek-flash
-        max-tokens: 2048
+        max-tokens: 8192
 
     minimax-m3:
       base-url: https://api.minimaxi.com/anthropic/v1
