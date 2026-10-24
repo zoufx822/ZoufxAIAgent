@@ -110,6 +110,6 @@ public final class Turn implements TurnHandle {
 
     /** 本轮最后要显示的表情词（无 presence 时 null）——写 anchor_memory.last_expression。 */
     public @Nullable String lastExpression() {
-        return presence == null ? null : presence.expression();
+        return presence == null ? null : presence.expression().label();
     }
 }

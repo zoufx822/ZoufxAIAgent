@@ -1,6 +1,7 @@
 package com.zoufx.ai.agent.memory.service;
 
 import com.zoufx.ai.agent.affect.model.Affect;
+import com.zoufx.ai.agent.affect.model.Emotion;
 import com.zoufx.ai.agent.memory.api.RelationStateDao;
 import com.zoufx.ai.agent.memory.model.RelationState;
 import lombok.RequiredArgsConstructor;
@@ -38,16 +39,16 @@ public class RelationStateService {
     }
 
     private static boolean isVulnerable(Affect affect) {
-        return "难过".equals(affect.emotion()) || "愤怒".equals(affect.emotion());
+        return affect.emotion() == Emotion.SAD || affect.emotion() == Emotion.ANGRY;
     }
 
-    private static double valence(String emotion) {
+    private static double valence(Emotion emotion) {
         return switch (emotion) {
-            case "愉快" -> 1.0;
-            case "好奇" -> 0.3;
-            case "困惑" -> -0.2;
-            case "难过" -> -0.6;
-            case "愤怒" -> -0.8;
+            case HAPPY -> 1.0;
+            case CURIOUS -> 0.3;
+            case CONFUSED -> -0.2;
+            case SAD -> -0.6;
+            case ANGRY -> -0.8;
             default -> 0.0;
         };
     }

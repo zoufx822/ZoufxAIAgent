@@ -336,7 +336,7 @@ public class ChatService {
             return;
         }
         String lastExpression = turn.lastExpression();
-        String userEmotion = turn.affect == null ? null : turn.affect.emotion();
+        String userEmotion = turn.affect == null ? null : turn.affect.emotion().label();
         Integer userIntensity = turn.affect == null ? null : turn.affect.intensity();
         boolean hasContent = turn.hasContent();
         String assistantText = turn.assistantText();
@@ -434,7 +434,7 @@ public class ChatService {
 
     /** presence 事件 payload——expression 由后端限定为 6 词，仍做一次转义兜底。 */
     private static String presencePayload(Presence presence) {
-        return "{\"expression\":\"" + JsonStrings.escape(presence.expression())
+        return "{\"expression\":\"" + JsonStrings.escape(presence.expression().label())
                 + "\",\"intensity\":" + presence.intensity() + "}";
     }
 
