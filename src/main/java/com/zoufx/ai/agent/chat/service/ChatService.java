@@ -233,7 +233,7 @@ public class ChatService {
         Sinks.Many<ChatEvent> sink = Sinks.many().replay().all();
         sink.tryEmitNext(new ChatEvent("turn_started", turn.turnId));
         if (turn.newAnchor) sink.tryEmitNext(new ChatEvent("anchor_created", turn.anchorId));
-        if (turn.presence != null) sink.tryEmitNext(new ChatEvent("presence", presencePayload(turn.presence)));
+        sink.tryEmitNext(new ChatEvent("presence", presencePayload(turn.presence)));
 
         // 后端自持订阅：驱动生成、把事件转进 sink——与客户端在不在无关（turn 已在 prepare 阶段登记注册表）
         turn.setBackendSub(buildGenerationFlux(thinking, turn).subscribe(

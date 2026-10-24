@@ -11,8 +11,8 @@ import org.jspecify.annotations.Nullable;
 public record Presence(String expression, int intensity) {
 
     /**
-     * 每轮都返回一个状态：中性/低强度也返回「平静」，避免上一轮的表情一直挂着。
-     * 视觉是否放大由前端按 intensity 决定（<3 只更新 dock，不 spotlight）。
+     * 每轮都返回一个非 null 状态：中性/低强度也返回「平静」，避免上一轮的表情一直挂着。
+     * 视觉是否放大由前端按 intensity 决定（&lt;3 只更新 dock，不 spotlight）。
      */
     public static Presence from(@Nullable Affect affect) {
         if (affect == null) return new Presence("平静", 1);

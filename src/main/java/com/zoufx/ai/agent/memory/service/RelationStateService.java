@@ -43,7 +43,7 @@ public class RelationStateService {
 
     private static double valence(String emotion) {
         return switch (emotion) {
-            case "愉快", "兴奋" -> 1.0;
+            case "愉快" -> 1.0;
             case "好奇" -> 0.3;
             case "困惑" -> -0.2;
             case "难过" -> -0.6;
